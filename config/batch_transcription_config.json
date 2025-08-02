@@ -1,0 +1,12 @@
+{
+  "model": "ivrit-ai/whisper-large-v3-turbo-ct2",
+  "engine": "faster-whisper",
+  "speaker_config": "conversation",
+  "timeout": 3600,
+  "delay_between_files": 10,
+  "input_dir": "examples/audio/voice",
+  "output_dir": "output",
+  "docker_image": "whisper-runpod-serverless:latest",
+  "verbose": true,
+  "dry_run": false
+} 

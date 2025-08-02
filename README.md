@@ -1,29 +1,73 @@
-# runpod-serverless
+# Voice-to-Text Transcription Service
 
-[![RunPod](https://api.runpod.io/badge/ivrit-ai/runpod-serverless)](https://www.runpod.io/console/hub/ivrit-ai/runpod-serverless)
+A comprehensive voice-to-text transcription service with support for Hebrew audio processing, speaker diarization, and multiple output formats. This project provides both local and cloud-based transcription capabilities using state-of-the-art AI models.
 
-A template for quickly deploying an ivrit.ai Speech-to-text API.
+## 🎯 Features
 
-Note: if you register at [runpod.io](https://runpod.io), we'd like to ask you to consider using our [referral link](https://runpod.io/?ref=06octndf).
-It provides us with credits, which we can then use to provide better services.
+- **Multi-Engine Support**: Faster-Whisper and Stable-Whisper engines
+- **Speaker Diarization**: Automatic speaker identification and separation
+- **Multiple Output Formats**: JSON, TXT, and Word Document outputs
+- **Batch Processing**: Process multiple audio files efficiently
+- **Local & Cloud Deployment**: Run locally or deploy to RunPod
+- **Configurable Settings**: Environment-based configuration management
+- **Hebrew Language Support**: Optimized for Hebrew audio transcription
 
-## Description
+## 🚀 Quick Start
 
-This project provides a serverless solution for transcribing Hebrew audio files. It leverages runpod.io's infrastructure to process audio files efficiently and return transcriptions.
-It is part of the [ivrit.ai](https://ivrit.ai) non-profit project.
+### Prerequisites
+- Python 3.9+
+- Docker (for containerized deployment)
+- Audio files in supported formats (WAV, MP3, M4A, FLAC, OGG, AAC)
 
-## API: easy deployment through the Runpod hub
+### Installation
 
-If you simply want to use our models via an API, quick deploy is avaialble via the RunPod hub.
+1. **Clone the repository:**
+```bash
+git clone https://github.com/galak06/voice_to_text_ivrit.git
+cd voice_to_text_ivrit
+```
 
-1. Open this template on the hub by clicking [here](https://www.runpod.io/console/hub/ivrit-ai/runpod-serverless).
-2. Click the "Deploy" button and create the endpoint.
-3. Follow the instructions under the [Usage](#usage) section.
+2. **Install dependencies:**
+```bash
+pip install -r requirements.txt
+```
 
-## Project Structure
+3. **Set up configuration:**
+```bash
+# Copy environment template
+cp config/templates/env_template.txt .env
+
+# Edit .env with your settings
+nano .env
+```
+
+### Basic Usage
+
+**Local Transcription:**
+```bash
+# Transcribe a single audio file
+python main.py --local examples/audio/voice/audio.wav
+
+# With speaker diarization
+python main.py --local examples/audio/voice/audio.wav --speaker-config conversation
+
+# With specific model
+python main.py --local examples/audio/voice/audio.wav --model ivrit-ai/whisper-large-v3-turbo-ct2
+```
+
+**Batch Processing:**
+```bash
+# Process all audio files in the voice directory
+python main.py --batch-local
+
+# Process with specific settings
+python main.py --batch-local --model ivrit-ai/whisper-large-v3-turbo-ct2 --speaker-config conversation
+```
+
+## 📁 Project Structure
 
 ```
-voic_to_text_docker/
+voice_to_text_ivrit/
 ├── main.py                           # 🎯 Unified entry point
 ├── infer.py                          # RunPod serverless handler
 ├── src/                              # 📦 Source code
@@ -31,23 +75,24 @@ voic_to_text_docker/
 │   │   ├── transcription_service.py  # Main transcription service
 │   │   ├── audio_file_processor.py   # Audio file processing
 │   │   ├── job_validator.py          # Input validation
-│   │   └── speaker_diarization.py # Local transcription with speaker diarization
+│   │   ├── speaker_diarization.py    # Speaker diarization service
+│   │   └── speaker_transcription_service.py # Speaker transcription logic
 │   ├── engines/                      # Transcription engines
 │   │   ├── transcription_engine.py   # Engine protocol & implementations
 │   │   └── transcription_engine_factory.py # Engine factory
 │   ├── utils/                        # Utilities
-│   │   ├── config.py                 # Configuration management
+│   │   ├── config_manager.py         # Configuration management
+│   │   ├── output_manager.py         # Output file management
 │   │   └── file_downloader.py        # File download functionality
 │   ├── clients/                      # Client implementations
 │   │   ├── send_audio.py             # RunPod client
 │   │   └── infer_client.py           # Inference client
 │   └── tests/                        # Testing
-│       ├── test_setup.py             # Setup tests
-│       └── test_input.json           # Test data
+│       └── test_setup.py             # Setup tests
 ├── scripts/                          # 🛠️ Scripts
-│   ├── quick_start.py                # Interactive quick start
+│   ├── manage_outputs.py             # Output management
 │   ├── setup.sh                      # Setup script
-│   └── setup_env.sh                  # Environment setup
+│   └── verify_batch_processing.py    # Batch processing verification
 ├── config/                           # ⚙️ Configuration directory
 │   ├── environments/                 # Environment configurations
 │   │   ├── base.json                # Base configuration
@@ -62,105 +107,51 @@ voic_to_text_docker/
 │   ├── MODULAR_STRUCTURE.md          # Modular structure guide
 │   ├── DEPRECATED.md                 # Migration guide
 │   └── DEVELOPMENT.md                # Development guide
+├── tests/                            # 🧪 Test suite
+│   ├── unit/                         # Unit tests
+│   ├── integration/                  # Integration tests
+│   ├── e2e/                          # End-to-end tests
+│   └── run_tests.py                  # Test runner
 ├── examples/                         # 📁 Examples
 │   ├── audio/                        # Audio files
 │   │   └── voice/                    # Voice samples
 │   └── output/                       # Output examples
-│       └── rachel_1_transcription.txt
+├── output/                           # 📄 Generated outputs
+│   ├── transcriptions/               # Transcription results
+│   ├── logs/                         # Application logs
+│   └── temp/                         # Temporary files
 ├── Dockerfile                        # 🐳 Docker configuration
+├── Dockerfile.dev                    # Development Docker configuration
 └── requirements.txt                  # 📦 Python dependencies
 ```
 
-## Setting up your inference endpoint
+## 🎤 Usage Modes
 
-1. Log in to [runpod.io]
-2. Choose Menu->Serverless
-3. Choose New Endpoint
-4. Select the desired worker configuration.
-   - You can choose the cheapest worker (16GB GPU, $0.00016/second as of August 1st, 2024).
-   - Active workers can be 0, max workers is 1 or more.
-   - GPUs/worker should be set to 1.
-   - Container image should be set to **yairlifshitz/whisper-runpod-serverless:latest**, or your own Docker image (instruction later on how to build this).
-   - Container disk should have at least 20 GB.
-5. Click Deploy.
-
-## Building your own Docker image
-
-1. Clone this repository:
-
-```
-git clone https://github.com/ivrit-ai/runpod-serverless.git
-cd runpod-serverless
-```
-
-2. Build the Docker image:
-
-```
-docker build -t whisper-runpod-serverless .
-```
-
-3. Push the image to a public Docker repository:
-
-a. If you haven't already, create an account on [Docker Hub](https://hub.docker.com/).
-
-b. Log in to Docker Hub from your command line:
-   ```
-   docker login
-   ```
-
-c. Tag your image with your Docker Hub username:
-   ```
-   docker tag whisper-runpod-serverless yourusername/whisper-runpod-serverless:latest
-   ```
-
-d. Push the image to Docker Hub:
-   ```
-   docker push yourusername/whisper-runpod-serverless:latest
-   ```
-
-4. Set up a serverless function on runpod.io using the pushed image.
-
-## Quick Start
-
-For an interactive experience, run the quick start script:
+### Local Transcription
+Run transcription locally on your machine:
 ```bash
-python quick_start.py
-```
-
-This will guide you through the available options and help you get started quickly.
-
-## Usage
-
-The service supports multiple execution modes through a unified `main.py` interface:
-
-### 🎤 Local Transcription
-Run transcription locally on your machine (creates JSON, TXT, DOCX):
-```bash
-# Basic local transcription
+# Basic transcription
 python main.py --local examples/audio/voice/audio.wav
+
+# With speaker diarization
+python main.py --local examples/audio/voice/audio.wav --speaker-config conversation
 
 # With specific model and engine
 python main.py --local examples/audio/voice/audio.wav --model ivrit-ai/whisper-large-v3-turbo-ct2 --engine faster-whisper
-
-# With speaker diarization configuration
-python main.py --local examples/audio/voice/audio.wav --speaker-config conversation
-python main.py --local examples/audio/voice/audio.wav --speaker-config interview
-python main.py --local examples/audio/voice/audio.wav --speaker-config custom
 ```
 
-### ☁️ RunPod Transcription
-Run transcription via RunPod endpoint (creates JSON, TXT, DOCX):
+### Cloud Transcription (RunPod)
+Run transcription via RunPod endpoint:
 ```bash
 # Basic RunPod transcription
 python main.py --runpod examples/audio/voice/audio.wav
 
-# With specific model and engine
-python main.py --runpod examples/audio/voice/audio.wav --model ivrit-ai/whisper-large-v3-turbo-ct2 --engine stable-whisper
+# With specific settings
+python main.py --runpod examples/audio/voice/audio.wav --model ivrit-ai/whisper-large-v3-turbo-ct2
 ```
 
-### 📦 Batch Processing
-Process all voice files in the `examples/audio/voice/` directory:
-
+### Batch Processing
+Process all voice files in a directory:
 ```bash
 # Process all files locally
 python main.py --batch-local
@@ -168,53 +159,140 @@ python main.py --batch-local
 # Process all files via RunPod
 python main.py --batch-runpod
 
-# With specific model and engine
-python main.py --batch-local --model ivrit-ai/whisper-large-v3-turbo-ct2 --engine faster-whisper
-
-# With speaker diarization
-python main.py --batch-local --speaker-config conversation
+# With custom settings
+python main.py --batch-local --model ivrit-ai/whisper-large-v3-turbo-ct2 --speaker-config conversation
 
 # Custom voice directory
 python main.py --batch-local --voice-dir /path/to/voice/files
-
-# Without saving outputs (for testing)
-python main.py --batch-local --no-save
 ```
 
-**Batch Processing Features:**
-- ✅ **Automatic file discovery** - Finds all supported audio formats (.wav, .mp3, .m4a, .flac, .ogg, .aac)
-- ✅ **Individual processing** - Each file is processed separately with its own output folder
-- ✅ **Progress tracking** - Shows current file and overall progress
-- ✅ **Error handling** - Continues processing other files if one fails
-- ✅ **Summary report** - Shows success/failure counts and lists failed files
-- ✅ **All output formats** - Creates JSON, TXT, and DOCX for each file
-
-### 🚀 Serverless Handler (Docker)
+### Serverless Handler
 Run as RunPod serverless handler:
 ```bash
 python main.py --serverless
 ```
 
-### 🧪 Test Setup
-Test your installation and configuration:
-```bash
-python main.py --test
+## 📄 Output Formats
+
+Every transcription automatically generates three output formats:
+
+1. **JSON** (`.json`) - Complete transcription data with metadata, timestamps, and speaker information
+2. **Text** (`.txt`) - Plain text transcription for easy reading
+3. **Word Document** (`.docx`) - Formatted document organized by speakers
+
+### Output Structure
+```
+output/transcriptions/
+├── run_YYYYMMDD_HHMMSS/                    # Run session folder
+│   ├── YYYYMMDD_HHMMSS_audiofile1/         # Individual audio file results
+│   │   ├── transcription_model_engine.json
+│   │   ├── transcription_model_engine.txt
+│   │   └── transcription_model_engine.docx
+│   └── YYYYMMDD_HHMMSS_audiofile2/         # Individual audio file results
+│       ├── transcription_model_engine.json
+│       ├── transcription_model_engine.txt
+│       └── transcription_model_engine.docx
 ```
 
-### ⚙️ Show Configuration
-Display current configuration:
+### Word Document Features
+- **Conversation Format**: Clean, readable conversation layout
+- **Speaker Organization**: Text grouped by speaker with bold speaker names
+- **Combined Text**: All segments from each speaker combined for natural flow
+- **No Technical Details**: Removed segment timestamps for clean reading
+
+## 👥 Speaker Diarization
+
+The service includes configurable speaker diarization with preset configurations:
+
+### Available Presets
+- **`default`** - Balanced configuration for most scenarios
+- **`conversation`** - Sensitive to quick speaker changes, ideal for casual conversations
+- **`interview`** - Allows for thinking pauses, optimized for formal interviews
+- **`custom`** - Fast processing with moderate accuracy
+
+### Usage
+```bash
+# Use conversation preset
+python main.py --local audio.wav --speaker-config conversation
+
+# Use interview preset
+python main.py --local audio.wav --speaker-config interview
+```
+
+## ⚙️ Configuration
+
+The project uses a hierarchical configuration system:
+
+### Environment Configuration
+- **Base Configuration**: `config/environments/base.json`
+- **Development**: `config/environments/development.json`
+- **Production**: `config/environments/production.json`
+
+### Environment Variables
+Set these in your `.env` file:
+```bash
+# RunPod Configuration
+RUNPOD_API_KEY=your_runpod_api_key_here
+RUNPOD_ENDPOINT_ID=your_endpoint_id_here
+
+# Model Configuration
+DEFAULT_MODEL=ivrit-ai/whisper-large-v3-turbo-ct2
+FALLBACK_MODEL=ivrit-ai/whisper-large-v3-ct2
+
+# Transcription Settings
+DEFAULT_ENGINE=faster-whisper
+MAX_PAYLOAD_SIZE=250000000
+STREAMING_ENABLED=true
+
+# System Settings
+DEBUG=false
+DEV_MODE=false
+LOG_LEVEL=INFO
+```
+
+### Show Configuration
 ```bash
 python main.py --config
 ```
 
-### 👥 Speaker Configuration Presets
-View available speaker diarization configurations:
+## 🐳 Docker Deployment
+
+### Build Docker Image
 ```bash
-python main.py --speaker-presets
+docker build -t voice-to-text-service .
 ```
 
-### 📁 Output Management
-Manage transcription outputs and logs:
+### Run with Docker
+```bash
+# Run transcription in container
+docker run --rm -v $(pwd)/examples/audio/voice:/app/voice -v $(pwd)/output:/app/output voice-to-text-service python main.py --local /app/voice/audio.wav
+
+# Run serverless handler
+docker run --rm -p 8000:8000 voice-to-text-service python main.py --serverless
+```
+
+## 🧪 Testing
+
+### Run Tests
+```bash
+# Run all tests
+python tests/run_tests.py
+
+# Run specific test categories
+python -m pytest tests/unit/
+python -m pytest tests/integration/
+python -m pytest tests/e2e/
+```
+
+### Test Setup
+```bash
+# Test configuration and setup
+python main.py --test
+```
+
+## 📊 Output Management
+
+### Manage Outputs
 ```bash
 # Show output statistics
 python scripts/manage_outputs.py --stats
@@ -229,120 +307,51 @@ python scripts/manage_outputs.py --cleanup
 python scripts/manage_outputs.py --logs
 ```
 
-### 💾 Output Options
-Control output saving:
-```bash
-# Save outputs (default)
-python main.py --local examples/audio/voice/audio.wav
+## 🔧 Development
 
-# Don't save outputs
-python main.py --local examples/audio/voice/audio.wav --no-save
-```
+### Project Architecture
+The project follows SOLID principles and uses several design patterns:
 
-### 📄 Output Formats
-**Every voice-to-text transcription automatically creates all three formats:**
+- **Single Responsibility Principle**: Each class has a single, well-defined purpose
+- **Open/Closed Principle**: New engines can be added without modifying existing code
+- **Dependency Inversion**: High-level modules depend on abstractions
+- **Factory Pattern**: Engine creation is handled by factories
+- **Strategy Pattern**: Different transcription engines can be swapped
 
-1. **JSON** (`.json`) - Complete transcription data with metadata
-2. **Text** (`.txt`) - Plain text transcription for easy reading
-3. **Word Document** (`.docx`) - Formatted document organized by speakers with detailed segment information
+### Adding New Features
+1. Follow the existing modular structure
+2. Add appropriate tests in the `tests/` directory
+3. Update configuration if needed
+4. Document changes in relevant files
 
-**Output Structure:**
-```
-output/transcriptions/
-├── run_YYYYMMDD_HHMMSS/                    # Run session folder
-│   ├── YYYYMMDD_HHMMSS_audiofile1/         # Individual audio file results
-│   │   ├── transcription_model_engine.json
-│   │   ├── transcription_model_engine.txt
-│   │   └── transcription_model_engine.docx
-│   └── YYYYMMDD_HHMMSS_audiofile2/         # Individual audio file results
-│       ├── transcription_model_engine.json
-│       ├── transcription_model_engine.txt
-│       └── transcription_model_engine.docx
-└── run_YYYYMMDD_HHMMSS_2/                  # Another run session
-    └── ...
-```
-
-**Batch Processing:** All files from a single batch run are organized under one parent folder (`run_YYYYMMDD_HHMMSS/`).
-
-**Word Document Structure:**
-- **Metadata Section**: Audio file, model, engine, and timestamp information
-- **Conversation Transcript**: Clean, readable conversation format
-- **Speaker Format**: "Speaker: text" with bold speaker names
-- **Combined Text**: All segments from each speaker combined for natural flow
-- **No Technical Details**: Removed segment timestamps and word-level tables for clean reading
-
-**Supported Transcription Methods:**
-- ✅ **Local transcription** (`--local`) - Creates all formats
-- ✅ **RunPod transcription** (`--runpod`) - Creates all formats
-- ✅ **Batch local processing** (`--batch-local`) - Processes all voice files locally
-- ✅ **Batch RunPod processing** (`--batch-runpod`) - Processes all voice files via RunPod  
-- ✅ **Speaker diarization** - Creates all formats with speaker labels
-- ✅ **Serverless handler** - Creates all formats
-
-**Note**: Word document generation requires `python-docx` package, which is included in the requirements.
-
-### 👥 Speaker Diarization Service
-
-The system includes a configurable speaker diarization service with preset configurations:
-
-#### **Available Presets:**
-- **`default`** - Balanced configuration for most scenarios
-- **`conversation`** - Sensitive to quick speaker changes, good for casual conversations
-- **`interview`** - Allows for thinking pauses, optimized for formal interviews
-- **`custom`** - Fast processing with moderate accuracy
-
-#### **Configuration Parameters:**
-- **`silence_threshold`** - Time gap to detect speaker change (1.0-2.5s)
-- **`beam_size`** - Higher = more accurate but slower (3-7)
-- **`min_speakers/max_speakers`** - Speaker count constraints
-- **`vad_min_silence_duration_ms`** - Voice activity detection sensitivity
-
-#### **Usage Examples:**
-```python
-from src.core.speaker_transcription_service import SpeakerTranscriptionService
-from src.core.speaker_config_factory import SpeakerConfigFactory
-
-# Use default configuration
-service = SpeakerTranscriptionService()
-
-# Use conversation configuration
-conversation_config = SpeakerConfigFactory.get_config("conversation")
-service = SpeakerTranscriptionService(conversation_config)
-
-# Transcribe with speaker detection
-result = service.speaker_diarization("audio.wav", "model-name")
-```
-
-### Using the RunPod endpoint programmatically
-
-Once deployed on runpod.io, you can transcribe Hebrew audio either by providing a URL to transcribe (easily supports >1GB payloads, depending on Docker image's free disk space and timeout settings) or by uploading a file (up to ~5-10MB).
-
-```python
-from src.clients import infer_client
-import os
-
-os.environ["RUNPOD_API_KEY"] = "<your API key>"
-os.environ["RUNPOD_ENDPOINT_ID"] = "<your endpoint ID>"
-
-# Local file transcription (up to ~5MB)
-local_segments = infer_client.transcribe("ivrit-ai/whisper-large-v3-turbo-ct2", "blob", "<your file>")
-
-# URL-based transcription
-url_segments = infer_client.transcribe("ivrit-ai/whisper-large-v3-turbo-ct2", "url", "<your URL>")
-```
-
-**Supported models**: `ivrit-ai/whisper-large-v3-ct2` and `ivrit-ai/whisper-large-v3-turbo-ct2`
-
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-Patreon link: [here](https://www.patreon.com/ivrit_ai).
 
-## License
+### Development Setup
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Submit a pull request
 
-Our code and model are released under the MIT license.
+## 📝 License
 
-## Acknowledgements
+This project is licensed under the MIT License.
 
-- [Our long list of data contributors](https://www.ivrit.ai/en/credits)
-- Our data annotation volunteers!
+## 🙏 Acknowledgments
+
+- Built on top of state-of-the-art speech recognition models
+- Inspired by the need for high-quality Hebrew transcription services
+- Thanks to the open-source community for the underlying technologies
+
+## 📞 Support
+
+For issues and questions:
+- Create an issue on GitHub
+- Check the documentation in the `docs/` directory
+- Review the configuration examples in `config/`
+
+---
+
+**Note**: This project is designed for Hebrew audio transcription but can be adapted for other languages by changing the model configuration.

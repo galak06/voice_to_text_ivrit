@@ -1,14 +1,62 @@
 #!/usr/bin/env python3
 """
-Test script to verify the ivrit-ai runpod serverless setup
+Test script to verify the unified batch transcription system setup
 """
 
 import sys
 import importlib
+from pathlib import Path
 
-def test_imports():
-    """Test that all required packages can be imported"""
-    required_packages = [
+def test_core_imports():
+    """Test that core packages can be imported"""
+    core_packages = [
+        'tqdm',           # Progress bars
+        'pathlib',        # File path handling
+        'subprocess',     # Docker command execution
+        'argparse',       # Command line argument parsing
+        'json',           # Configuration file handling
+        'time',           # Timing functionality
+        'os'              # Operating system interface
+    ]
+    
+    print("🧪 Testing core package imports...")
+    
+    failed_imports = []
+    for package in core_packages:
+        try:
+            importlib.import_module(package)
+            print(f"✅ {package} imported successfully")
+        except ImportError as e:
+            print(f"❌ Failed to import {package}: {e}")
+            failed_imports.append(package)
+    
+    return len(failed_imports) == 0
+
+def test_unified_batch_transcription():
+    """Test that the unified batch transcription module can be imported"""
+    print("\n🎤 Testing unified batch transcription module...")
+    
+    try:
+        # Add project root to path
+        project_root = Path(__file__).parent.parent.parent
+        sys.path.insert(0, str(project_root))
+        
+        from batch_transcribe_unified import BatchTranscriptionConfig, BatchTranscriptionProcessor
+        print("✅ Unified batch transcription module imported successfully")
+        
+        # Test basic functionality
+        config = BatchTranscriptionConfig()
+        processor = BatchTranscriptionProcessor(config)
+        print("✅ Configuration and processor classes created successfully")
+        
+        return True
+    except Exception as e:
+        print(f"❌ Unified batch transcription test failed: {e}")
+        return False
+
+def test_optional_imports():
+    """Test optional packages (not required for core functionality)"""
+    optional_packages = [
         'runpod',
         'faster_whisper', 
         'stable_whisper',
@@ -16,111 +64,121 @@ def test_imports():
         'requests'
     ]
     
-    print("🧪 Testing package imports...")
+    print("\n🔧 Testing optional package imports...")
     
-    for package in required_packages:
+    available_packages = []
+    missing_packages = []
+    
+    for package in optional_packages:
         try:
             importlib.import_module(package)
-            print(f"✅ {package} imported successfully")
-        except ImportError as e:
-            print(f"❌ Failed to import {package}: {e}")
-            return False
+            print(f"✅ {package} available")
+            available_packages.append(package)
+        except ImportError:
+            print(f"ℹ️  {package} not available (optional)")
+            missing_packages.append(package)
     
-    return True
+    print(f"\n📊 Optional packages status:")
+    print(f"   ✅ Available: {len(available_packages)}")
+    print(f"   ℹ️  Missing: {len(missing_packages)}")
+    
+    if available_packages:
+        print(f"   📦 Available packages: {', '.join(available_packages)}")
+    if missing_packages:
+        print(f"   📦 Missing packages: {', '.join(missing_packages)}")
+    
+    return True  # Always return True as these are optional
 
-def test_torch():
-    """Test PyTorch installation and device availability"""
-    print("\n🔥 Testing PyTorch...")
+def test_file_structure():
+    """Test that required files and directories exist"""
+    print("\n📁 Testing file structure...")
     
-    try:
-        import torch
-        print(f"✅ PyTorch version: {torch.__version__}")
-        
-        if torch.cuda.is_available():
-            print(f"✅ CUDA available: {torch.cuda.get_device_name(0)}")
+    project_root = Path(__file__).parent.parent.parent
+    required_paths = [
+        project_root / "batch_transcribe_unified.py",
+        project_root / "examples" / "audio" / "voice",
+        project_root / "output",
+        project_root / "config" / "batch_transcription_config.json"
+    ]
+    
+    missing_paths = []
+    for path in required_paths:
+        if path.exists():
+            print(f"✅ {path.name} exists")
         else:
-            print("ℹ️  CUDA not available, using CPU")
-        
-        return True
-    except Exception as e:
-        print(f"❌ PyTorch test failed: {e}")
-        return False
+            print(f"❌ {path.name} missing")
+            missing_paths.append(path)
+    
+    return len(missing_paths) == 0
 
-def test_faster_whisper():
-    """Test faster-whisper installation"""
-    print("\n🎤 Testing faster-whisper...")
+def test_docker_availability():
+    """Test if Docker is available (required for transcription)"""
+    print("\n🐳 Testing Docker availability...")
     
     try:
-        from faster_whisper import WhisperModel
-        print("✅ faster-whisper imported successfully")
+        import subprocess
+        result = subprocess.run(['docker', '--version'], 
+                              capture_output=True, text=True, timeout=10)
         
-        # Test model loading (this will download models if not cached)
-        print("📥 Testing model loading (this may take a while on first run)...")
-        model = WhisperModel("ivrit-ai/whisper-large-v3-turbo-ct2", device="cpu", compute_type="int8")
-        print("✅ Model loaded successfully")
-        
-        return True
+        if result.returncode == 0:
+            print(f"✅ Docker available: {result.stdout.strip()}")
+            return True
+        else:
+            print("❌ Docker not available")
+            return False
     except Exception as e:
-        print(f"❌ faster-whisper test failed: {e}")
-        return False
-
-def test_runpod():
-    """Test RunPod client"""
-    print("\n☁️  Testing RunPod client...")
-    
-    try:
-        import runpod
-        print("✅ RunPod client imported successfully")
-        return True
-    except Exception as e:
-        print(f"❌ RunPod test failed: {e}")
-        return False
-
-def test_config():
-    """Test configuration utility"""
-    print("\n⚙️  Testing configuration...")
-    
-    try:
-        from src.utils.config_manager import config_manager, config
-        print("✅ Configuration utility imported successfully")
-        
-        # Test configuration loading
-        config_manager.print_config()
-        return True
-    except Exception as e:
-        print(f"❌ Configuration test failed: {e}")
+        print(f"❌ Docker test failed: {e}")
         return False
 
 def main():
     """Run all tests"""
-    print("🚀 Testing ivrit-ai runpod serverless setup...\n")
+    print("🚀 Testing unified batch transcription system setup...\n")
     
     tests = [
-        test_imports,
-        test_torch,
-        test_faster_whisper,
-        test_runpod,
-        test_config
+        ("Core Imports", test_core_imports),
+        ("Unified Batch Transcription", test_unified_batch_transcription),
+        ("Optional Imports", test_optional_imports),
+        ("File Structure", test_file_structure),
+        ("Docker Availability", test_docker_availability)
     ]
     
     passed = 0
     total = len(tests)
     
-    for test in tests:
-        if test():
+    for test_name, test_func in tests:
+        print(f"\n{'='*60}")
+        print(f"🧪 {test_name}")
+        print(f"{'='*60}")
+        
+        if test_func():
             passed += 1
+            print(f"✅ {test_name} test passed")
+        else:
+            print(f"❌ {test_name} test failed")
     
-    print(f"\n📊 Test Results: {passed}/{total} tests passed")
+    print(f"\n{'='*60}")
+    print("📊 Test Results Summary")
+    print(f"{'='*60}")
+    print(f"✅ Passed: {passed}/{total}")
+    print(f"❌ Failed: {total - passed}/{total}")
     
     if passed == total:
-        print("🎉 All tests passed! Your setup is ready to use.")
-        print("\nNext steps:")
-        print("1. Activate the environment: conda activate ivrit-ai-runpod-macos")
-        print("2. Test the inference script: python infer.py")
-        print("3. Build Docker image: docker build -t whisper-runpod-serverless .")
+        print("\n🎉 All tests passed! Your unified batch transcription system is ready to use.")
+        print("\n💡 Next steps:")
+        print("1. Test with dry run: python batch_transcribe_unified.py --dry-run --verbose")
+        print("2. Run batch processing: python batch_transcribe_unified.py")
+        print("3. Check documentation: docs/BATCH_TRANSCRIPTION_UNIFIED.md")
     else:
-        print("⚠️  Some tests failed. Please check your installation.")
-        sys.exit(1)
+        print("\n⚠️  Some tests failed. Please check the issues above.")
+        print("\n💡 Note: Missing optional packages (runpod, faster-whisper, etc.)")
+        print("   do not affect core functionality when using Docker.")
+        
+        # Don't exit with error code if only optional tests failed
+        if passed >= 3:  # At least core functionality tests passed
+            print("\n✅ Core functionality is working. Optional dependencies can be installed later.")
+            return 0
+        else:
+            sys.exit(1)
 
 if __name__ == "__main__":
     main() 

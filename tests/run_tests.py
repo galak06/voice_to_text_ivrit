@@ -18,7 +18,7 @@ def run_tests(test_type="all", verbose=False):
     test_dir = Path(__file__).parent
     
     if test_type == "all":
-        test_patterns = ["test_*.py"]
+        test_patterns = ["unit/test_*.py", "integration/test_*.py", "e2e/test_*.py"]
     elif test_type == "unit":
         test_patterns = ["unit/test_*.py"]
     elif test_type == "integration":
