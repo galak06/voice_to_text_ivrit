@@ -1,0 +1,37 @@
+# Environment Variables Template for ivrit-ai RunPod Serverless
+# Copy this file to .env and fill in your actual values
+
+# RunPod Configuration
+# Get your API key from: https://runpod.io/console/user/settings
+RUNPOD_API_KEY=your_runpod_api_key_here
+
+# Get your endpoint ID from your RunPod serverless endpoint
+RUNPOD_ENDPOINT_ID=your_endpoint_id_here
+
+# Model Configuration
+DEFAULT_MODEL=ivrit-ai/whisper-large-v3-turbo-ct2
+FALLBACK_MODEL=ivrit-ai/whisper-large-v3-ct2
+
+# Transcription Settings
+DEFAULT_ENGINE=faster-whisper
+MAX_PAYLOAD_SIZE=200000000  # 200MB in bytes
+STREAMING_ENABLED=true
+
+# Logging
+LOG_LEVEL=INFO
+LOG_FILE=transcription.log
+
+# Development Settings
+DEBUG=false
+DEV_MODE=false
+
+# Docker Settings (if using Docker)
+DOCKER_IMAGE_NAME=whisper-runpod-serverless
+DOCKER_TAG=latest
+
+# Optional: Hugging Face Token (for private models)
+# HUGGING_FACE_TOKEN=your_hf_token_here
+
+# Optional: Custom API endpoints
+# CUSTOM_API_URL=https://your-custom-endpoint.com
+# CUSTOM_API_KEY=your_custom_api_key_here 

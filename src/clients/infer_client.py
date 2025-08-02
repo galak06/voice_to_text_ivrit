@@ -5,10 +5,12 @@ import requests
 import time
 
 import runpod
+from src.utils.config_manager import config
 
-IN_QUEUE_TIMEOUT = 300
-MAX_STREAM_TIMEOUTS = 5
-RUNPOD_MAX_PAYLOAD_LEN = 10 * 1024 * 1024
+# Use configuration values
+IN_QUEUE_TIMEOUT = config.runpod.in_queue_timeout
+MAX_STREAM_TIMEOUTS = config.runpod.max_stream_timeouts
+RUNPOD_MAX_PAYLOAD_LEN = config.runpod.max_payload_len
 
 def transcribe(model, payload_type, path_or_url):  
     if not payload_type in ["blob", "url"]:

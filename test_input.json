@@ -1,1 +1,8 @@
-{ "input" : { "type" : "url", "url" : "https://github.com/metaldaniel/HebrewASR-Comparison/raw/main/HaTankistiot_n12-mp3.mp3", "streaming": false } }
+{
+  "input": {
+    "audio_file": "/app/voice/rachel_1.wav",
+    "model": "ivrit-ai/whisper-large-v3-turbo-ct2",
+    "engine": "faster-whisper",
+    "speaker_config": "conversation"
+  }
+} 

@@ -1,0 +1,14 @@
+{
+  "transcription": {
+    "beam_size": 7
+  },
+  "system": {
+    "debug": false,
+    "dev_mode": false,
+    "max_workers": 2,
+    "timeout_seconds": 180
+  },
+  "output": {
+    "log_level": "WARNING"
+  }
+}

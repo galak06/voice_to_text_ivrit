@@ -1,0 +1,54 @@
+{
+  "transcription": {
+    "default_model": "ivrit-ai/whisper-large-v3-turbo-ct2",
+    "fallback_model": "ivrit-ai/whisper-large-v3-ct2",
+    "default_engine": "faster-whisper",
+    "beam_size": 5,
+    "language": "he",
+    "word_timestamps": true,
+    "vad_enabled": true,
+    "vad_min_silence_duration_ms": 500
+  },
+  "speaker": {
+    "min_speakers": 2,
+    "max_speakers": 4,
+    "silence_threshold": 2.0,
+    "vad_enabled": true,
+    "word_timestamps": true,
+    "language": "he",
+    "beam_size": 5,
+    "vad_min_silence_duration_ms": 500
+  },
+  "runpod": {
+    "api_key": null,
+    "endpoint_id": null,
+    "max_payload_size": 209715200,
+    "streaming_enabled": true,
+    "in_queue_timeout": 300,
+    "max_stream_timeouts": 5,
+    "max_payload_len": 10485760
+  },
+  "output": {
+    "output_dir": "output",
+    "logs_dir": "output/logs",
+    "transcriptions_dir": "output/transcriptions",
+    "temp_dir": "output/temp",
+    "log_level": "INFO",
+    "log_file": "transcription.log",
+    "save_json": true,
+    "save_txt": true,
+    "save_docx": true,
+    "cleanup_temp_files": true,
+    "temp_file_retention_hours": 24
+  },
+  "system": {
+    "debug": false,
+    "dev_mode": false,
+    "docker_image_name": "whisper-runpod-serverless",
+    "docker_tag": "latest",
+    "hugging_face_token": null,
+    "max_workers": 1,
+    "timeout_seconds": 300,
+    "retry_attempts": 3
+  }
+}

@@ -1,0 +1,16 @@
+name: ivrit-ai-runpod
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pip
+  - requests
+  - pip:
+    - runpod
+    - faster-whisper==1.1.1
+    - stable-ts==2.18.3 
