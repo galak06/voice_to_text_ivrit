@@ -1,7 +1,7 @@
 {
   "transcription": {
-    "default_model": "base",
-    "fallback_model": "tiny",
+    "default_model": "large-v3",
+    "fallback_model": "base",
     "default_engine": "faster-whisper",
     "beam_size": 5,
     "language": "he",
@@ -42,7 +42,7 @@
     "directory": "examples/audio/voice",
     "supported_formats": [".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac", ".wma"],
     "recursive_search": true,
-    "max_file_size_mb": 100,
+    "max_file_size_mb": 200,
     "validate_files": true,
     "auto_discover": true
   },
@@ -50,10 +50,10 @@
     "enabled": true,
     "parallel_processing": false,
     "max_workers": 1,
-    "delay_between_files": 0,
+    "delay_between_files": 5,
     "progress_tracking": true,
     "continue_on_error": true,
-    "timeout_per_file": 600,
+    "timeout_per_file": 1800,
     "retry_failed_files": true,
     "max_retries": 3
   },
@@ -75,7 +75,9 @@
     "in_queue_timeout": 300,
     "max_stream_timeouts": 5,
     "max_payload_len": 10485760,
-    "enabled": false
+    "enabled": true,
+    "serverless_mode": true,
+    "auto_scale": true
   },
   "output": {
     "output_dir": "output",
@@ -83,7 +85,7 @@
     "transcriptions_dir": "output/transcriptions",
     "temp_dir": "output/temp",
     "log_level": "INFO",
-    "log_file": "transcription.log",
+    "log_file": "runpod.log",
     "save_json": true,
     "save_txt": true,
     "save_docx": true,
@@ -97,10 +99,10 @@
     "debug": false,
     "dev_mode": false,
     "hugging_face_token": null,
-    "timeout_seconds": 300,
+    "timeout_seconds": 1800,
     "retry_attempts": 3,
     "auto_cleanup": true,
     "session_management": true,
     "error_reporting": true
   }
-}
+} 

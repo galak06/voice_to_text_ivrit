@@ -28,7 +28,7 @@ class FasterWhisperEngine:
         if self.model is None:
             import faster_whisper
             self.model = faster_whisper.WhisperModel(
-                self.model_name, device=device, compute_type='float16', local_files_only=True
+                self.model_name, device=device, compute_type='float32', local_files_only=True
             )
         
         return self.model.transcribe(audio_file, language=language, word_timestamps=word_timestamps)
@@ -45,7 +45,7 @@ class StableWhisperEngine:
         if self.model is None:
             import stable_whisper
             self.model = stable_whisper.load_faster_whisper(
-                self.model_name, device=device, compute_type='float16', local_files_only=True
+                self.model_name, device=device, compute_type='float32', local_files_only=True
             )
         
         result = self.model.transcribe(audio_file, language=language, word_timestamps=word_timestamps)

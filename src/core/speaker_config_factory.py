@@ -34,24 +34,24 @@ class SpeakerConfigFactory:
     
     @staticmethod
     def _get_default_config() -> SpeakerConfig:
-        """Default balanced configuration"""
+        """Default configuration optimized for 2-speaker conversations"""
         return SpeakerConfig(
             min_speakers=2,
-            max_speakers=4,
-            silence_threshold=2.0,
+            max_speakers=2,
+            silence_threshold=1.5,
             vad_enabled=True,
             word_timestamps=True,
             language="he",
             beam_size=5,
-            vad_min_silence_duration_ms=500
+            vad_min_silence_duration_ms=300
         )
     
     @staticmethod
     def _get_conversation_config() -> SpeakerConfig:
-        """Configuration optimized for conversations"""
+        """Configuration optimized for 2-speaker conversations"""
         return SpeakerConfig(
             min_speakers=2,
-            max_speakers=6,
+            max_speakers=2,
             silence_threshold=1.0,  # Very sensitive to speaker changes
             vad_enabled=True,
             word_timestamps=True,
@@ -97,8 +97,8 @@ class SpeakerConfigFactory:
     def describe_preset(preset: str) -> str:
         """Get description of a configuration preset"""
         descriptions = {
-            "default": "Balanced configuration for most scenarios",
-            "conversation": "Sensitive to quick speaker changes, good for casual conversations",
+            "default": "Optimized for 2-speaker conversations",
+            "conversation": "Sensitive to quick speaker changes, optimized for 2-speaker conversations",
             "interview": "Allows for thinking pauses, optimized for formal interviews",
             "custom": "Fast processing with moderate accuracy"
         }
@@ -110,20 +110,22 @@ class SpeakerConfigFactory:
         config = SpeakerConfigFactory.get_config(preset)
         description = SpeakerConfigFactory.describe_preset(preset)
         
-        print(f"🔧 {preset.title()} Configuration:")
-        print(f"   Description: {description}")
-        print(f"   min_speakers: {config.min_speakers}")
-        print(f"   max_speakers: {config.max_speakers}")
-        print(f"   silence_threshold: {config.silence_threshold}s")
-        print(f"   beam_size: {config.beam_size}")
-        print(f"   vad_min_silence_duration_ms: {config.vad_min_silence_duration_ms}")
-        print()
+        # Return formatted string instead of printing
+        info = f"{preset.title()} Configuration:\n"
+        info += f"   Description: {description}\n"
+        info += f"   min_speakers: {config.min_speakers}\n"
+        info += f"   max_speakers: {config.max_speakers}\n"
+        info += f"   silence_threshold: {config.silence_threshold}s\n"
+        info += f"   beam_size: {config.beam_size}\n"
+        info += f"   vad_min_silence_duration_ms: {config.vad_min_silence_duration_ms}\n"
+        return info
     
     @staticmethod
-    def print_all_presets():
-        """Print information about all available presets"""
-        print("📋 Available Speaker Configuration Presets:")
-        print("=" * 50)
+    def get_all_presets_info():
+        """Get information about all available presets"""
+        info = "Available Speaker Configuration Presets:\n"
+        info += "=" * 50 + "\n"
         
         for preset in SpeakerConfigFactory.list_presets():
-            SpeakerConfigFactory.print_preset_info(preset) 
+            info += SpeakerConfigFactory.print_preset_info(preset) + "\n"
+        return info 

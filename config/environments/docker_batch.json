@@ -1,7 +1,7 @@
 {
   "transcription": {
-    "default_model": "base",
-    "fallback_model": "tiny",
+    "default_model": "large-v3",
+    "fallback_model": "base",
     "default_engine": "faster-whisper",
     "beam_size": 5,
     "language": "he",
@@ -42,7 +42,7 @@
     "directory": "examples/audio/voice",
     "supported_formats": [".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac", ".wma"],
     "recursive_search": true,
-    "max_file_size_mb": 100,
+    "max_file_size_mb": 200,
     "validate_files": true,
     "auto_discover": true
   },
@@ -50,29 +50,31 @@
     "enabled": true,
     "parallel_processing": false,
     "max_workers": 1,
-    "delay_between_files": 0,
+    "delay_between_files": 10,
     "progress_tracking": true,
     "continue_on_error": true,
-    "timeout_per_file": 600,
+    "timeout_per_file": 3600,
     "retry_failed_files": true,
     "max_retries": 3
   },
   "docker": {
-    "enabled": false,
+    "enabled": true,
     "image_name": "whisper-runpod-serverless",
     "tag": "latest",
     "container_name_prefix": "whisper-batch",
     "auto_cleanup": true,
     "timeout_seconds": 3600,
-    "memory_limit": "4g",
-    "cpu_limit": "2"
+    "memory_limit": "8g",
+    "cpu_limit": "4",
+    "kill_existing_containers": true,
+    "detached_mode": true
   },
   "runpod": {
     "api_key": null,
     "endpoint_id": null,
     "max_payload_size": 209715200,
     "streaming_enabled": true,
-    "in_queue_timeout": 300,
+    "in_queue_timeout": 600,
     "max_stream_timeouts": 5,
     "max_payload_len": 10485760,
     "enabled": false
@@ -83,7 +85,7 @@
     "transcriptions_dir": "output/transcriptions",
     "temp_dir": "output/temp",
     "log_level": "INFO",
-    "log_file": "transcription.log",
+    "log_file": "docker_batch.log",
     "save_json": true,
     "save_txt": true,
     "save_docx": true,
@@ -97,10 +99,10 @@
     "debug": false,
     "dev_mode": false,
     "hugging_face_token": null,
-    "timeout_seconds": 300,
+    "timeout_seconds": 3600,
     "retry_attempts": 3,
     "auto_cleanup": true,
     "session_management": true,
     "error_reporting": true
   }
-}
+} 

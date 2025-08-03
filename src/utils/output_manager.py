@@ -19,6 +19,18 @@ try:
 except ImportError:
     DOCX_AVAILABLE = False
 
+class CustomJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder to handle non-serializable objects"""
+    
+    def default(self, obj):
+        """Handle non-serializable objects by converting them to strings"""
+        try:
+            # Try to convert to string representation
+            return str(obj)
+        except:
+            # If that fails, return a placeholder
+            return f"<Non-serializable object: {type(obj).__name__}>"
+
 class OutputManager:
     """Manages output files, logs, and temporary files"""
     
@@ -62,21 +74,67 @@ class OutputManager:
         self.temp_dir.mkdir(parents=True, exist_ok=True)
     
     def _setup_logging(self):
-        """Setup logging configuration"""
+        """Setup logging configuration with log file cleanup"""
         from src.utils.config_manager import config
         
         log_file = self.logs_dir / f"transcription_{datetime.now().strftime('%Y%m%d')}.log"
         
+        # Clean log file before each run
+        self._clean_log_file(log_file)
+        
+        # Configure logging with improved timestamp format
         logging.basicConfig(
             level=getattr(logging, config.output.log_level),
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            format='%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S',
             handlers=[
-                logging.FileHandler(log_file),
+                logging.FileHandler(log_file, mode='a', encoding='utf-8'),
                 logging.StreamHandler()
             ]
         )
         
         self.logger = logging.getLogger('ivrit-ai')
+        
+        # Log session start
+        self.logger.info(f"=== Transcription Session Started: {self.run_session_id} ===")
+    
+    def _clean_log_file(self, log_file: Path):
+        """Clean log file before each run"""
+        try:
+            if log_file.exists():
+                # Create backup of old log
+                backup_file = log_file.with_suffix('.log.backup')
+                if backup_file.exists():
+                    backup_file.unlink()  # Remove old backup
+                log_file.rename(backup_file)
+                self.logger = logging.getLogger('ivrit-ai')
+                self.logger.info(f"Previous log backed up to: {backup_file}")
+        except Exception as e:
+            # If cleanup fails, just continue with existing log
+            pass
+    
+    def _sanitize_transcription_data(self, data: Any) -> Any:
+        """
+        Sanitize transcription data to ensure JSON serialization
+        
+        Args:
+            data: The data to sanitize
+            
+        Returns:
+            Sanitized data that can be JSON serialized
+        """
+        if isinstance(data, dict):
+            return {k: self._sanitize_transcription_data(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self._sanitize_transcription_data(item) for item in data]
+        elif isinstance(data, (str, int, float, bool, type(None))):
+            return data
+        else:
+            # Convert non-serializable objects to string
+            try:
+                return str(data)
+            except:
+                return f"<Non-serializable: {type(data).__name__}>"
     
     def save_transcription(self, audio_file: str, transcription_data: Any, 
                           model: str = "unknown", engine: str = "unknown") -> str:
@@ -103,9 +161,13 @@ class OutputManager:
         session_dir = run_session_dir / session_folder
         session_dir.mkdir(parents=True, exist_ok=True)
         
-        # Create filename
-        filename = f"transcription_{model}_{engine}.json"
+        # Create filename with sanitized model name
+        model_safe = model.replace('/', '_').replace('\\', '_')
+        filename = f"transcription_{model_safe}_{engine}.json"
         output_file = session_dir / filename
+        
+        # Sanitize transcription data to ensure JSON serialization
+        sanitized_data = self._sanitize_transcription_data(transcription_data)
         
         # Prepare output data
         output_data = {
@@ -116,15 +178,24 @@ class OutputManager:
                 "timestamp": datetime.now().isoformat(),
                 "version": "1.0.0"
             },
-            "transcription": transcription_data
+            "transcription": sanitized_data
         }
         
-        # Save to JSON file
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(output_data, f, ensure_ascii=False, indent=2)
-        
-        self.logger.info(f"Transcription saved to: {output_file}")
-        return str(output_file)
+        # Save to JSON file with custom encoder
+        try:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                json.dump(output_data, f, ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
+            
+            self.logger.info(f"Transcription saved to: {output_file}")
+            return str(output_file)
+        except Exception as e:
+            self.logger.error(f"Failed to save transcription to JSON: {e}")
+            # Fallback: save as string representation
+            fallback_file = output_file.with_suffix('.txt')
+            with open(fallback_file, 'w', encoding='utf-8') as f:
+                f.write(str(output_data))
+            self.logger.info(f"Transcription saved as fallback text to: {fallback_file}")
+            return str(fallback_file)
     
     def save_transcription_text(self, audio_file: str, text: str, 
                                model: str = "unknown", engine: str = "unknown") -> str:
@@ -151,8 +222,9 @@ class OutputManager:
         session_dir = run_session_dir / session_folder
         session_dir.mkdir(parents=True, exist_ok=True)
         
-        # Create filename
-        filename = f"transcription_{model}_{engine}.txt"
+        # Create filename with sanitized model name
+        model_safe = model.replace('/', '_').replace('\\', '_')
+        filename = f"transcription_{model_safe}_{engine}.txt"
         output_file = session_dir / filename
         
         # Prepare text content
@@ -199,8 +271,9 @@ class OutputManager:
         session_dir = run_session_dir / session_folder
         session_dir.mkdir(parents=True, exist_ok=True)
         
-        # Create filename
-        filename = f"transcription_{model}_{engine}.docx"
+        # Create filename with sanitized model name
+        model_safe = model.replace('/', '_').replace('\\', '_')
+        filename = f"transcription_{model_safe}_{engine}.docx"
         output_file = session_dir / filename
         
         # Create Word document
@@ -354,18 +427,61 @@ class OutputManager:
         
         return stats
     
+    def cleanup_all_logs(self, keep_backups: bool = True):
+        """Clean all log files, optionally keeping backups"""
+        try:
+            log_files = list(self.logs_dir.glob("*.log"))
+            cleaned_count = 0
+            
+            for log_file in log_files:
+                if keep_backups:
+                    # Create backup
+                    backup_file = log_file.with_suffix('.log.backup')
+                    if backup_file.exists():
+                        backup_file.unlink()
+                    log_file.rename(backup_file)
+                    cleaned_count += 1
+                else:
+                    # Remove completely
+                    log_file.unlink()
+                    cleaned_count += 1
+            
+            if cleaned_count > 0:
+                print(f"🧹 Cleaned {cleaned_count} log files")
+            else:
+                print("✅ No log files to clean")
+                
+        except Exception as e:
+            print(f"⚠️  Warning: Could not clean log files: {e}")
+    
     def log_info(self, message: str):
-        """Log info message"""
-        self.logger.info(message)
+        """Log info message with timestamp"""
+        if hasattr(self, 'logger'):
+            self.logger.info(f"[INFO] {message}")
+        else:
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+            print(f"{timestamp} - ivrit-ai - INFO - {message}")
     
     def log_error(self, message: str):
-        """Log error message"""
-        self.logger.error(message)
+        """Log error message with timestamp"""
+        if hasattr(self, 'logger'):
+            self.logger.error(f"[ERROR] {message}")
+        else:
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+            print(f"{timestamp} - ivrit-ai - ERROR - {message}")
     
     def log_warning(self, message: str):
-        """Log warning message"""
-        self.logger.warning(message)
+        """Log warning message with timestamp"""
+        if hasattr(self, 'logger'):
+            self.logger.warning(f"[WARNING] {message}")
+        else:
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+            print(f"{timestamp} - ivrit-ai - WARNING - {message}")
     
     def log_debug(self, message: str):
-        """Log debug message"""
-        self.logger.debug(message) 
+        """Log debug message with timestamp"""
+        if hasattr(self, 'logger'):
+            self.logger.debug(f"[DEBUG] {message}")
+        else:
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+            print(f"{timestamp} - ivrit-ai - DEBUG - {message}") 

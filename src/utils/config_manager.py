@@ -20,19 +20,27 @@ class Environment(Enum):
 @dataclass
 class TranscriptionConfig:
     """Transcription engine configuration"""
-    default_model: str = "ivrit-ai/whisper-large-v3-turbo-ct2"
-    fallback_model: str = "ivrit-ai/whisper-large-v3-ct2"
+    default_model: str = "base"
+    fallback_model: str = "tiny"
     default_engine: str = "faster-whisper"
     beam_size: int = 5
     language: str = "he"
     word_timestamps: bool = True
     vad_enabled: bool = True
     vad_min_silence_duration_ms: int = 500
+    available_models: Optional[list] = None
+    available_engines: Optional[list] = None
+    
+    def __post_init__(self):
+        if self.available_models is None:
+            self.available_models = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
+        if self.available_engines is None:
+            self.available_engines = ["faster-whisper", "stable-whisper", "speaker-diarization"]
 
 @dataclass
 class SpeakerConfig:
     """Speaker diarization configuration"""
-    min_speakers: int = 2
+    min_speakers: int = 1
     max_speakers: int = 4
     silence_threshold: float = 2.0
     vad_enabled: bool = True
@@ -40,6 +48,54 @@ class SpeakerConfig:
     language: str = "he"
     beam_size: int = 5
     vad_min_silence_duration_ms: int = 500
+    presets: Optional[dict] = None
+    
+    def __post_init__(self):
+        if self.presets is None:
+            self.presets = {
+                "default": {
+                    "min_speakers": 1,
+                    "max_speakers": 2,
+                    "silence_threshold": 2.0
+                },
+                "conversation": {
+                    "min_speakers": 2,
+                    "max_speakers": 4,
+                    "silence_threshold": 1.5
+                },
+                "interview": {
+                    "min_speakers": 2,
+                    "max_speakers": 3,
+                    "silence_threshold": 2.5
+                }
+            }
+
+@dataclass
+class BatchConfig:
+    """Batch processing configuration"""
+    enabled: bool = True
+    parallel_processing: bool = False
+    max_workers: int = 1
+    delay_between_files: int = 0
+    progress_tracking: bool = True
+    continue_on_error: bool = True
+    timeout_per_file: int = 600
+    retry_failed_files: bool = True
+    max_retries: int = 3
+
+@dataclass
+class DockerConfig:
+    """Docker container configuration"""
+    enabled: bool = False
+    image_name: str = "whisper-runpod-serverless"
+    tag: str = "latest"
+    container_name_prefix: str = "whisper-batch"
+    auto_cleanup: bool = True
+    timeout_seconds: int = 3600
+    memory_limit: str = "4g"
+    cpu_limit: str = "2"
+    kill_existing_containers: bool = True
+    detached_mode: bool = True
 
 @dataclass
 class RunPodConfig:
@@ -51,6 +107,9 @@ class RunPodConfig:
     in_queue_timeout: int = 300
     max_stream_timeouts: int = 5
     max_payload_len: int = 10 * 1024 * 1024  # 10MB
+    enabled: bool = False
+    serverless_mode: bool = True
+    auto_scale: bool = True
 
 @dataclass
 class OutputConfig:
@@ -66,28 +125,48 @@ class OutputConfig:
     save_docx: bool = True
     cleanup_temp_files: bool = True
     temp_file_retention_hours: int = 24
+    auto_organize: bool = True
+    include_metadata: bool = True
+    include_timestamps: bool = True
 
 @dataclass
 class SystemConfig:
     """System and performance configuration"""
     debug: bool = False
     dev_mode: bool = False
-    docker_image_name: str = "whisper-runpod-serverless"
-    docker_tag: str = "latest"
     hugging_face_token: Optional[str] = None
-    max_workers: int = 1
     timeout_seconds: int = 300
     retry_attempts: int = 3
+    auto_cleanup: bool = True
+    session_management: bool = True
+    error_reporting: bool = True
+
+@dataclass
+class InputConfig:
+    """Input file configuration"""
+    directory: str = "examples/audio/voice"
+    supported_formats: Optional[list] = None
+    recursive_search: bool = True
+    max_file_size_mb: int = 100
+    validate_files: bool = True
+    auto_discover: bool = True
+    
+    def __post_init__(self):
+        if self.supported_formats is None:
+            self.supported_formats = [".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac", ".wma"]
 
 @dataclass
 class AppConfig:
     """Complete application configuration"""
     environment: Environment = Environment.BASE
-    transcription: TranscriptionConfig = None
-    speaker: SpeakerConfig = None
-    runpod: RunPodConfig = None
-    output: OutputConfig = None
-    system: SystemConfig = None
+    transcription: Optional[TranscriptionConfig] = None
+    speaker: Optional[SpeakerConfig] = None
+    batch: Optional[BatchConfig] = None
+    docker: Optional[DockerConfig] = None
+    runpod: Optional[RunPodConfig] = None
+    output: Optional[OutputConfig] = None
+    system: Optional[SystemConfig] = None
+    input: Optional[InputConfig] = None
     
     def __post_init__(self):
         """Initialize default configurations if not provided"""
@@ -210,9 +289,12 @@ class ConfigManager:
         # Convert nested dictionaries to dataclass instances
         transcription = TranscriptionConfig(**config_dict.get('transcription', {}))
         speaker = SpeakerConfig(**config_dict.get('speaker', {}))
+        batch = BatchConfig(**config_dict.get('batch', {}))
+        docker = DockerConfig(**config_dict.get('docker', {}))
         runpod = RunPodConfig(**config_dict.get('runpod', {}))
         output = OutputConfig(**config_dict.get('output', {}))
         system = SystemConfig(**config_dict.get('system', {}))
+        input = InputConfig(**config_dict.get('input', {}))
         
         # Debug output
         if os.getenv('DEBUG_CONFIG'):
@@ -222,12 +304,15 @@ class ConfigManager:
             environment=self._determine_environment(),
             transcription=transcription,
             speaker=speaker,
+            batch=batch,
+            docker=docker,
             runpod=runpod,
             output=output,
-            system=system
+            system=system,
+            input=input
         )
     
-    def get_speaker_config(self, preset: str = "default") -> SpeakerConfig:
+    def get_speaker_config(self, preset: str = "default") -> 'SpeakerConfig':
         """Get speaker configuration for specific preset"""
         from src.core.speaker_config_factory import SpeakerConfigFactory
         return SpeakerConfigFactory.get_config(preset)
@@ -237,9 +322,9 @@ class ConfigManager:
         missing_vars = []
         
         # Check RunPod configuration
-        if not self.config.runpod.api_key:
+        if self.config.runpod and not self.config.runpod.api_key:
             missing_vars.append('RUNPOD_API_KEY')
-        if not self.config.runpod.endpoint_id:
+        if self.config.runpod and not self.config.runpod.endpoint_id:
             missing_vars.append('RUNPOD_ENDPOINT_ID')
         
         if missing_vars:
@@ -253,6 +338,32 @@ class ConfigManager:
         """Print current configuration"""
         print(f"🔧 Configuration ({self.config.environment.value}):")
         print("=" * 50)
+        
+        # Ensure all config sections are initialized
+        if self.config.transcription is None:
+            print("❌ Transcription configuration not initialized")
+            return
+        if self.config.speaker is None:
+            print("❌ Speaker configuration not initialized")
+            return
+        if self.config.runpod is None:
+            print("❌ RunPod configuration not initialized")
+            return
+        if self.config.output is None:
+            print("❌ Output configuration not initialized")
+            return
+        if self.config.system is None:
+            print("❌ System configuration not initialized")
+            return
+        if self.config.input is None:
+            print("❌ Input configuration not initialized")
+            return
+        if self.config.batch is None:
+            print("❌ Batch configuration not initialized")
+            return
+        if self.config.docker is None:
+            print("❌ Docker configuration not initialized")
+            return
         
         # Transcription config
         print("🎤 Transcription:")
@@ -286,16 +397,56 @@ class ConfigManager:
         print("\n⚙️  System:")
         print(f"   Debug Mode: {self.config.system.debug}")
         print(f"   Dev Mode: {self.config.system.dev_mode}")
-        print(f"   Docker Image: {self.config.system.docker_image_name}:{self.config.system.docker_tag}")
-        print(f"   Max Workers: {self.config.system.max_workers}")
         print(f"   Timeout: {self.config.system.timeout_seconds}s")
+        print(f"   Retry Attempts: {self.config.system.retry_attempts}")
+        print(f"   Auto Cleanup: {self.config.system.auto_cleanup}")
+        print(f"   Session Management: {self.config.system.session_management}")
+        print(f"   Error Reporting: {self.config.system.error_reporting}")
+        
+        # Input config
+        print("\n📂 Input:")
+        print(f"   Directory: {self.config.input.directory}")
+        if self.config.input.supported_formats:
+            print(f"   Supported Formats: {', '.join(self.config.input.supported_formats)}")
+        else:
+            print("   Supported Formats: None")
+        print(f"   Recursive Search: {self.config.input.recursive_search}")
+        print(f"   Max File Size: {self.config.input.max_file_size_mb}MB")
+        print(f"   Validate Files: {self.config.input.validate_files}")
+        print(f"   Auto Discover: {self.config.input.auto_discover}")
+        
+        # Batch config
+        print("\n🔄 Batch:")
+        print(f"   Enabled: {self.config.batch.enabled}")
+        print(f"   Parallel Processing: {self.config.batch.parallel_processing}")
+        print(f"   Max Workers: {self.config.batch.max_workers}")
+        print(f"   Timeout Per File: {self.config.batch.timeout_per_file}s")
+        print(f"   Continue On Error: {self.config.batch.continue_on_error}")
+        
+        # Docker config
+        print("\n🐳 Docker:")
+        print(f"   Enabled: {self.config.docker.enabled}")
+        print(f"   Image: {self.config.docker.image_name}:{self.config.docker.tag}")
+        print(f"   Container Prefix: {self.config.docker.container_name_prefix}")
+        print(f"   Auto Cleanup: {self.config.docker.auto_cleanup}")
+        print(f"   Timeout: {self.config.docker.timeout_seconds}s")
+        print(f"   Memory Limit: {self.config.docker.memory_limit}")
+        print(f"   CPU Limit: {self.config.docker.cpu_limit}")
     
-    def save_config(self, filename: str = None):
+    def save_config(self, filename: Optional[str] = None):
         """Save current configuration to file"""
         if filename is None:
             filename = f"{self.config.environment.value}.json"
         
         config_file = self.config_dir / filename
+        
+        # Ensure all config sections are initialized before saving
+        if (self.config.transcription is None or self.config.speaker is None or 
+            self.config.runpod is None or self.config.output is None or 
+            self.config.system is None or self.config.input is None or
+            self.config.batch is None or self.config.docker is None):
+            print("❌ Cannot save configuration: some sections are not initialized")
+            return
         
         # Convert to dictionary
         config_dict = {
@@ -304,7 +455,10 @@ class ConfigManager:
             'speaker': asdict(self.config.speaker),
             'runpod': asdict(self.config.runpod),
             'output': asdict(self.config.output),
-            'system': asdict(self.config.system)
+            'system': asdict(self.config.system),
+            'input': asdict(self.config.input),
+            'batch': asdict(self.config.batch),
+            'docker': asdict(self.config.docker)
         }
         
         # Remove sensitive data
@@ -371,6 +525,11 @@ class ConfigManager:
                     'max_workers': 1,
                     'timeout_seconds': 300,
                     'retry_attempts': 3
+                },
+                'input': {
+                    'directory': 'examples/audio/voice',
+                    'supported_formats': [".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac", ".wma"],
+                    'recursive_search': True
                 }
             },
             'environments/development.json': {

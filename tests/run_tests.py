@@ -1,100 +1,192 @@
 #!/usr/bin/env python3
 """
-Test runner for ivrit-ai voice transcription service
+Test runner for the voice-to-text transcription application
+Runs all tests including unit, integration, and e2e tests
 """
-import os
+
 import sys
-import subprocess
-import argparse
+import unittest
+import os
 from pathlib import Path
 
-def run_tests(test_type="all", verbose=False):
-    """Run tests based on type"""
+# Add project root to path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+
+def discover_and_run_tests():
+    """Discover and run all tests"""
+    # Create test suite
+    test_suite = unittest.TestSuite()
     
-    # Add project root to Python path
-    project_root = Path(__file__).parent.parent
-    sys.path.insert(0, str(project_root))
+    # Test directories
+    test_dirs = [
+        'tests/unit',
+        'tests/integration', 
+        'tests/e2e'
+    ]
     
-    test_dir = Path(__file__).parent
+    # Discover tests in each directory
+    for test_dir in test_dirs:
+        if os.path.exists(test_dir):
+            # Load tests from directory
+            loader = unittest.TestLoader()
+            suite = loader.discover(test_dir, pattern='test_*.py')
+            test_suite.addTests(suite)
     
-    if test_type == "all":
-        test_patterns = ["unit/test_*.py", "integration/test_*.py", "e2e/test_*.py"]
-    elif test_type == "unit":
-        test_patterns = ["unit/test_*.py"]
-    elif test_type == "integration":
-        test_patterns = ["integration/test_*.py"]
-    elif test_type == "e2e":
-        test_patterns = ["e2e/test_*.py"]
-    else:
-        print(f"❌ Unknown test type: {test_type}")
+    # Run tests
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(test_suite)
+    
+    return result
+
+
+def run_specific_test(test_path):
+    """Run a specific test file"""
+    if not os.path.exists(test_path):
+        print(f"❌ Test file not found: {test_path}")
         return False
     
-    all_tests = []
-    for pattern in test_patterns:
-        all_tests.extend(test_dir.glob(pattern))
+    # Load and run specific test
+    loader = unittest.TestLoader()
+    suite = loader.discover(os.path.dirname(test_path), pattern=os.path.basename(test_path))
     
-    if not all_tests:
-        print(f"❌ No tests found for type: {test_type}")
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    
+    return result.wasSuccessful()
+
+
+def run_unit_tests():
+    """Run only unit tests"""
+    print("🧪 Running Unit Tests")
+    print("=" * 50)
+    
+    unit_test_dir = 'tests/unit'
+    if not os.path.exists(unit_test_dir):
+        print(f"❌ Unit test directory not found: {unit_test_dir}")
         return False
     
-    print(f"🧪 Running {test_type} tests...")
-    print(f"📁 Found {len(all_tests)} test files")
+    loader = unittest.TestLoader()
+    suite = loader.discover(unit_test_dir, pattern='test_*.py')
     
-    success_count = 0
-    total_count = len(all_tests)
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
     
-    for test_file in all_tests:
-        print(f"\n📝 Running: {test_file.name}")
-        try:
-            result = subprocess.run(
-                [sys.executable, str(test_file)],
-                cwd=project_root,
-                capture_output=not verbose,
-                text=True,
-                timeout=300
-            )
+    return result.wasSuccessful()
+
+
+def run_integration_tests():
+    """Run only integration tests"""
+    print("🔗 Running Integration Tests")
+    print("=" * 50)
+    
+    integration_test_dir = 'tests/integration'
+    if not os.path.exists(integration_test_dir):
+        print(f"❌ Integration test directory not found: {integration_test_dir}")
+        return False
+    
+    loader = unittest.TestLoader()
+    suite = loader.discover(integration_test_dir, pattern='test_*.py')
+    
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    
+    return result.wasSuccessful()
+
+
+def run_e2e_tests():
+    """Run only end-to-end tests"""
+    print("🌐 Running End-to-End Tests")
+    print("=" * 50)
+    
+    e2e_test_dir = 'tests/e2e'
+    if not os.path.exists(e2e_test_dir):
+        print(f"❌ E2E test directory not found: {e2e_test_dir}")
+        return False
+    
+    loader = unittest.TestLoader()
+    suite = loader.discover(e2e_test_dir, pattern='test_*.py')
+    
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    
+    return result.wasSuccessful()
+
+
+def list_available_tests():
+    """List all available test files"""
+    print("📋 Available Tests")
+    print("=" * 50)
+    
+    test_dirs = {
+        'Unit Tests': 'tests/unit',
+        'Integration Tests': 'tests/integration',
+        'E2E Tests': 'tests/e2e'
+    }
+    
+    for category, test_dir in test_dirs.items():
+        print(f"\n{category}:")
+        if os.path.exists(test_dir):
+            test_files = []
+            for root, dirs, files in os.walk(test_dir):
+                for file in files:
+                    if file.startswith('test_') and file.endswith('.py'):
+                        rel_path = os.path.relpath(os.path.join(root, file), test_dir)
+                        test_files.append(rel_path)
             
-            if result.returncode == 0:
-                print(f"✅ {test_file.name} passed")
-                success_count += 1
+            if test_files:
+                for test_file in sorted(test_files):
+                    print(f"  - {test_file}")
             else:
-                print(f"❌ {test_file.name} failed")
-                if not verbose and result.stdout:
-                    print(f"Output: {result.stdout}")
-                if result.stderr:
-                    print(f"Error: {result.stderr}")
-                    
-        except subprocess.TimeoutExpired:
-            print(f"⏰ {test_file.name} timed out")
-        except Exception as e:
-            print(f"❌ {test_file.name} error: {e}")
-    
-    print(f"\n📊 Test Results:")
-    print(f"✅ Passed: {success_count}/{total_count}")
-    print(f"❌ Failed: {total_count - success_count}/{total_count}")
-    
-    return success_count == total_count
+                print("  No test files found")
+        else:
+            print(f"  Directory not found: {test_dir}")
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Run ivrit-ai voice transcription tests")
-    parser.add_argument(
-        "--type",
-        choices=["all", "unit", "integration", "e2e"],
-        default="all",
-        help="Type of tests to run (default: all)"
-    )
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Verbose output"
-    )
+    """Main test runner function"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Run tests for voice-to-text transcription application')
+    parser.add_argument('--unit', action='store_true', help='Run only unit tests')
+    parser.add_argument('--integration', action='store_true', help='Run only integration tests')
+    parser.add_argument('--e2e', action='store_true', help='Run only end-to-end tests')
+    parser.add_argument('--file', type=str, help='Run specific test file')
+    parser.add_argument('--list', action='store_true', help='List all available tests')
     
     args = parser.parse_args()
     
-    success = run_tests(args.type, args.verbose)
+    print("🧪 Voice-to-Text Transcription Test Suite")
+    print("=" * 60)
     
-    if not success:
-        sys.exit(1)
+    if args.list:
+        list_available_tests()
+        return 0
+    
+    if args.file:
+        print(f"🎯 Running specific test: {args.file}")
+        success = run_specific_test(args.file)
+    elif args.unit:
+        success = run_unit_tests()
+    elif args.integration:
+        success = run_integration_tests()
+    elif args.e2e:
+        success = run_e2e_tests()
+    else:
+        print("🚀 Running All Tests")
+        print("=" * 50)
+        result = discover_and_run_tests()
+        success = result.wasSuccessful()
+    
+    print("\n" + "=" * 60)
+    if success:
+        print("✅ All tests passed!")
+        return 0
+    else:
+        print("❌ Some tests failed!")
+        return 1
 
-if __name__ == "__main__":
-    main() 
+
+if __name__ == '__main__':
+    sys.exit(main()) 

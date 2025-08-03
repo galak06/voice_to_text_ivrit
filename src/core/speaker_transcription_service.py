@@ -96,6 +96,7 @@ class SpeakerTranscriptionService:
             TranscriptionResult with speaker-separated data
         """
         start_time = time.time()
+        self.logger.info(f"[PROGRESS] Starting diarization for: {audio_file_path}")
         
         # Validate input
         if not self._validate_audio_file(audio_file_path):
@@ -114,6 +115,9 @@ class SpeakerTranscriptionService:
         if not model_name:
             model_name = self.app_config.transcription.default_model
         
+        # Sanitize model name for file paths (replace slashes with underscores)
+        model_name_safe = model_name.replace('/', '_').replace('\\', '_')
+        
         self.logger.info(f"Starting speaker transcription: {audio_file_path}")
         self.logger.info(f"Model: {model_name}")
         self.logger.info(f"Config: min_speakers={self.config.min_speakers}, max_speakers={self.config.max_speakers}")
@@ -123,14 +127,14 @@ class SpeakerTranscriptionService:
             result = self._transcribe_with_stable_whisper(audio_file_path, model_name)
             
             if result.success:
-                self.logger.info("Successfully used stable-whisper for speaker diarization")
+                self.logger.info("[PROGRESS] stable-whisper diarization completed successfully.")
             else:
-                self.logger.warning("stable-whisper failed, falling back to faster-whisper")
+                self.logger.warning("[PROGRESS] stable-whisper failed, falling back to faster-whisper")
                 result = self._transcribe_with_faster_whisper(audio_file_path, model_name)
             
             # Save outputs if requested
             if save_output and result.success:
-                self._save_outputs(result, audio_file_path, model_name, run_session_id)
+                self._save_outputs(result, audio_file_path, model_name_safe, run_session_id)
             
             # Calculate transcription time
             transcription_time = time.time() - start_time
@@ -171,6 +175,17 @@ class SpeakerTranscriptionService:
         try:
             import stable_whisper
             
+            # Check if model name is compatible with stable-whisper
+            # stable-whisper only supports standard Whisper model names
+            compatible_models = ['tiny.en', 'tiny', 'base.en', 'base', 'small.en', 'small', 
+                               'medium.en', 'medium', 'large-v1', 'large-v2', 'large-v3', 'large', 
+                               'large-v3-turbo', 'turbo']
+            
+            # If model name is not compatible, use a fallback
+            if model_name not in compatible_models:
+                self.logger.warning(f"Model {model_name} not compatible with stable-whisper, using 'large-v3' as fallback")
+                model_name = 'large-v3'
+            
             # Load stable-whisper model
             model = stable_whisper.load_model(model_name)
             
@@ -189,7 +204,9 @@ class SpeakerTranscriptionService:
             speakers = {}
             full_text = ""
             
-            for segment in result.segments:
+            for idx, segment in enumerate(result.segments):
+                if idx % 10 == 0:
+                    self.logger.info(f"[PROGRESS] stable-whisper processed {idx+1} segments...")
                 speaker = segment.speaker if hasattr(segment, 'speaker') else 'Unknown'
                 if speaker not in speakers:
                     speakers[speaker] = []
@@ -203,6 +220,7 @@ class SpeakerTranscriptionService:
                 
                 speakers[speaker].append(segment_data)
                 full_text += f"\n🎤 {speaker}:\n{segment.text.strip()}\n"
+            self.logger.info(f"[PROGRESS] stable-whisper finished all {len(result.segments)} segments.")
             
             return TranscriptionResult(
                 success=True,
@@ -249,8 +267,14 @@ class SpeakerTranscriptionService:
             # Import here to ensure it's available
             from faster_whisper import WhisperModel
             
-            # Load model
-            model = WhisperModel(model_name, device="cpu", compute_type="int8")
+            # Try to load the model, with fallback to a standard model if needed
+            try:
+                model = WhisperModel(model_name, device="cpu", compute_type="int8")
+            except Exception as model_error:
+                self.logger.warning(f"Failed to load model {model_name}: {model_error}")
+                self.logger.info("Falling back to 'large-v3' model")
+                model = WhisperModel("large-v3", device="cpu", compute_type="int8")
+                model_name = "large-v3"  # Update model name for output
             
             # Transcribe
             segments, info = model.transcribe(
@@ -261,20 +285,28 @@ class SpeakerTranscriptionService:
                 vad_parameters=dict(min_silence_duration_ms=self.config.vad_min_silence_duration_ms),
                 word_timestamps=self.config.word_timestamps
             )
-            
+            self.logger.info(f"[PROGRESS] faster-whisper started segment processing...")
             # Simple speaker detection based on silence gaps
             speakers = {'Speaker 1': []}
             current_speaker = 'Speaker 1'
             speaker_count = 1
             
-            for segment in segments:
+            for idx, segment in enumerate(segments):
+                if idx % 10 == 0:
+                    self.logger.info(f"[PROGRESS] faster-whisper processed {idx+1} segments...")
                 # Simple heuristic: if gap > silence_threshold seconds, switch speaker
                 if (speakers[current_speaker] and 
                     segment.start - speakers[current_speaker][-1]['end'] > self.config.silence_threshold):
-                    speaker_count += 1
-                    current_speaker = f'Speaker {speaker_count}'
-                    if current_speaker not in speakers:
-                        speakers[current_speaker] = []
+                    if speaker_count < self.config.max_speakers:
+                        speaker_count += 1
+                        current_speaker = f'Speaker {speaker_count}'
+                        if current_speaker not in speakers:
+                            speakers[current_speaker] = []
+                    else:
+                        # Recycle speakers in round-robin fashion
+                        speaker_keys = list(speakers.keys())
+                        idx2 = speaker_keys.index(current_speaker)
+                        current_speaker = speaker_keys[(idx2 + 1) % len(speaker_keys)]
                 
                 segment_data = {
                     'text': segment.text.strip(),
@@ -282,8 +314,8 @@ class SpeakerTranscriptionService:
                     'end': segment.end,
                     'words': segment.words if hasattr(segment, 'words') else None
                 }
-                
                 speakers[current_speaker].append(segment_data)
+            self.logger.info(f"[PROGRESS] faster-whisper finished all {len(list(segments))} segments.")
             
             # Build full text
             full_text = ""
@@ -327,17 +359,34 @@ class SpeakerTranscriptionService:
             
             output_manager = OutputManager(run_session_id=run_session_id)
             
-            # Prepare data for output manager
+            # Prepare data for output manager with proper sanitization
             transcription_data = []
             for speaker, segments in result.speakers.items():
                 for segment in segments:
+                    # Sanitize words data to ensure JSON serialization
+                    words_data = []
+                    if segment.get('words'):
+                        for word in segment['words']:
+                            if isinstance(word, dict):
+                                # Convert word dict to serializable format
+                                sanitized_word = {}
+                                for key, value in word.items():
+                                    if isinstance(value, (str, int, float, bool, type(None))):
+                                        sanitized_word[key] = value
+                                    else:
+                                        sanitized_word[key] = str(value)
+                                words_data.append(sanitized_word)
+                            else:
+                                # If word is not a dict, convert to string
+                                words_data.append(str(word))
+                    
                     transcription_data.append({
                         'id': len(transcription_data),
-                        'start': segment['start'],
-                        'end': segment['end'],
-                        'text': segment['text'],
-                        'speaker': speaker,
-                        'words': segment['words'] if segment['words'] else []
+                        'start': float(segment['start']) if 'start' in segment else 0.0,
+                        'end': float(segment['end']) if 'end' in segment else 0.0,
+                        'text': str(segment['text']) if 'text' in segment else '',
+                        'speaker': str(speaker),
+                        'words': words_data
                     })
             
             # Save as JSON
@@ -345,9 +394,12 @@ class SpeakerTranscriptionService:
                 audio_file_path, transcription_data, model_name, "speaker-diarization"
             )
             
+            # Format conversation text
+            conversation_text = self._format_conversation_text(result.speakers)
+            
             # Save as text
             text_file = output_manager.save_transcription_text(
-                audio_file_path, result.full_text, model_name, "speaker-diarization"
+                audio_file_path, conversation_text, model_name, "speaker-diarization"
             )
             
             # Save as Word document
@@ -365,31 +417,71 @@ class SpeakerTranscriptionService:
                 
         except Exception as e:
             self.logger.error(f"Failed to save outputs: {e}")
+            # Log more details about the error
+            import traceback
+            self.logger.error(f"Error details: {traceback.format_exc()}")
+    
+    def _format_conversation_text(self, speakers: Dict[str, List[Dict[str, Any]]]) -> str:
+        """Format speaker segments into a readable conversation format"""
+        if not speakers:
+            return "No transcription data available."
+        
+        # Collect all segments with timing information
+        all_segments = []
+        for speaker, segments in speakers.items():
+            for segment in segments:
+                all_segments.append({
+                    'speaker': speaker,
+                    'start': float(segment.get('start', 0)),
+                    'end': float(segment.get('end', 0)),
+                    'text': str(segment.get('text', '')).strip()
+                })
+        
+        # Sort by start time
+        all_segments.sort(key=lambda x: x['start'])
+        
+        # Format conversation
+        conversation_lines = []
+        for i, segment in enumerate(all_segments):
+            # Format timestamp
+            start_time = self._format_timestamp(segment['start'])
+            end_time = self._format_timestamp(segment['end'])
+            
+            # Format speaker and text
+            speaker_name = segment['speaker']
+            text = segment['text']
+            
+            # Add conversation line
+            conversation_lines.append(f"[{start_time} - {end_time}] {speaker_name}: {text}")
+            
+            # Add separator between segments if there's a gap
+            if i < len(all_segments) - 1:
+                next_segment = all_segments[i + 1]
+                gap = next_segment['start'] - segment['end']
+                if gap > 2.0:  # Add separator for gaps longer than 2 seconds
+                    conversation_lines.append("")
+        
+        return "\n".join(conversation_lines)
+    
+    def _format_timestamp(self, seconds: float) -> str:
+        """Format seconds into MM:SS format"""
+        minutes = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f"{minutes:02d}:{secs:02d}"
     
     def display_results(self, result: TranscriptionResult):
         """Display transcription results in a formatted way"""
         if not result.success:
-            print(f"❌ Transcription failed: {result.error_message}")
+            self.logger.error(f"Transcription failed: {result.error_message}")
             return
         
-        print("\n🎉 Speaker-separated transcription completed!")
-        print("=" * 60)
-        print(f"⏱️  Transcription time: {result.transcription_time:.2f} seconds")
-        print(f"👥 Detected speakers: {result.speaker_count}")
-        print(f"🤖 Model: {result.model_name}")
-        print()
+        self.logger.info("Speaker-separated transcription completed successfully")
+        self.logger.info(f"Transcription time: {result.transcription_time:.2f} seconds")
+        self.logger.info(f"Detected speakers: {result.speaker_count}")
+        self.logger.info(f"Model used: {result.model_name}")
         
-        # Display by speaker
+        # Log speaker information
         for speaker, segments in result.speakers.items():
-            print(f"🎤 {speaker}:")
-            print("-" * 40)
-            
-            for i, segment in enumerate(segments, 1):
-                print(f"  {i}. {segment['text']}")
-                print(f"     Time: {segment['start']:.2f}s - {segment['end']:.2f}s")
-                print()
+            self.logger.info(f"Speaker {speaker}: {len(segments)} segments")
         
-        print("📄 Full transcription with speakers:")
-        print("=" * 60)
-        print(result.full_text)
-        print("=" * 60) 
+        self.logger.info(f"Full transcription length: {len(result.full_text)} characters") 

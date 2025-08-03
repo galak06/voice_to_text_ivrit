@@ -106,8 +106,6 @@ class TranscriptionService:
         Yields:
             Transcription segments
         """
-        print('Transcribing...')
-        
         try:
             # Use Strategy Pattern to get the appropriate engine
             transcription_engine = self.engine_factory.get_engine(engine, model_name)
@@ -115,13 +113,17 @@ class TranscriptionService:
             # Perform transcription using the selected engine
             if engine == 'faster-whisper':
                 segs, _ = transcription_engine.transcribe(audio_file, language='he', word_timestamps=True)
+                # Convert generator to list for processing
+                segs_list = list(segs)
             elif engine == 'stable-whisper':
                 segs = transcription_engine.transcribe(audio_file, language='he', word_timestamps=True)
+                # Convert generator to list for processing
+                segs_list = list(segs)
             else:
                 raise ValueError(f"Unsupported engine: {engine}")
             
             # Process segments
-            for s in segs:
+            for i, s in enumerate(segs_list):
                 words = []
                 for w in s.words:
                     words.append({
@@ -146,5 +148,4 @@ class TranscriptionService:
                 yield seg
                 
         except Exception as e:
-            print(f"Error during transcription: {e}")
             yield {"error": f"Transcription failed: {e}"} 

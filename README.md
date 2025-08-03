@@ -1,16 +1,19 @@
 # Voice-to-Text Transcription Service
 
-A comprehensive voice-to-text transcription service with support for Hebrew audio processing, speaker diarization, and multiple output formats. This project provides both local and cloud-based transcription capabilities using state-of-the-art AI models.
+A comprehensive voice-to-text transcription service with support for Hebrew audio processing, speaker diarization, and multiple output formats. This project provides both local and cloud-based transcription capabilities using state-of-the-art AI models with a modern, configuration-driven architecture.
 
 ## 🎯 Features
 
+- **Single Entry Point**: Unified `main_app.py` for all functionality
+- **Configuration-Driven**: All behavior controlled through JSON configuration files
 - **Multi-Engine Support**: Faster-Whisper and Stable-Whisper engines
 - **Speaker Diarization**: Automatic speaker identification and separation
 - **Multiple Output Formats**: JSON, TXT, and Word Document outputs
 - **Batch Processing**: Process multiple audio files efficiently
 - **Local & Cloud Deployment**: Run locally or deploy to RunPod
-- **Configurable Settings**: Environment-based configuration management
+- **Environment-Based Configuration**: Different configs for different use cases
 - **Hebrew Language Support**: Optimized for Hebrew audio transcription
+- **SOLID Architecture**: Clean, maintainable, and extensible design
 
 ## 🚀 Quick Start
 
@@ -43,36 +46,87 @@ nano .env
 
 ### Basic Usage
 
-**Local Transcription:**
+**Single File Processing:**
 ```bash
-# Transcribe a single audio file
-python main.py --local examples/audio/voice/audio.wav
+# Transcribe a single audio file with default configuration
+python main_app.py single examples/audio/voice/audio.wav
 
-# With speaker diarization
-python main.py --local examples/audio/voice/audio.wav --speaker-config conversation
+# With specific model and engine
+python main_app.py single examples/audio/voice/audio.wav --model base --engine faster-whisper
 
-# With specific model
-python main.py --local examples/audio/voice/audio.wav --model ivrit-ai/whisper-large-v3-turbo-ct2
+# With speaker diarization preset
+python main_app.py single examples/audio/voice/audio.wav --speaker-preset conversation
 ```
 
 **Batch Processing:**
 ```bash
-# Process all audio files in the voice directory
-python main.py --batch-local
+# Process all audio files with default configuration
+python main_app.py batch
 
-# Process with specific settings
-python main.py --batch-local --model ivrit-ai/whisper-large-v3-turbo-ct2 --speaker-config conversation
+# With specific model
+python main_app.py batch --model base --engine faster-whisper
+
+# Using voice folder optimized configuration
+python main_app.py --config-file config/environments/voice_task.json batch
+
+# Using Docker-enabled batch processing
+python main_app.py --config-file config/environments/docker_batch.json batch
+```
+
+**Application Status:**
+```bash
+# Show application status and configuration
+python main_app.py status
+
+# Show configuration information
+python main_app.py --help-config
+```
+
+## 📋 Configuration-Driven Architecture
+
+All functionality is controlled through configuration files in `config/environments/`:
+
+### Available Configurations
+
+| Configuration | Purpose | Use Case |
+|---------------|---------|----------|
+| `base.json` | Default settings | General use |
+| `voice_task.json` | Voice folder processing | Quick voice transcription |
+| `docker_batch.json` | Docker-enabled batch | Advanced batch processing |
+| `runpod.json` | RunPod cloud processing | Cloud transcription |
+| `development.json` | Development settings | Development environment |
+| `production.json` | Production settings | Production environment |
+
+### Configuration Examples
+
+**Voice Folder Processing:**
+```bash
+python main_app.py --config-file config/environments/voice_task.json batch
+```
+
+**Docker Batch Processing:**
+```bash
+python main_app.py --config-file config/environments/docker_batch.json batch
+```
+
+**RunPod Cloud Processing:**
+```bash
+python main_app.py --config-file config/environments/runpod.json batch
 ```
 
 ## 📁 Project Structure
 
 ```
 voice_to_text_ivrit/
-├── main.py                           # 🎯 Unified entry point
+├── main_app.py                       # 🎯 Single entry point for all functionality
 ├── infer.py                          # RunPod serverless handler
 ├── src/                              # 📦 Source code
-│   ├── core/                         # Core transcription functionality
-│   │   ├── transcription_service.py  # Main transcription service
+│   ├── core/                         # Core application components
+│   │   ├── application.py            # Main application orchestrator
+│   │   ├── input_processor.py        # Input file processing
+│   │   ├── output_processor.py       # Output formatting and saving
+│   │   ├── transcription_orchestrator.py # Transcription coordination
+│   │   ├── transcription_service.py  # Core transcription service
 │   │   ├── audio_file_processor.py   # Audio file processing
 │   │   ├── job_validator.py          # Input validation
 │   │   ├── speaker_diarization.py    # Speaker diarization service
@@ -89,40 +143,32 @@ voice_to_text_ivrit/
 │   │   └── infer_client.py           # Inference client
 │   └── tests/                        # Testing
 │       └── test_setup.py             # Setup tests
-├── scripts/                          # 🛠️ Scripts
-│   ├── manage_outputs.py             # Output management
-│   ├── setup.sh                      # Setup script
-│   └── verify_batch_processing.py    # Batch processing verification
 ├── config/                           # ⚙️ Configuration directory
 │   ├── environments/                 # Environment configurations
 │   │   ├── base.json                # Base configuration
+│   │   ├── voice_task.json          # Voice folder processing
+│   │   ├── docker_batch.json        # Docker-enabled batch
+│   │   ├── runpod.json              # RunPod cloud processing
 │   │   ├── development.json         # Development overrides
 │   │   └── production.json          # Production overrides
-│   ├── templates/                    # Configuration templates
-│   │   ├── env_template.txt         # Environment variables template
-│   │   ├── environment-macos.yml    # macOS conda environment
-│   │   └── environment.yml          # Linux conda environment
-│   └── README.md                     # Configuration documentation
-├── docs/                             # 📚 Documentation
-│   ├── MODULAR_STRUCTURE.md          # Modular structure guide
-│   ├── DEPRECATED.md                 # Migration guide
-│   └── DEVELOPMENT.md                # Development guide
-├── tests/                            # 🧪 Test suite
-│   ├── unit/                         # Unit tests
-│   ├── integration/                  # Integration tests
-│   ├── e2e/                          # End-to-end tests
-│   └── run_tests.py                  # Test runner
-├── examples/                         # 📁 Examples
-│   ├── audio/                        # Audio files
-│   │   └── voice/                    # Voice samples
-│   └── output/                       # Output examples
-├── output/                           # 📄 Generated outputs
+│   └── templates/                    # Configuration templates
+│       └── env_template.txt         # Environment variables template
+├── examples/                         # 📁 Example files
+│   └── audio/                        # Sample audio files
+│       └── voice/                    # Voice folder for processing
+├── output/                           # 📤 Output directory
 │   ├── transcriptions/               # Transcription results
 │   ├── logs/                         # Application logs
 │   └── temp/                         # Temporary files
-├── Dockerfile                        # 🐳 Docker configuration
-├── Dockerfile.dev                    # Development Docker configuration
-└── requirements.txt                  # 📦 Python dependencies
+├── tests/                            # 🧪 Test suite
+│   ├── unit/                         # Unit tests
+│   ├── integration/                  # Integration tests
+│   └── e2e/                          # End-to-end tests
+└── docs/                             # 📚 Documentation
+    ├── CONSOLIDATED_ARCHITECTURE.md  # Architecture overview
+    ├── MIGRATION_GUIDE.md            # Migration from old architecture
+    ├── ENTRY_POINTS.md               # Entry points guide
+    └── TEST_SUITE.md                 # Testing documentation
 ```
 
 ## 🎤 Usage Modes
@@ -131,45 +177,42 @@ voice_to_text_ivrit/
 Run transcription locally on your machine:
 ```bash
 # Basic transcription
-python main.py --local examples/audio/voice/audio.wav
+python main_app.py single examples/audio/voice/audio.wav
 
 # With speaker diarization
-python main.py --local examples/audio/voice/audio.wav --speaker-config conversation
+python main_app.py single examples/audio/voice/audio.wav --speaker-preset conversation
 
 # With specific model and engine
-python main.py --local examples/audio/voice/audio.wav --model ivrit-ai/whisper-large-v3-turbo-ct2 --engine faster-whisper
+python main_app.py single examples/audio/voice/audio.wav --model base --engine faster-whisper
 ```
 
 ### Cloud Transcription (RunPod)
 Run transcription via RunPod endpoint:
 ```bash
 # Basic RunPod transcription
-python main.py --runpod examples/audio/voice/audio.wav
-
-# With specific settings
-python main.py --runpod examples/audio/voice/audio.wav --model ivrit-ai/whisper-large-v3-turbo-ct2
+python main_app.py --config-file config/environments/runpod.json batch
 ```
 
 ### Batch Processing
 Process all voice files in a directory:
 ```bash
 # Process all files locally
-python main.py --batch-local
+python main_app.py batch
 
 # Process all files via RunPod
-python main.py --batch-runpod
+python main_app.py --config-file config/environments/docker_batch.json batch
 
 # With custom settings
-python main.py --batch-local --model ivrit-ai/whisper-large-v3-turbo-ct2 --speaker-config conversation
+python main_app.py --config-file config/environments/voice_task.json batch --speaker-preset conversation
 
 # Custom voice directory
-python main.py --batch-local --voice-dir /path/to/voice/files
+python main_app.py --config-file config/environments/voice_task.json batch --voice-dir /path/to/voice/files
 ```
 
 ### Serverless Handler
 Run as RunPod serverless handler:
 ```bash
-python main.py --serverless
+python main_app.py infer
 ```
 
 ## 📄 Output Formats
@@ -213,10 +256,10 @@ The service includes configurable speaker diarization with preset configurations
 ### Usage
 ```bash
 # Use conversation preset
-python main.py --local audio.wav --speaker-config conversation
+python main_app.py single examples/audio/voice/audio.wav --speaker-preset conversation
 
 # Use interview preset
-python main.py --local audio.wav --speaker-config interview
+python main_app.py single examples/audio/voice/audio.wav --speaker-preset interview
 ```
 
 ## ⚙️ Configuration
@@ -252,7 +295,7 @@ LOG_LEVEL=INFO
 
 ### Show Configuration
 ```bash
-python main.py --config
+python main_app.py --help-config
 ```
 
 ## 🐳 Docker Deployment
@@ -265,10 +308,10 @@ docker build -t voice-to-text-service .
 ### Run with Docker
 ```bash
 # Run transcription in container
-docker run --rm -v $(pwd)/examples/audio/voice:/app/voice -v $(pwd)/output:/app/output voice-to-text-service python main.py --local /app/voice/audio.wav
+docker run --rm -v $(pwd)/examples/audio/voice:/app/voice -v $(pwd)/output:/app/output voice-to-text-service python main_app.py single /app/voice/audio.wav
 
 # Run serverless handler
-docker run --rm -p 8000:8000 voice-to-text-service python main.py --serverless
+docker run --rm -p 8000:8000 voice-to-text-service python main_app.py infer
 ```
 
 ## 🧪 Testing
@@ -287,7 +330,7 @@ python -m pytest tests/e2e/
 ### Test Setup
 ```bash
 # Test configuration and setup
-python main.py --test
+python main_app.py --test
 ```
 
 ## 📊 Output Management

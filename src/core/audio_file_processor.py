@@ -44,6 +44,16 @@ class AudioFileProcessor:
             success = self.downloader.download_file(job['input']['url'], audio_file, api_key)
             if not success:
                 return None, f"Error downloading data from {job['input']['url']}"
+        elif datatype == 'file':
+            try:
+                import shutil
+                source_file = job['input']['data']
+                # Copy the file to temp directory with .mp3 extension
+                shutil.copy2(source_file, audio_file)
+            except Exception as e:
+                return None, f"Error copying file {job['input']['data']}: {e}"
+        else:
+            return None, f"Unsupported datatype: {datatype}"
         
         return temp_dir, audio_file
     
@@ -57,9 +67,9 @@ class AudioFileProcessor:
         import shutil
         try:
             shutil.rmtree(temp_dir)
-            print(f"✅ Cleaned up temporary directory: {temp_dir}")
         except Exception as e:
-            print(f"⚠️  Warning: Could not clean up {temp_dir}: {e}")
+            # Silently handle cleanup errors in production
+            pass
     
     def get_audio_file_info(self, audio_file: str) -> Dict[str, Any]:
         """

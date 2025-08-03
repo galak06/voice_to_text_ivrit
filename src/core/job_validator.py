@@ -24,10 +24,10 @@ class JobValidator:
         engine = job['input'].get('engine', 'faster-whisper')
         
         if not datatype:
-            return "datatype field not provided. Should be 'blob' or 'url'."
+            return "datatype field not provided. Should be 'blob', 'url', or 'file'."
         
-        if datatype not in ['blob', 'url']:
-            return f"datatype should be 'blob' or 'url', but is {datatype} instead."
+        if datatype not in ['blob', 'url', 'file']:
+            return f"datatype should be 'blob', 'url', or 'file', but is {datatype} instead."
         
         if engine not in ['faster-whisper', 'stable-whisper']:
             return f"engine should be 'faster-whisper' or 'stable-whisper', but is {engine} instead."

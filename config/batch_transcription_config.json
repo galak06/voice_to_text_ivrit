@@ -1,5 +1,5 @@
 {
-  "model": "ivrit-ai/whisper-large-v3-turbo-ct2",
+  "model": "large-v3-turbo",
   "engine": "faster-whisper",
   "speaker_config": "conversation",
   "timeout": 3600,
