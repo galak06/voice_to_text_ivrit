@@ -9,7 +9,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.utils.output_manager import OutputManager
+from src.output_data import OutputManager
 
 def create_test_conversation_data():
     """Create test conversation data with multiple speakers"""

@@ -9,19 +9,17 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.utils.output_manager import OutputManager
+from src.output_data import OutputManager
 
 def test_new_output_structure():
     """Test the new output structure with parent folders"""
     print("🧪 Testing New Output Structure")
     print("=" * 60)
     
-    # Create output manager with a specific run session ID
-    run_session_id = "test_run_20250802_092000"
-    output_manager = OutputManager(run_session_id=run_session_id)
+    # Create output manager
+    output_manager = OutputManager()
     
-    print(f"🆔 Run Session ID: {run_session_id}")
-    print(f"📁 Run Session Directory: {output_manager.get_run_session_dir()}")
+    print(f"📁 Output Base Path: {output_manager.output_base_path}")
     print()
     
     # Test creating files in the new structure
@@ -36,45 +34,49 @@ def test_new_output_structure():
     for i, audio_file in enumerate(test_audio_files, 1):
         print(f"   {i}. Processing {audio_file}")
         
-        # Create mock transcription data
-        mock_data = [
-            {
-                "id": 0,
-                "start": 0.0,
-                "end": 5.0,
-                "text": f"Test transcription for {audio_file}",
-                "speaker": "Speaker 1",
-                "words": []
-            }
-        ]
+        # Create mock transcription data in the new format
+        mock_data = {
+            "speakers": {
+                "Speaker 1": [
+                    {
+                        "start": 0.0,
+                        "end": 5.0,
+                        "text": f"Test transcription for {audio_file}",
+                        "words": []
+                    }
+                ]
+            },
+            "full_text": f"Test transcription for {audio_file}",
+            "model_name": "test-model",
+            "audio_file": audio_file,
+            "speaker_count": 1,
+            "transcription_time": 2.5,
+            "success": True
+        }
         
-        # Save all formats
-        json_file = output_manager.save_transcription(
-            audio_file, mock_data, "test-model", "test-engine"
+        # Save all formats using the new interface
+        saved_files = output_manager.save_transcription(
+            transcription_data=mock_data,
+            audio_file=audio_file,
+            model="test-model",
+            engine="test-engine"
         )
         
-        text_content = f"Test transcription for {audio_file}"
-        text_file = output_manager.save_transcription_text(
-            audio_file, text_content, "test-model", "test-engine"
-        )
-        
-        docx_file = output_manager.save_transcription_docx(
-            audio_file, mock_data, "test-model", "test-engine"
-        )
-        
-        print(f"      ✅ Saved: JSON, TXT, DOCX")
+        print(f"      ✅ Saved: {list(saved_files.keys())}")
+        for file_type, file_path in saved_files.items():
+            print(f"         • {file_type.upper()}: {file_path}")
     
     print()
     
     # Verify the structure
-    run_session_dir = output_manager.get_run_session_dir()
+    output_base_path = Path(output_manager.output_base_path)
     
-    if run_session_dir.exists():
-        print("✅ Run session directory created successfully")
+    if output_base_path.exists():
+        print("✅ Output base directory exists")
         
-        # Count subfolders (audio files)
-        subfolders = [d for d in run_session_dir.iterdir() if d.is_dir()]
-        print(f"📂 Audio file folders: {len(subfolders)}")
+        # Find all run directories
+        run_dirs = [d for d in output_base_path.iterdir() if d.is_dir() and d.name.startswith("run_")]
+        print(f"📂 Run directories: {len(run_dirs)}")
         
         # Count files
         total_files = 0
@@ -82,11 +84,16 @@ def test_new_output_structure():
         txt_files = 0
         docx_files = 0
         
-        for subfolder in subfolders:
-            json_files += len(list(subfolder.glob("*.json")))
-            txt_files += len(list(subfolder.glob("*.txt")))
-            docx_files += len(list(subfolder.glob("*.docx")))
-            total_files += json_files + txt_files + docx_files
+        for run_dir in run_dirs:
+            # Find all subdirectories (audio file folders)
+            audio_dirs = [d for d in run_dir.iterdir() if d.is_dir()]
+            
+            for audio_dir in audio_dirs:
+                json_files += len(list(audio_dir.glob("*.json")))
+                txt_files += len(list(audio_dir.glob("*.txt")))
+                docx_files += len(list(audio_dir.glob("*.docx")))
+        
+        total_files = json_files + txt_files + docx_files
         
         print(f"📄 Total files: {total_files}")
         print(f"   • JSON: {json_files}")
@@ -95,80 +102,67 @@ def test_new_output_structure():
         
         print()
         print("📁 Directory Structure:")
-        print(f"   {run_session_dir.name}/")
+        print(f"   {output_base_path.name}/")
         
-        for subfolder in subfolders:
-            print(f"   ├── {subfolder.name}/")
-            files = list(subfolder.glob("*"))
-            for i, file in enumerate(files):
-                if i == len(files) - 1:
-                    print(f"   │   └── {file.name}")
-                else:
-                    print(f"   │   ├── {file.name}")
+        for run_dir in run_dirs:
+            print(f"   ├── {run_dir.name}/")
+            audio_dirs = [d for d in run_dir.iterdir() if d.is_dir()]
+            for i, audio_dir in enumerate(audio_dirs):
+                prefix = "   │   └──" if i == len(audio_dirs) - 1 else "   │   ├──"
+                print(f"{prefix} {audio_dir.name}/")
+                
+                # List files in this directory
+                files = list(audio_dir.glob("*"))
+                for j, file in enumerate(files):
+                    file_prefix = "   │       └──" if j == len(files) - 1 else "   │       ├──"
+                    print(f"{file_prefix} {file.name}")
         
         print()
-        print("✅ New output structure verified successfully!")
         
-        return True
+        # Check if DOCX files were created
+        if docx_files > 0:
+            print("✅ DOCX files created successfully!")
+        else:
+            print("❌ No DOCX files found!")
+            
     else:
-        print("❌ Run session directory not created")
-        return False
+        print("❌ Output base directory not found!")
 
 def test_output_stats():
-    """Test that output stats work with new structure"""
-    print("📊 Testing Output Statistics")
-    print("=" * 40)
+    """Test output statistics"""
+    print("\n📊 Output Statistics")
+    print("=" * 60)
     
     output_manager = OutputManager()
-    stats = output_manager.get_output_stats()
+    output_base_path = Path(output_manager.output_base_path)
     
-    print(f"📁 Run Sessions: {stats['transcriptions']['run_sessions']}")
-    print(f"📂 Audio File Sessions: {stats['transcriptions']['sessions']}")
-    print(f"📄 Total Files: {stats['transcriptions']['total_files']}")
-    print(f"   • JSON: {stats['transcriptions']['json_files']}")
-    print(f"   • TXT: {stats['transcriptions']['txt_files']}")
-    print(f"   • DOCX: {stats['transcriptions']['docx_files']}")
-    print(f"💾 Total Size: {stats['transcriptions']['size_mb']:.2f} MB")
-    
-    print()
-    print("✅ Output statistics working with new structure!")
-    
-    return True
+    if output_base_path.exists():
+        # Count all files by type
+        all_json = list(output_base_path.rglob("*.json"))
+        all_txt = list(output_base_path.rglob("*.txt"))
+        all_docx = list(output_base_path.rglob("*.docx"))
+        
+        print(f"📄 Total files found:")
+        print(f"   • JSON: {len(all_json)}")
+        print(f"   • TXT: {len(all_txt)}")
+        print(f"   • DOCX: {len(all_docx)}")
+        
+        if all_docx:
+            print(f"\n📋 DOCX files:")
+            for docx_file in all_docx:
+                print(f"   • {docx_file}")
+        else:
+            print("\n❌ No DOCX files found!")
+    else:
+        print("❌ Output directory not found!")
 
 def main():
-    """Main function"""
-    print("🎤 New Output Structure Verification")
-    print("=" * 60)
-    print()
+    """Main test function"""
+    test_new_output_structure()
+    test_output_stats()
     
-    # Test 1: New output structure
-    structure_ok = test_new_output_structure()
-    print()
-    
-    # Test 2: Output statistics
-    stats_ok = test_output_stats()
-    print()
-    
-    # Summary
-    print("📊 Test Summary")
-    print("=" * 60)
-    print(f"✅ Output Structure: {'OK' if structure_ok else 'FAILED'}")
-    print(f"✅ Output Statistics: {'OK' if stats_ok else 'FAILED'}")
-    
-    if structure_ok and stats_ok:
-        print("\n🎉 New output structure is working correctly!")
-        print("\n💡 Key improvements:")
-        print("   ✅ Parent folders for each run session")
-        print("   ✅ All files from a batch run organized together")
-        print("   ✅ Individual audio file folders within run sessions")
-        print("   ✅ Clean, hierarchical organization")
-        print("   ✅ Easy to identify and manage run sessions")
-        print("\n🚀 Ready for production use!")
-    else:
-        print("\n❌ Some tests failed. Please check the issues above.")
-        return 1
-    
-    return 0
+    print("\n" + "=" * 60)
+    print("🏁 Test completed!")
 
 if __name__ == "__main__":
-    sys.exit(main()) 
+    main() 

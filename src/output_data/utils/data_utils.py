@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""
+Data Utilities
+Handles data validation, conversion, and processing
+"""
+
+from typing import Any, Dict, List, Optional, Union
+from dataclasses import is_dataclass, asdict
+import json
+
+
+class DataUtils:
+    """Data utility functions"""
+    
+    @staticmethod
+    def is_transcription_result(obj: Any) -> bool:
+        """Check if object is a TranscriptionResult dataclass"""
+        return is_dataclass(obj) and hasattr(obj, 'speakers')
+    
+    @staticmethod
+    def convert_transcription_result_to_dict(transcription_data: Any) -> Dict[str, Any]:
+        """Convert TranscriptionResult dataclass to dictionary"""
+        if DataUtils.is_transcription_result(transcription_data):
+            return asdict(transcription_data)
+        return transcription_data
+    
+    @staticmethod
+    def extract_speakers_data(data: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+        """Extract speakers data from transcription data"""
+        if 'speakers' in data:
+            return data['speakers']
+        elif 'segments' in data:
+            # Convert segments to speakers format
+            speakers = {}
+            for segment in data['segments']:
+                speaker = segment.get('speaker', 'Unknown')
+                if speaker not in speakers:
+                    speakers[speaker] = []
+                speakers[speaker].append(segment)
+            return speakers
+        return {}
+    
+    @staticmethod
+    def extract_text_content(data: Dict[str, Any]) -> str:
+        """Extract text content from transcription data"""
+        # Try different possible text fields
+        text_fields = ['full_text', 'text', 'transcription']
+        
+        for field in text_fields:
+            if field in data and data[field]:
+                return str(data[field])
+        
+        # If no direct text field, try to extract from speakers
+        speakers = DataUtils.extract_speakers_data(data)
+        if speakers:
+            text_parts = []
+            for speaker_name, segments in speakers.items():
+                for segment in segments:
+                    if isinstance(segment, dict) and 'text' in segment:
+                        text_parts.append(segment['text'])
+            return ' '.join(text_parts)
+        
+        return ""
+    
+    @staticmethod
+    def validate_transcription_data(data: Any) -> bool:
+        """Validate transcription data structure"""
+        if not data:
+            return False
+        
+        # Check if it's a dataclass
+        if DataUtils.is_transcription_result(data):
+            return True
+        
+        # Check if it's a dictionary with required fields
+        if isinstance(data, dict):
+            required_fields = ['speakers', 'full_text']
+            return any(field in data for field in required_fields)
+        
+        return False
+    
+    @staticmethod
+    def get_model_name(data: Any) -> str:
+        """Extract model name from transcription data"""
+        if DataUtils.is_transcription_result(data):
+            return getattr(data, 'model_name', 'unknown')
+        
+        if isinstance(data, dict):
+            return data.get('model_name', data.get('model', 'unknown'))
+        
+        return 'unknown'
+    
+    @staticmethod
+    def get_audio_file(data: Any) -> str:
+        """Extract audio file path from transcription data"""
+        if DataUtils.is_transcription_result(data):
+            return getattr(data, 'audio_file', 'unknown')
+        
+        if isinstance(data, dict):
+            return data.get('audio_file', data.get('file_path', 'unknown'))
+        
+        return 'unknown' 

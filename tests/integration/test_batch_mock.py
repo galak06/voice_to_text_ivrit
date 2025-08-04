@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.core.application import TranscriptionApplication
 from src.utils.config_manager import ConfigManager
-from src.utils.output_manager import OutputManager
+from src.output_data import OutputManager
 
 def create_mock_transcription(audio_file: str, model: str = "mock-model", engine: str = "mock-engine"):
     """Create mock transcription data"""

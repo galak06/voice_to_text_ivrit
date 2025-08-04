@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 import logging
 from datetime import datetime
 
-from src.utils.output_manager import OutputManager
+from src.output_data import OutputManager
 from src.core.transcription_service import TranscriptionService
 from src.core.speaker_transcription_service import SpeakerTranscriptionService
 

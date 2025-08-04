@@ -17,7 +17,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.core.input_processor import InputProcessor
-from src.utils.output_manager import OutputManager
+from src.output_data import OutputManager
 
 
 class TestInputProcessor(unittest.TestCase):

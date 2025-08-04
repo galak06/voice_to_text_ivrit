@@ -75,7 +75,7 @@ def test_output_structure():
     print("🧪 Testing Output Structure")
     print("=" * 50)
     
-    from src.utils.output_manager import OutputManager
+    from src.output_data import OutputManager
     
     try:
         output_manager = OutputManager()

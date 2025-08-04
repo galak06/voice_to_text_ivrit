@@ -8,7 +8,7 @@ from typing import Dict, Any, Generator
 from src.engines.transcription_engine_factory import TranscriptionEngineFactory
 from src.core.job_validator import JobValidator
 from src.core.audio_file_processor import AudioFileProcessor
-from src.utils.output_manager import OutputManager
+from src.output_data import OutputManager
 
 class TranscriptionService:
     """Core transcription service that orchestrates the transcription process"""

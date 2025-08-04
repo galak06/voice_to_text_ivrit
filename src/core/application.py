@@ -12,8 +12,10 @@ from src.core.input_processor import InputProcessor
 from src.core.output_processor import OutputProcessor
 from src.core.transcription_orchestrator import TranscriptionOrchestrator
 from src.utils.config_manager import ConfigManager
-from src.utils.output_manager import OutputManager
+from src.output_data import OutputManager
+from src.logging import LoggingService
 
+logger = logging.getLogger(__name__)
 
 class TranscriptionApplication:
     """
@@ -57,8 +59,7 @@ class TranscriptionApplication:
         # At this point, config.output is guaranteed to be initialized
         assert self.config.output is not None, "Output configuration must be initialized"
         self.output_manager = OutputManager(
-            base_output_dir=self.config.output.output_dir,
-            run_session_id=self.current_session_id
+            output_base_path=self.config.output.output_dir
         )
         
         # Initialize specialized processors
@@ -74,6 +75,14 @@ class TranscriptionApplication:
         
         # Application state
         self.processing_stats: Dict[str, Any] = {}
+        
+        # Get logging service for application events
+        self.logging_service = LoggingService()
+        
+        # Log application start
+        self.logging_service.log_application_start()
+        if config_path:
+            self.logging_service.log_configuration_loaded(config_path)
     
     def _ensure_config_initialized(self):
         """Ensure all configuration sections are properly initialized"""
@@ -108,8 +117,7 @@ class TranscriptionApplication:
     
     def _setup_logging(self):
         """Setup application-level logging"""
-        self.logger = logging.getLogger('transcription-app')
-        self.logger.info(f"🚀 Transcription Application Started: {self._generate_session_id()}")
+        logger.info(f"🚀 Transcription Application Started: {self._generate_session_id()}")
     
     def process_single_file(self, audio_file_path: str, **kwargs) -> Dict[str, Any]:
         """
@@ -123,7 +131,10 @@ class TranscriptionApplication:
             Dictionary containing processing results
         """
         try:
-            self.logger.info(f"🎤 Processing single file: {audio_file_path}")
+            logger.info(f"🎤 Processing single file: {audio_file_path}")
+            
+            # Log processing start
+            self.logging_service.log_processing_start(1, batch_mode=False)
             
             # Input processing
             input_result = self.input_processor.process_input(audio_file_path)
@@ -152,128 +163,135 @@ class TranscriptionApplication:
                 'timestamp': datetime.now().isoformat()
             }
             
-            self.logger.info(f"✅ Single file processing completed: {audio_file_path}")
+            # Log processing completion
+            self.logging_service.log_processing_complete(1, 1, batch_mode=False)
+            
             return final_result
             
         except Exception as e:
-            self.logger.error(f"❌ Error processing single file {audio_file_path}: {e}")
+            logger.error(f"Error processing file {audio_file_path}: {e}")
+            self.logging_service.log_error(e, f"process_single_file: {audio_file_path}")
             return {
                 'success': False,
                 'error': str(e),
-                'file': audio_file_path,
+                'session_id': self.current_session_id,
                 'timestamp': datetime.now().isoformat()
             }
     
     def process_batch(self, input_directory: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """
-        Process multiple audio files in batch
+        Process multiple audio files in batch mode
         
         Args:
-            input_directory: Directory containing audio files (uses config if None)
-            **kwargs: Additional parameters for transcription
+            input_directory: Directory containing audio files
+            **kwargs: Additional parameters (model, engine, etc.)
             
         Returns:
             Dictionary containing batch processing results
         """
         try:
-            self.logger.info("🔄 Starting batch processing")
-            
-            # Discover input files - use config input directory if available
-            if input_directory is None:
-                # At this point, config.input is guaranteed to be initialized
-                assert self.config.input is not None, "Input configuration must be initialized"
-                input_dir = self.config.input.directory
+            # Discover audio files
+            if input_directory:
+                audio_files = self.input_processor.discover_files(input_directory)
             else:
-                input_dir = input_directory
-                
-            input_files = self.input_processor.discover_files(input_dir)
+                # Use config input directory if available
+                if self.config.input and self.config.input.directory:
+                    audio_files = self.input_processor.discover_files(self.config.input.directory)
+                else:
+                    return {
+                        'success': False,
+                        'error': 'No input directory specified',
+                        'session_id': self.current_session_id,
+                        'timestamp': datetime.now().isoformat()
+                    }
             
-            if not input_files:
+            if not audio_files:
                 return {
                     'success': False,
-                    'error': f"No audio files found in {input_dir}",
+                    'error': 'No audio files found',
+                    'session_id': self.current_session_id,
                     'timestamp': datetime.now().isoformat()
                 }
             
-            self.logger.info(f"📁 Found {len(input_files)} files to process")
+            logger.info(f"🎤 Processing batch of {len(audio_files)} files")
+            
+            # Log processing start
+            self.logging_service.log_processing_start(len(audio_files), batch_mode=True)
             
             # Process each file
             results = []
-            successful_count = 0
-            failed_count = 0
+            success_count = 0
             
-            for i, audio_file in enumerate(input_files, 1):
-                self.logger.info(f"📝 Processing {i}/{len(input_files)}: {audio_file}")
-                
-                result = self.process_single_file(audio_file, **kwargs)
-                results.append(result)
-                
-                if result['success']:
-                    successful_count += 1
-                else:
-                    failed_count += 1
+            for audio_file in audio_files:
+                try:
+                    result = self.process_single_file(audio_file, **kwargs)
+                    results.append(result)
+                    if result['success']:
+                        success_count += 1
+                except Exception as e:
+                    logger.error(f"Error processing {audio_file}: {e}")
+                    self.logging_service.log_error(e, f"process_batch: {audio_file}")
+                    results.append({
+                        'success': False,
+                        'error': str(e),
+                        'file': audio_file,
+                        'session_id': self.current_session_id,
+                        'timestamp': datetime.now().isoformat()
+                    })
             
-            # Compile batch results
+            # Compile batch result
             batch_result = {
-                'success': True,
-                'total_files': len(input_files),
-                'successful': successful_count,
-                'failed': failed_count,
+                'success': success_count > 0,
+                'total_files': len(audio_files),
+                'successful_files': success_count,
+                'failed_files': len(audio_files) - success_count,
                 'results': results,
                 'session_id': self.current_session_id,
                 'timestamp': datetime.now().isoformat()
             }
             
-            self.logger.info(f"✅ Batch processing completed: {successful_count}/{len(input_files)} successful")
+            # Log processing completion
+            self.logging_service.log_processing_complete(success_count, len(audio_files), batch_mode=True)
+            
             return batch_result
             
         except Exception as e:
-            self.logger.error(f"❌ Error in batch processing: {e}")
+            logger.error(f"Error in batch processing: {e}")
+            self.logging_service.log_error(e, "process_batch")
             return {
                 'success': False,
                 'error': str(e),
+                'session_id': self.current_session_id,
                 'timestamp': datetime.now().isoformat()
             }
     
     def get_status(self) -> Dict[str, Any]:
-        """
-        Get current application status
-        
-        Returns:
-            Dictionary containing application status information
-        """
+        """Get current application status"""
         return {
             'session_id': self.current_session_id,
             'config_loaded': self.config is not None,
-            'output_manager_ready': hasattr(self, 'output_manager'),
-            'input_processor_ready': hasattr(self, 'input_processor'),
-            'output_processor_ready': hasattr(self, 'output_processor'),
-            'transcription_orchestrator_ready': hasattr(self, 'transcription_orchestrator'),
+            'output_manager_ready': self.output_manager is not None,
+            'processing_stats': self.processing_stats,
             'timestamp': datetime.now().isoformat()
         }
     
     def cleanup(self):
-        """Cleanup application resources"""
+        """Clean up resources"""
         try:
-            self.logger.info("🧹 Cleaning up application resources")
+            # Clean up any temporary resources
+            logger.info("🧹 Cleaning up application resources")
             
-            # Cleanup temporary files
-            if hasattr(self, 'output_manager'):
-                self.output_manager.cleanup_temp_files()
-            
-            # Cleanup transcription orchestrator
-            if hasattr(self, 'transcription_orchestrator'):
-                self.transcription_orchestrator.cleanup()
-            
-            self.logger.info("✅ Application cleanup completed")
+            # Log application shutdown
+            self.logging_service.log_application_shutdown()
             
         except Exception as e:
-            self.logger.error(f"❌ Error during cleanup: {e}")
+            logger.error(f"Error during cleanup: {e}")
+            self.logging_service.log_error(e, "cleanup")
     
     def __enter__(self):
         """Context manager entry"""
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit with cleanup"""
+        """Context manager exit"""
         self.cleanup() 

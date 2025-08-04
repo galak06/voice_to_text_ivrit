@@ -133,7 +133,7 @@ def send_audio_file(audio_file_path: str, model: str = None, engine: str = None,
         # Save outputs in all formats if requested
         if save_output and segments:
             try:
-                from src.utils.output_manager import OutputManager
+                from src.output_data import OutputManager
                 
                 output_manager = OutputManager()
                 

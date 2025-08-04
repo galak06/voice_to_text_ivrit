@@ -8,7 +8,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from src.utils.output_manager import OutputManager
+from src.output_data import OutputManager
 
 
 class OutputProcessor:

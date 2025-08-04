@@ -6,6 +6,7 @@ Handles speaker diarization with configurable parameters
 
 import sys
 import time
+import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
@@ -17,6 +18,8 @@ try:
     WHISPER_AVAILABLE = True
 except ImportError:
     WHISPER_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class SpeakerConfig:
@@ -59,23 +62,6 @@ class SpeakerTranscriptionService:
         
         self.config = config or SpeakerConfig()
         self.app_config = app_config
-        self.logger = self._setup_logging()
-    
-    def _setup_logging(self):
-        """Setup logging for the service"""
-        import logging
-        logger = logging.getLogger('ivrit-ai-speaker')
-        logger.setLevel(logging.INFO)
-        
-        if not logger.handlers:
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
-        
-        return logger
     
     def speaker_diarization(
         self, 
@@ -96,55 +82,69 @@ class SpeakerTranscriptionService:
             TranscriptionResult with speaker-separated data
         """
         start_time = time.time()
-        self.logger.info(f"[PROGRESS] Starting diarization for: {audio_file_path}")
+        logger.info(f"Starting diarization for: {audio_file_path}")
         
-        # Validate input
+        # Validate audio file
         if not self._validate_audio_file(audio_file_path):
             return TranscriptionResult(
                 success=False,
                 speakers={},
                 full_text="",
-                transcription_time=0,
+                transcription_time=time.time() - start_time,
                 model_name=model_name or "unknown",
                 audio_file=audio_file_path,
                 speaker_count=0,
                 error_message="Invalid audio file"
             )
         
-        # Use default model if not provided
-        if not model_name:
+        # Determine model name
+        if model_name is None:
             model_name = self.app_config.transcription.default_model
         
-        # Sanitize model name for file paths (replace slashes with underscores)
+        # Sanitize model name for file paths
         model_name_safe = model_name.replace('/', '_').replace('\\', '_')
         
-        self.logger.info(f"Starting speaker transcription: {audio_file_path}")
-        self.logger.info(f"Model: {model_name}")
-        self.logger.info(f"Config: min_speakers={self.config.min_speakers}, max_speakers={self.config.max_speakers}")
-        
         try:
-            # Try stable-whisper first for better speaker diarization
+            # Try stable-whisper first
             result = self._transcribe_with_stable_whisper(audio_file_path, model_name)
             
             if result.success:
-                self.logger.info("[PROGRESS] stable-whisper diarization completed successfully.")
-            else:
-                self.logger.warning("[PROGRESS] stable-whisper failed, falling back to faster-whisper")
-                result = self._transcribe_with_faster_whisper(audio_file_path, model_name)
+                logger.info(f"Stable-whisper transcription successful")
+                
+                # Save outputs if requested
+                if save_output:
+                    self._save_outputs(result, audio_file_path, model_name, run_session_id)
+                
+                return result
             
-            # Save outputs if requested
-            if save_output and result.success:
-                self._save_outputs(result, audio_file_path, model_name_safe, run_session_id)
+            # Fallback to faster-whisper
+            logger.info(f"Stable-whisper failed, trying faster-whisper")
+            result = self._transcribe_with_faster_whisper(audio_file_path, model_name)
             
-            # Calculate transcription time
-            transcription_time = time.time() - start_time
-            result.transcription_time = transcription_time
+            if result.success:
+                logger.info(f"Faster-whisper transcription successful")
+                
+                # Save outputs if requested
+                if save_output:
+                    self._save_outputs(result, audio_file_path, model_name, run_session_id)
+                
+                return result
             
-            self.logger.info(f"Transcription completed in {transcription_time:.2f} seconds")
-            return result
+            # Both failed
+            logger.error(f"Both transcription engines failed")
+            return TranscriptionResult(
+                success=False,
+                speakers={},
+                full_text="",
+                transcription_time=time.time() - start_time,
+                model_name=model_name,
+                audio_file=audio_file_path,
+                speaker_count=0,
+                error_message="All transcription engines failed"
+            )
             
         except Exception as e:
-            self.logger.error(f"Error during transcription: {e}")
+            logger.error(f"Error during transcription: {e}")
             return TranscriptionResult(
                 success=False,
                 speakers={},
@@ -159,11 +159,11 @@ class SpeakerTranscriptionService:
     def _validate_audio_file(self, audio_file_path: str) -> bool:
         """Validate audio file exists and is accessible"""
         if not Path(audio_file_path).exists():
-            self.logger.error(f"Audio file not found: {audio_file_path}")
+            logger.error(f"Audio file not found: {audio_file_path}")
             return False
         
         file_size = Path(audio_file_path).stat().st_size
-        self.logger.info(f"Audio file: {audio_file_path} ({file_size:,} bytes)")
+        logger.info(f"Audio file: {audio_file_path} ({file_size:,} bytes)")
         return True
     
     def _transcribe_with_stable_whisper(
@@ -183,7 +183,7 @@ class SpeakerTranscriptionService:
             
             # If model name is not compatible, use a fallback
             if model_name not in compatible_models:
-                self.logger.warning(f"Model {model_name} not compatible with stable-whisper, using 'large-v3' as fallback")
+                logger.warning(f"Model {model_name} not compatible with stable-whisper, using 'large-v3' as fallback")
                 model_name = 'large-v3'
             
             # Load stable-whisper model
@@ -205,7 +205,7 @@ class SpeakerTranscriptionService:
             
             for idx, segment in enumerate(result.segments):
                 if idx % 10 == 0:
-                    self.logger.info(f"[PROGRESS] stable-whisper processed {idx+1} segments...")
+                    logger.info(f"[PROGRESS] stable-whisper processed {idx+1} segments...")
                 speaker = segment.speaker if hasattr(segment, 'speaker') else 'Unknown'
                 if speaker not in speakers:
                     speakers[speaker] = []
@@ -219,7 +219,7 @@ class SpeakerTranscriptionService:
                 
                 speakers[speaker].append(segment_data)
                 full_text += f"\n🎤 {speaker}:\n{segment.text.strip()}\n"
-            self.logger.info(f"[PROGRESS] stable-whisper finished all {len(result.segments)} segments.")
+            logger.info(f"[PROGRESS] stable-whisper finished all {len(result.segments)} segments.")
             
             return TranscriptionResult(
                 success=True,
@@ -232,7 +232,7 @@ class SpeakerTranscriptionService:
             )
             
         except ImportError:
-            self.logger.warning("stable-whisper not available")
+            logger.warning("stable-whisper not available")
             return TranscriptionResult(
                 success=False,
                 speakers={},
@@ -244,7 +244,7 @@ class SpeakerTranscriptionService:
                 error_message="stable-whisper not available"
             )
         except Exception as e:
-            self.logger.error(f"stable-whisper error: {e}")
+            logger.error(f"stable-whisper error: {e}")
             return TranscriptionResult(
                 success=False,
                 speakers={},
@@ -270,8 +270,8 @@ class SpeakerTranscriptionService:
             try:
                 model = WhisperModel(model_name, device="cpu", compute_type="int8")
             except Exception as model_error:
-                self.logger.warning(f"Failed to load model {model_name}: {model_error}")
-                self.logger.info("Falling back to 'large-v3' model")
+                logger.warning(f"Failed to load model {model_name}: {model_error}")
+                logger.info("Falling back to 'large-v3' model")
                 model = WhisperModel("large-v3", device="cpu", compute_type="int8")
                 model_name = "large-v3"  # Update model name for output
             
@@ -284,7 +284,7 @@ class SpeakerTranscriptionService:
                 vad_parameters=dict(min_silence_duration_ms=self.config.vad_min_silence_duration_ms),
                 word_timestamps=self.config.word_timestamps
             )
-            self.logger.info(f"[PROGRESS] faster-whisper started segment processing...")
+            logger.info(f"[PROGRESS] faster-whisper started segment processing...")
             # Simple speaker detection based on silence gaps
             speakers = {'Speaker 1': []}
             current_speaker = 'Speaker 1'
@@ -292,7 +292,7 @@ class SpeakerTranscriptionService:
             
             for idx, segment in enumerate(segments):
                 if idx % 10 == 0:
-                    self.logger.info(f"[PROGRESS] faster-whisper processed {idx+1} segments...")
+                    logger.info(f"[PROGRESS] faster-whisper processed {idx+1} segments...")
                 # Simple heuristic: if gap > silence_threshold seconds, switch speaker
                 if (speakers[current_speaker] and 
                     segment.start - speakers[current_speaker][-1]['end'] > self.config.silence_threshold):
@@ -314,7 +314,7 @@ class SpeakerTranscriptionService:
                     'words': segment.words if hasattr(segment, 'words') else None
                 }
                 speakers[current_speaker].append(segment_data)
-            self.logger.info(f"[PROGRESS] faster-whisper finished all {len(list(segments))} segments.")
+            logger.info(f"[PROGRESS] faster-whisper finished all {len(list(segments))} segments.")
             
             # Build full text
             full_text = ""
@@ -333,7 +333,7 @@ class SpeakerTranscriptionService:
             )
             
         except Exception as e:
-            self.logger.error(f"faster-whisper error: {e}")
+            logger.error(f"faster-whisper error: {e}")
             return TranscriptionResult(
                 success=False,
                 speakers={},
@@ -354,7 +354,7 @@ class SpeakerTranscriptionService:
     ):
         """Save transcription outputs in all formats"""
         try:
-            from src.utils.output_manager import OutputManager
+            from src.output_data import OutputManager
             
             output_manager = OutputManager(run_session_id=run_session_id)
             
@@ -406,19 +406,19 @@ class SpeakerTranscriptionService:
                 audio_file_path, transcription_data, model_name, "speaker-diarization"
             )
             
-            self.logger.info(f"All formats saved:")
-            self.logger.info(f"  📄 JSON: {json_file}")
-            self.logger.info(f"  📄 Text: {text_file}")
+            logger.info(f"All formats saved:")
+            logger.info(f"  📄 JSON: {json_file}")
+            logger.info(f"  📄 Text: {text_file}")
             if docx_file:
-                self.logger.info(f"  📄 Word: {docx_file}")
+                logger.info(f"  📄 Word: {docx_file}")
             else:
-                self.logger.info(f"  📄 Word: Skipped (python-docx not available)")
+                logger.info(f"  📄 Word: Skipped (python-docx not available)")
                 
         except Exception as e:
-            self.logger.error(f"Failed to save outputs: {e}")
+            logger.error(f"Failed to save outputs: {e}")
             # Log more details about the error
             import traceback
-            self.logger.error(f"Error details: {traceback.format_exc()}")
+            logger.error(f"Error details: {traceback.format_exc()}")
     
     def _format_conversation_text(self, speakers: Dict[str, List[Dict[str, Any]]]) -> str:
         """Format speaker segments into a readable conversation format"""
@@ -471,16 +471,16 @@ class SpeakerTranscriptionService:
     def display_results(self, result: TranscriptionResult):
         """Display transcription results in a formatted way"""
         if not result.success:
-            self.logger.error(f"Transcription failed: {result.error_message}")
+            logger.error(f"Transcription failed: {result.error_message}")
             return
         
-        self.logger.info("Speaker-separated transcription completed successfully")
-        self.logger.info(f"Transcription time: {result.transcription_time:.2f} seconds")
-        self.logger.info(f"Detected speakers: {result.speaker_count}")
-        self.logger.info(f"Model used: {result.model_name}")
+        logger.info("Speaker-separated transcription completed successfully")
+        logger.info(f"Transcription time: {result.transcription_time:.2f} seconds")
+        logger.info(f"Detected speakers: {result.speaker_count}")
+        logger.info(f"Model used: {result.model_name}")
         
         # Log speaker information
         for speaker, segments in result.speakers.items():
-            self.logger.info(f"Speaker {speaker}: {len(segments)} segments")
+            logger.info(f"Speaker {speaker}: {len(segments)} segments")
         
-        self.logger.info(f"Full transcription length: {len(result.full_text)} characters") 
+        logger.info(f"Full transcription length: {len(result.full_text)} characters") 
