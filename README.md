@@ -279,7 +279,7 @@ RUNPOD_API_KEY=your_runpod_api_key_here
 RUNPOD_ENDPOINT_ID=your_endpoint_id_here
 
 # Model Configuration
-DEFAULT_MODEL=ivrit-ai/whisper-large-v3-turbo-ct2
+DEFAULT_MODEL=ivrit-ai/whisper-large-v3-ct2
 FALLBACK_MODEL=ivrit-ai/whisper-large-v3-ct2
 
 # Transcription Settings
