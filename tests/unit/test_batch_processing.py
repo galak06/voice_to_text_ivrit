@@ -9,14 +9,20 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from main import get_voice_files, run_batch_transcription
+from src.core.application import TranscriptionApplication
+from src.utils.config_manager import ConfigManager
 
 def test_voice_file_discovery():
     """Test that all voice files are discovered correctly"""
     print("🧪 Testing Voice File Discovery")
     print("=" * 50)
     
-    voice_files = get_voice_files("examples/audio/voice")
+    # Use the current application architecture
+    config_manager = ConfigManager()
+    app = TranscriptionApplication(config_manager)
+    
+    # Discover files using the current input processor
+    voice_files = app.input_processor.discover_files("examples/audio/voice")
     
     print(f"📁 Voice directory: examples/audio/voice")
     print(f"🔍 Found {len(voice_files)} audio files:")
@@ -34,7 +40,11 @@ def test_batch_processing_logic():
     print("🧪 Testing Batch Processing Logic")
     print("=" * 50)
     
-    voice_files = get_voice_files("examples/audio/voice")
+    # Use the current application architecture
+    config_manager = ConfigManager()
+    app = TranscriptionApplication(config_manager)
+    
+    voice_files = app.input_processor.discover_files("examples/audio/voice")
     
     if not voice_files:
         print("❌ No voice files found")
@@ -47,7 +57,7 @@ def test_batch_processing_logic():
         file_name = Path(audio_file).name
         print(f"📝 {i}/{len(voice_files)}: {file_name}")
         print(f"   📁 Path: {audio_file}")
-        print(f"   🤖 Model: default (ivrit-ai/whisper-large-v3-turbo-ct2)")
+        print(f"   🤖 Model: default (ivrit-ai/whisper-large-v3-ct2)")
         print(f"   ⚙️  Engine: default (faster-whisper)")
         print(f"   👥 Speaker config: default")
         print(f"   💾 Save output: True")
@@ -55,8 +65,8 @@ def test_batch_processing_logic():
     
     print("✅ Batch processing logic verified!")
     print("💡 To actually process files, run:")
-    print("   python main.py --batch-local")
-    print("   python main.py --batch-runpod")
+    print("   python main_app.py batch")
+    print("   python main_app.py batch --config-file config/environments/docker_batch.json")
     
     return True
 
@@ -123,7 +133,7 @@ def main():
         print("\n🎉 All tests passed! Batch processing is ready.")
         print("\n💡 Next steps:")
         print("   1. Install required packages: pip install faster-whisper stable-whisper")
-        print("   2. Run batch processing: python main.py --batch-local")
+        print("   2. Run batch processing: python main_app.py batch")
         print("   3. Check outputs in: output/transcriptions/")
     else:
         print("\n❌ Some tests failed. Please check the issues above.")

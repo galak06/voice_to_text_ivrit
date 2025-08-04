@@ -195,7 +195,6 @@ class SpeakerTranscriptionService:
                 language=self.config.language,
                 vad=self.config.vad_enabled,
                 word_timestamps=self.config.word_timestamps,
-                speaker_labels=True,
                 min_speakers=self.config.min_speakers,
                 max_speakers=self.config.max_speakers
             )
