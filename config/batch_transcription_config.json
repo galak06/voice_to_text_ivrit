@@ -5,7 +5,7 @@
   "timeout": 3600,
   "delay_between_files": 10,
   "input_dir": "examples/audio/voice",
-  "output_dir": "output",
+  "output_dir": "output/transcriptions",
   "docker_image": "whisper-runpod-serverless:latest",
   "verbose": true,
   "dry_run": false

@@ -20,6 +20,52 @@ class DocxFormatter:
     """DOCX formatting utilities with RTL support"""
     
     @staticmethod
+    def improve_hebrew_punctuation(text: str) -> str:
+        """Improve punctuation for Hebrew text"""
+        if not text:
+            return text
+        
+        import re
+        
+        # First, normalize whitespace
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Hebrew punctuation improvements
+        improvements = [
+            # Fix spacing around Hebrew punctuation marks
+            (r'([א-ת])\s*([,\.!?;:])', r'\1\2'),  # Remove space before punctuation
+            (r'([,\.!?;:])\s*([א-ת])', r'\1 \2'),  # Add space after punctuation before Hebrew
+            (r'([א-ת])\s*\.\s*([א-ת])', r'\1. \2'),  # Period between Hebrew words
+            (r'([א-ת])\s*,\s*([א-ת])', r'\1, \2'),  # Comma between Hebrew words
+            (r'([א-ת])\s*!\s*([א-ת])', r'\1! \2'),  # Exclamation between Hebrew words
+            (r'([א-ת])\s*\?\s*([א-ת])', r'\1? \2'),  # Question mark between Hebrew words
+            
+            # Fix spacing around quotes
+            (r'"([א-ת]+)"', r'"\1"'),
+            (r"'([א-ת]+)'", r"'\1'"),
+            
+            # Fix spacing around numbers
+            (r'([א-ת])\s*(\d+)', r'\1 \2'),
+            (r'(\d+)\s*([א-ת])', r'\1 \2'),
+            
+            # Fix spacing around English letters
+            (r'([א-ת])\s*([a-zA-Z])', r'\1 \2'),
+            (r'([a-zA-Z])\s*([א-ת])', r'\1 \2'),
+            
+            # Fix common Hebrew text issues
+            (r'([א-ת])\s*-\s*([א-ת])', r'\1-\2'),  # Hyphens in Hebrew words
+            (r'([א-ת])\s*/\s*([א-ת])', r'\1/\2'),  # Slashes in Hebrew words
+            
+            # Clean up multiple spaces
+            (r'\s+', ' '),
+        ]
+        
+        for pattern, replacement in improvements:
+            text = re.sub(pattern, replacement, text)
+        
+        return text.strip()
+    
+    @staticmethod
     def create_transcription_document(
         transcription_data: List[Dict[str, Any]],
         audio_file: str,
@@ -54,6 +100,8 @@ class DocxFormatter:
         """Set document to RTL direction"""
         try:
             section = doc.sections[0]
+            
+            # Set bidirectional text
             bidi_elements = section._sectPr.xpath('./w:bidi')
             if bidi_elements:
                 bidi_elements[0].val = '1'
@@ -62,21 +110,21 @@ class DocxFormatter:
                 bidi.set('val', '1')
                 section._sectPr.append(bidi)
             
-            # Add text flow
-            textFlow = OxmlElement('w:textFlow')
-            textFlow.set('val', 'rl-tb')
-            section._sectPr.append(textFlow)
+            # Set page margins for RTL
+            section.left_margin = Inches(1.0)
+            section.right_margin = Inches(1.0)
+            
+            logger.info("Document RTL settings applied successfully")
         except Exception as e:
             logger.warning(f"Could not set RTL direction: {e}")
     
     @staticmethod
     def _set_paragraph_rtl(paragraph):
         """Set paragraph to RTL alignment"""
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         try:
-            bidi = OxmlElement('w:bidi')
-            bidi.set('val', '1')
-            paragraph._element.get_or_add_pPr().append(bidi)
+            # Set paragraph alignment to right
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            
         except Exception as e:
             logger.warning(f"Could not set paragraph RTL: {e}")
     
@@ -91,6 +139,11 @@ class DocxFormatter:
         header_cells[0].text = 'מטא-דאטה'
         header_cells[1].text = 'ערך'
         
+        # Set RTL for header cells
+        for cell in header_cells:
+            for paragraph in cell.paragraphs:
+                DocxFormatter._set_paragraph_rtl(paragraph)
+        
         # Add data rows
         data = [
             ('קובץ שמע', Path(audio_file).name),
@@ -104,7 +157,7 @@ class DocxFormatter:
             row_cells[0].text = key
             row_cells[1].text = str(value)
             
-            # Set RTL for cells
+            # Set RTL for all cells
             for cell in row_cells:
                 for paragraph in cell.paragraphs:
                     DocxFormatter._set_paragraph_rtl(paragraph)
@@ -112,12 +165,28 @@ class DocxFormatter:
     @staticmethod
     def _add_transcription_content(doc: Document, transcription_data: List[Dict[str, Any]]):
         """Add transcription content to document"""
-        doc.add_heading('תמלול שיחה', level=1)
+        # Add heading with RTL
+        heading = doc.add_heading('תמלול שיחה', level=1)
+        DocxFormatter._set_paragraph_rtl(heading)
         
+        # Group segments by speaker for better conversation flow
+        speakers_data = {}
         for segment in transcription_data:
             if isinstance(segment, dict):
-                text = segment.get('text', '')
                 speaker = segment.get('speaker', 'Unknown')
+                if speaker not in speakers_data:
+                    speakers_data[speaker] = []
+                speakers_data[speaker].append(segment)
+        
+        # Add content by speaker
+        for speaker_name, segments in speakers_data.items():
+            # Add speaker header
+            speaker_heading = doc.add_heading(f'🎤 {speaker_name}', level=2)
+            DocxFormatter._set_paragraph_rtl(speaker_heading)
+            
+            # Add segments for this speaker
+            for segment in segments:
+                text = segment.get('text', '')
                 start_time = segment.get('start', 0)
                 
                 if text:
@@ -131,14 +200,12 @@ class DocxFormatter:
                     timestamp_run.font.size = Pt(8)
                     timestamp_run.font.color.rgb = RGBColor(128, 128, 128)
                     
-                    # Add speaker name
-                    speaker_run = para.add_run(f"{speaker}: ")
-                    speaker_run.bold = True
-                    speaker_run.font.size = Pt(12)
-                    
                     # Add text content
                     text_run = para.add_run(text)
                     text_run.font.size = Pt(12)
+            
+            # Add spacing between speakers
+            doc.add_paragraph()
     
     @staticmethod
     def _format_timestamp(seconds: float) -> str:

@@ -9,6 +9,9 @@ from src.engines.transcription_engine_factory import TranscriptionEngineFactory
 from src.core.job_validator import JobValidator
 from src.core.audio_file_processor import AudioFileProcessor
 from src.output_data import OutputManager
+import logging
+
+logger = logging.getLogger(__name__)
 
 class TranscriptionService:
     """Core transcription service that orchestrates the transcription process"""
@@ -67,26 +70,17 @@ class TranscriptionService:
                 # Save output if requested
                 if save_output and result:
                     try:
-                        # Save as JSON
-                        json_file = self.output_manager.save_transcription(
-                            audio_file, result, model_name, engine
+                        # Save transcription in all formats using the unified method
+                        saved_files = self.output_manager.save_transcription(
+                            transcription_data=result,
+                            audio_file=audio_file,
+                            model=model_name,
+                            engine=engine
                         )
                         
-                        # Save as text
-                        text_content = "\n".join([seg.get('text', '') for seg in result if 'text' in seg])
-                        if text_content.strip():
-                            text_file = self.output_manager.save_transcription_text(
-                                audio_file, text_content, model_name, engine
-                            )
-                        
-                        # Save as Word document
-                        docx_file = self.output_manager.save_transcription_docx(
-                            audio_file, result, model_name, engine
-                        )
-                        
-                        self.output_manager.log_info(f"Transcription completed and saved for {audio_file}")
+                        logger.info(f"Transcription completed and saved for {audio_file}")
                     except Exception as e:
-                        self.output_manager.log_error(f"Failed to save output: {e}")
+                        logger.error(f"Failed to save output: {e}")
                 
                 yield {'result': result}
         finally:

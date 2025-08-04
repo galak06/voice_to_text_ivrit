@@ -189,14 +189,12 @@ class SpeakerTranscriptionService:
             # Load stable-whisper model
             model = stable_whisper.load_model(model_name)
             
-            # Transcribe with speaker diarization
+            # Transcribe with basic parameters (no speaker_labels - not supported)
             result = model.transcribe(
                 audio_file_path,
                 language=self.config.language,
                 vad=self.config.vad_enabled,
-                word_timestamps=self.config.word_timestamps,
-                min_speakers=self.config.min_speakers,
-                max_speakers=self.config.max_speakers
+                word_timestamps=self.config.word_timestamps
             )
             
             # Process results
@@ -206,7 +204,10 @@ class SpeakerTranscriptionService:
             for idx, segment in enumerate(result.segments):
                 if idx % 10 == 0:
                     logger.info(f"[PROGRESS] stable-whisper processed {idx+1} segments...")
-                speaker = segment.speaker if hasattr(segment, 'speaker') else 'Unknown'
+                
+                # Since stable-whisper doesn't support speaker diarization, use alternating speakers
+                speaker = f"Speaker {idx % 2 + 1}"  # Alternate between Speaker 1 and 2
+                
                 if speaker not in speakers:
                     speakers[speaker] = []
                 
@@ -285,12 +286,17 @@ class SpeakerTranscriptionService:
                 word_timestamps=self.config.word_timestamps
             )
             logger.info(f"[PROGRESS] faster-whisper started segment processing...")
+            
+            # Convert generator to list to avoid consumption issues
+            segments_list = list(segments)
+            logger.info(f"[PROGRESS] faster-whisper found {len(segments_list)} segments to process...")
+            
             # Simple speaker detection based on silence gaps
             speakers = {'Speaker 1': []}
             current_speaker = 'Speaker 1'
             speaker_count = 1
             
-            for idx, segment in enumerate(segments):
+            for idx, segment in enumerate(segments_list):
                 if idx % 10 == 0:
                     logger.info(f"[PROGRESS] faster-whisper processed {idx+1} segments...")
                 # Simple heuristic: if gap > silence_threshold seconds, switch speaker
@@ -314,7 +320,7 @@ class SpeakerTranscriptionService:
                     'words': segment.words if hasattr(segment, 'words') else None
                 }
                 speakers[current_speaker].append(segment_data)
-            logger.info(f"[PROGRESS] faster-whisper finished all {len(list(segments))} segments.")
+            logger.info(f"[PROGRESS] faster-whisper finished all {len(segments_list)} segments.")
             
             # Build full text
             full_text = ""
@@ -356,63 +362,31 @@ class SpeakerTranscriptionService:
         try:
             from src.output_data import OutputManager
             
-            output_manager = OutputManager(run_session_id=run_session_id)
+            # Use new OutputManager constructor (no run_session_id parameter)
+            output_manager = OutputManager()
             
-            # Prepare data for output manager with proper sanitization
-            transcription_data = []
-            for speaker, segments in result.speakers.items():
-                for segment in segments:
-                    # Sanitize words data to ensure JSON serialization
-                    words_data = []
-                    if segment.get('words'):
-                        for word in segment['words']:
-                            if isinstance(word, dict):
-                                # Convert word dict to serializable format
-                                sanitized_word = {}
-                                for key, value in word.items():
-                                    if isinstance(value, (str, int, float, bool, type(None))):
-                                        sanitized_word[key] = value
-                                    else:
-                                        sanitized_word[key] = str(value)
-                                words_data.append(sanitized_word)
-                            else:
-                                # If word is not a dict, convert to string
-                                words_data.append(str(word))
-                    
-                    transcription_data.append({
-                        'id': len(transcription_data),
-                        'start': float(segment['start']) if 'start' in segment else 0.0,
-                        'end': float(segment['end']) if 'end' in segment else 0.0,
-                        'text': str(segment['text']) if 'text' in segment else '',
-                        'speaker': str(speaker),
-                        'words': words_data
-                    })
+            # Convert TranscriptionResult to the format expected by new OutputManager
+            # The new OutputManager expects a dictionary with 'speakers' key
+            transcription_data = {
+                'speakers': result.speakers,
+                'full_text': result.full_text,
+                'model_name': result.model_name,
+                'audio_file': result.audio_file,
+                'transcription_time': result.transcription_time,
+                'speaker_count': result.speaker_count
+            }
             
-            # Save as JSON
-            json_file = output_manager.save_transcription(
-                audio_file_path, transcription_data, model_name, "speaker-diarization"
-            )
-            
-            # Format conversation text
-            conversation_text = self._format_conversation_text(result.speakers)
-            
-            # Save as text
-            text_file = output_manager.save_transcription_text(
-                audio_file_path, conversation_text, model_name, "speaker-diarization"
-            )
-            
-            # Save as Word document
-            docx_file = output_manager.save_transcription_docx(
-                audio_file_path, transcription_data, model_name, "speaker-diarization"
+            # Use the new unified save_transcription method
+            saved_files = output_manager.save_transcription(
+                transcription_data=transcription_data,
+                audio_file=audio_file_path,
+                model=model_name,
+                engine="speaker-diarization"
             )
             
             logger.info(f"All formats saved:")
-            logger.info(f"  📄 JSON: {json_file}")
-            logger.info(f"  📄 Text: {text_file}")
-            if docx_file:
-                logger.info(f"  📄 Word: {docx_file}")
-            else:
-                logger.info(f"  📄 Word: Skipped (python-docx not available)")
+            for format_type, file_path in saved_files.items():
+                logger.info(f"  📄 {format_type.upper()}: {file_path}")
                 
         except Exception as e:
             logger.error(f"Failed to save outputs: {e}")

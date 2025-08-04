@@ -271,6 +271,9 @@ class TranscriptionApplication:
             'session_id': self.current_session_id,
             'config_loaded': self.config is not None,
             'output_manager_ready': self.output_manager is not None,
+            'input_processor_ready': self.input_processor is not None,
+            'output_processor_ready': self.output_processor is not None,
+            'transcription_orchestrator_ready': self.transcription_orchestrator is not None,
             'processing_stats': self.processing_stats,
             'timestamp': datetime.now().isoformat()
         }

@@ -25,40 +25,64 @@ class DataUtils:
         return transcription_data
     
     @staticmethod
-    def extract_speakers_data(data: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+    def extract_speakers_data(data: Any) -> Dict[str, List[Dict[str, Any]]]:
         """Extract speakers data from transcription data"""
-        if 'speakers' in data:
-            return data['speakers']
-        elif 'segments' in data:
+        # Handle list of segments (from faster-whisper)
+        if isinstance(data, list):
             # Convert segments to speakers format
             speakers = {}
-            for segment in data['segments']:
+            for segment in data:
                 speaker = segment.get('speaker', 'Unknown')
                 if speaker not in speakers:
                     speakers[speaker] = []
                 speakers[speaker].append(segment)
             return speakers
+        
+        # Handle dictionary format
+        if isinstance(data, dict):
+            if 'speakers' in data:
+                return data['speakers']
+            elif 'segments' in data:
+                # Convert segments to speakers format
+                speakers = {}
+                for segment in data['segments']:
+                    speaker = segment.get('speaker', 'Unknown')
+                    if speaker not in speakers:
+                        speakers[speaker] = []
+                    speakers[speaker].append(segment)
+                return speakers
+        
         return {}
     
     @staticmethod
-    def extract_text_content(data: Dict[str, Any]) -> str:
+    def extract_text_content(data: Any) -> str:
         """Extract text content from transcription data"""
-        # Try different possible text fields
-        text_fields = ['full_text', 'text', 'transcription']
-        
-        for field in text_fields:
-            if field in data and data[field]:
-                return str(data[field])
-        
-        # If no direct text field, try to extract from speakers
-        speakers = DataUtils.extract_speakers_data(data)
-        if speakers:
+        # Handle list of segments (from faster-whisper)
+        if isinstance(data, list):
             text_parts = []
-            for speaker_name, segments in speakers.items():
-                for segment in segments:
-                    if isinstance(segment, dict) and 'text' in segment:
-                        text_parts.append(segment['text'])
+            for segment in data:
+                if isinstance(segment, dict) and 'text' in segment:
+                    text_parts.append(segment['text'])
             return ' '.join(text_parts)
+        
+        # Handle dictionary format
+        if isinstance(data, dict):
+            # Try different possible text fields
+            text_fields = ['full_text', 'text', 'transcription']
+            
+            for field in text_fields:
+                if field in data and data[field]:
+                    return str(data[field])
+            
+            # If no direct text field, try to extract from speakers
+            speakers = DataUtils.extract_speakers_data(data)
+            if speakers:
+                text_parts = []
+                for speaker_name, segments in speakers.items():
+                    for segment in segments:
+                        if isinstance(segment, dict) and 'text' in segment:
+                            text_parts.append(segment['text'])
+                return ' '.join(text_parts)
         
         return ""
     

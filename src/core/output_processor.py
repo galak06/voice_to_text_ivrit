@@ -122,15 +122,27 @@ class OutputProcessor:
             Dictionary containing JSON output results
         """
         try:
-            json_file = self.output_manager.save_transcription(
-                input_file, transcription_data, model, engine
+            # Use the new unified save_transcription method
+            saved_files = self.output_manager.save_transcription(
+                transcription_data=transcription_data,
+                audio_file=input_file,
+                model=model,
+                engine=engine
             )
             
-            return {
-                'success': True,
-                'file_path': json_file,
-                'format': 'json'
-            }
+            json_file = saved_files.get('json')
+            if json_file:
+                return {
+                    'success': True,
+                    'file_path': json_file,
+                    'format': 'json'
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'JSON file not created',
+                    'format': 'json'
+                }
             
         except Exception as e:
             self.logger.error(f"Error saving JSON output: {e}")
@@ -155,18 +167,27 @@ class OutputProcessor:
             Dictionary containing text output results
         """
         try:
-            # Extract text content
-            text_content = self._extract_text_content(transcription_data)
-            
-            text_file = self.output_manager.save_transcription_text(
-                input_file, text_content, model, engine
+            # Use the new unified save_transcription method
+            saved_files = self.output_manager.save_transcription(
+                transcription_data=transcription_data,
+                audio_file=input_file,
+                model=model,
+                engine=engine
             )
             
-            return {
-                'success': True,
-                'file_path': text_file,
-                'format': 'txt'
-            }
+            txt_file = saved_files.get('txt')
+            if txt_file:
+                return {
+                    'success': True,
+                    'file_path': txt_file,
+                    'format': 'txt'
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Text file not created',
+                    'format': 'txt'
+                }
             
         except Exception as e:
             self.logger.error(f"Error saving text output: {e}")
@@ -191,13 +212,15 @@ class OutputProcessor:
             Dictionary containing DOCX output results
         """
         try:
-            # Convert transcription data to list format for DOCX
-            docx_data = self._convert_to_docx_format(transcription_data)
-            
-            docx_file = self.output_manager.save_transcription_docx(
-                input_file, docx_data, model, engine
+            # Use the new unified save_transcription method
+            saved_files = self.output_manager.save_transcription(
+                transcription_data=transcription_data,
+                audio_file=input_file,
+                model=model,
+                engine=engine
             )
             
+            docx_file = saved_files.get('docx')
             if docx_file:
                 return {
                     'success': True,
@@ -207,7 +230,7 @@ class OutputProcessor:
             else:
                 return {
                     'success': False,
-                    'error': 'Failed to create DOCX file',
+                    'error': 'DOCX file not created',
                     'format': 'docx'
                 }
             

@@ -96,7 +96,7 @@
     "auto_scale": true
   },
   "output": {
-    "output_dir": "output",
+    "output_dir": "output/transcriptions",
     "logs_dir": "output/logs",
     "transcriptions_dir": "output/transcriptions",
     "temp_dir": "output/temp",

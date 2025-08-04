@@ -114,7 +114,7 @@ class RunPodConfig:
 @dataclass
 class OutputConfig:
     """Output and logging configuration"""
-    output_dir: str = "output"
+    output_dir: str = "output/transcriptions"
     logs_dir: str = "output/logs"
     transcriptions_dir: str = "output/transcriptions"
     temp_dir: str = "output/temp"
@@ -504,7 +504,7 @@ class ConfigManager:
                     'max_payload_len': 10 * 1024 * 1024
                 },
                 'output': {
-                    'output_dir': 'output',
+                    'output_dir': 'output/transcriptions',
                     'logs_dir': 'output/logs',
                     'transcriptions_dir': 'output/transcriptions',
                     'temp_dir': 'output/temp',
