@@ -5,15 +5,17 @@ Handles file outputs, logging, and temporary file management
 """
 
 import os
+import re
 import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import json
 
+# Check if python-docx is available
 try:
     from docx import Document
-    from docx.shared import Inches
+    from docx.shared import Inches, Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     DOCX_AVAILABLE = True
 except ImportError:
@@ -245,7 +247,7 @@ class OutputManager:
     def save_transcription_docx(self, audio_file: str, transcription_data: List[Dict[str, Any]], 
                                model: str = "unknown", engine: str = "unknown") -> Optional[str]:
         """
-        Save transcription as Word document (.docx)
+        Save transcription as Word document (.docx) with RTL support and conversation format
         
         Args:
             audio_file: Original audio file path
@@ -279,69 +281,192 @@ class OutputManager:
         # Create Word document
         doc = Document()
         
-        # Add title
-        title = doc.add_heading('Transcription Report', 0)
+        # Set document to RTL with comprehensive RTL support
+        try:
+            section = doc.sections[0]
+            # Set RTL direction for the entire document
+            bidi_elements = section._sectPr.xpath('./w:bidi')
+            if bidi_elements:
+                bidi_elements[0].val = '1'  # Enable RTL
+            else:
+                # Create RTL element if it doesn't exist
+                from docx.oxml import OxmlElement
+                bidi = OxmlElement('w:bidi')
+                bidi.set('w:val', '1')
+                section._sectPr.append(bidi)
+            
+            # Set RTL text flow
+            try:
+                from docx.oxml import OxmlElement
+                textFlow = OxmlElement('w:textFlow')
+                textFlow.set('w:val', 'rl-tb')  # Right-to-left, top-to-bottom
+                section._sectPr.append(textFlow)
+            except Exception as e:
+                self.logger.debug(f"Could not set text flow: {e}")
+                
+        except Exception as e:
+            self.logger.warning(f"Could not set RTL direction: {e}. Continuing with default direction.")
+        
+        # Add title with RTL alignment
+        title = doc.add_heading('דוח תמלול', 0)  # Hebrew title: Transcription Report
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        # Add metadata
-        doc.add_heading('Metadata', level=1)
+        # Set RTL for title paragraph
+        for run in title.runs:
+            run._element.get_or_add_rPr().get_or_add_rtl()
+        
+        # Add metadata section with RTL formatting
+        metadata_heading = doc.add_heading('מטא-דאטה', level=1)  # Hebrew: Metadata
+        metadata_heading.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        
+        # Set RTL for metadata heading
+        for run in metadata_heading.runs:
+            run._element.get_or_add_rPr().get_or_add_rtl()
+        
         metadata_table = doc.add_table(rows=4, cols=2)
         metadata_table.style = 'Table Grid'
         
         metadata_cells = [
-            ('Audio File:', audio_file),
-            ('Model:', model),
-            ('Engine:', engine),
-            ('Timestamp:', datetime.now().isoformat())
+            ('קובץ אודיו:', audio_file),
+            ('מודל:', model),
+            ('מנוע:', engine),
+            ('זמן יצירה:', datetime.now().isoformat())
         ]
         
         for i, (key, value) in enumerate(metadata_cells):
-            metadata_table.cell(i, 0).text = key
-            metadata_table.cell(i, 1).text = str(value)
+            cell_key = metadata_table.cell(i, 0)
+            cell_value = metadata_table.cell(i, 1)
+            
+            cell_key.text = key
+            cell_value.text = str(value)
+            
+            # Set RTL for table cells
+            for paragraph in cell_key.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                for run in paragraph.runs:
+                    run._element.get_or_add_rPr().get_or_add_rtl()
+            
+            for paragraph in cell_value.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                for run in paragraph.runs:
+                    run._element.get_or_add_rPr().get_or_add_rtl()
         
         doc.add_paragraph()  # Add spacing
         
-        # Add transcription content
-        doc.add_heading('Conversation Transcript', level=1)
+        # Add transcription content with RTL formatting
+        transcript_heading = doc.add_heading('תמלול שיחה', level=1)  # Hebrew: Conversation Transcript
+        transcript_heading.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         
-        # Group segments by speaker
-        speakers = {}
-        for segment in transcription_data:
+        # Set RTL for transcript heading
+        for run in transcript_heading.runs:
+            run._element.get_or_add_rPr().get_or_add_rtl()
+        
+        # Sort segments chronologically
+        sorted_segments = sorted(transcription_data, key=lambda x: x.get('start', 0))
+        
+        # Create conversation format with timestamps and improved punctuation
+        for segment in sorted_segments:
             speaker = segment.get('speaker', 'Unknown Speaker')
-            if speaker not in speakers:
-                speakers[speaker] = []
-            speakers[speaker].append(segment)
-        
-        # Sort speakers by their first appearance
-        speaker_order = []
-        for segment in transcription_data:
-            speaker = segment.get('speaker', 'Unknown Speaker')
-            if speaker not in speaker_order:
-                speaker_order.append(speaker)
-        
-        # Create conversation format
-        for speaker in speaker_order:
-            if speaker in speakers:
-                speaker_segments = speakers[speaker]
+            text = segment.get('text', '').strip()
+            start_time = segment.get('start', 0)
+            end_time = segment.get('end', 0)
+            
+            if text:
+                # Improve punctuation for Hebrew text
+                text = self._improve_hebrew_punctuation(text)
                 
-                # Combine all text from this speaker
-                speaker_text = ""
-                for segment in speaker_segments:
-                    text = segment.get('text', '').strip()
-                    if text:
-                        speaker_text += text + " "
+                # Format timestamp
+                start_min = int(start_time // 60)
+                start_sec = int(start_time % 60)
+                end_min = int(end_time // 60)
+                end_sec = int(end_time % 60)
+                timestamp = f"[{start_min:02d}:{start_sec:02d} - {end_min:02d}:{end_sec:02d}]"
                 
-                if speaker_text.strip():
-                    # Add speaker label and text in conversation format
-                    speaker_para = doc.add_paragraph()
-                    speaker_para.add_run(f"{speaker}: ").bold = True
-                    speaker_para.add_run(speaker_text.strip())
-                    doc.add_paragraph()  # Add spacing between speakers
+                # Create paragraph with RTL alignment
+                para = doc.add_paragraph()
+                para.alignment = WD_ALIGN_PARAGRAPH.RIGHT  # RTL alignment
+                
+                # Set RTL for the entire paragraph using proper method
+                try:
+                    from docx.oxml import OxmlElement
+                    bidi = OxmlElement('w:bidi')
+                    bidi.set('w:val', '1')
+                    para._element.get_or_add_pPr().append(bidi)
+                except Exception as e:
+                    self.logger.debug(f"Could not set paragraph RTL: {e}")
+                
+                # Add timestamp (smaller, gray text)
+                timestamp_run = para.add_run(f"{timestamp} ")
+                timestamp_run.font.size = Pt(8)
+                timestamp_run.font.color.rgb = RGBColor(128, 128, 128)  # Gray color
+                timestamp_run._element.get_or_add_rPr().get_or_add_rtl()
+                
+                # Add speaker name (bold)
+                speaker_run = para.add_run(f"{speaker}: ")
+                speaker_run.bold = True
+                speaker_run.font.size = Pt(12)
+                speaker_run._element.get_or_add_rPr().get_or_add_rtl()
+                
+                # Add text content with RTL
+                text_run = para.add_run(text)
+                text_run.font.size = Pt(12)
+                text_run._element.get_or_add_rPr().get_or_add_rtl()
+                
+                # Add spacing between segments
+                doc.add_paragraph()
         
         # Save document
         doc.save(str(output_file))
         self.logger.info(f"Transcription Word document saved to: {output_file}")
         return str(output_file)
+    
+    def _improve_hebrew_punctuation(self, text: str) -> str:
+        """
+        Improve punctuation for Hebrew text
+        
+        Args:
+            text: Hebrew text to improve
+            
+        Returns:
+            Text with improved punctuation
+        """
+        if not text:
+            return text
+        
+        # Hebrew punctuation improvements
+        improvements = [
+            # Fix spacing around Hebrew punctuation
+            (r'([א-ת])\s*([,\.!?;:])', r'\1\2'),  # Remove space before punctuation
+            (r'([,\.!?;:])\s*([א-ת])', r'\1 \2'),  # Add space after punctuation before Hebrew
+            
+            # Fix spacing around English punctuation
+            (r'([א-ת])\s*([a-zA-Z])', r'\1 \2'),  # Add space between Hebrew and English
+            (r'([a-zA-Z])\s*([א-ת])', r'\1 \2'),  # Add space between English and Hebrew
+            
+            # Fix common Hebrew punctuation patterns
+            (r'([א-ת])\s*\.\s*([א-ת])', r'\1. \2'),  # Period between Hebrew words
+            (r'([א-ת])\s*,\s*([א-ת])', r'\1, \2'),   # Comma between Hebrew words
+            
+            # Fix quotation marks for Hebrew
+            (r'"([א-ת]+)"', r'"\1"'),  # Ensure proper Hebrew quotation marks
+            (r"'([א-ת]+)'", r"'\1'"),   # Ensure proper Hebrew apostrophes
+            
+            # Fix multiple spaces
+            (r'\s+', ' '),  # Replace multiple spaces with single space
+            
+            # Fix spacing around timestamps and numbers
+            (r'([א-ת])\s*(\d+)', r'\1 \2'),  # Space between Hebrew and numbers
+            (r'(\d+)\s*([א-ת])', r'\1 \2'),  # Space between numbers and Hebrew
+        ]
+        
+        # Apply improvements
+        for pattern, replacement in improvements:
+            text = re.sub(pattern, replacement, text)
+        
+        # Trim whitespace
+        text = text.strip()
+        
+        return text
     
     def get_temp_file(self, prefix: str = "temp", suffix: str = ".tmp") -> str:
         """
