@@ -181,11 +181,8 @@ class TestApplicationWorkflow(unittest.TestCase):
             # Test output manager initialization
             self.assertIsNotNone(app.output_manager)
             
-            # Test directory creation
-            self.assertTrue(Path(app.output_manager.base_output_dir).exists())
-            self.assertTrue(Path(app.output_manager.logs_dir).exists())
-            self.assertTrue(Path(app.output_manager.transcriptions_dir).exists())
-            self.assertTrue(Path(app.output_manager.temp_dir).exists())
+            # Test directory creation - OutputManager only has output_base_path
+            self.assertTrue(Path(app.output_manager.output_base_path).exists())
             
             # Test session ID generation
             self.assertIsNotNone(app.current_session_id)
@@ -251,17 +248,23 @@ class TestApplicationWorkflow(unittest.TestCase):
     def test_logging_integration(self):
         """Test logging integration"""
         with TranscriptionApplication(str(self.config_path)) as app:
-            # Test logging methods exist
-            self.assertTrue(hasattr(app.output_manager, 'log_info'))
-            self.assertTrue(hasattr(app.output_manager, 'log_error'))
-            self.assertTrue(hasattr(app.output_manager, 'log_warning'))
-            self.assertTrue(hasattr(app.output_manager, 'log_debug'))
+            # Test logging service exists
+            self.assertTrue(hasattr(app, 'logging_service'))
+            self.assertIsNotNone(app.logging_service)
+            
+            # Test logging service methods exist
+            self.assertTrue(hasattr(app.logging_service, 'log_application_start'))
+            self.assertTrue(hasattr(app.logging_service, 'log_application_shutdown'))
+            self.assertTrue(hasattr(app.logging_service, 'log_processing_start'))
+            self.assertTrue(hasattr(app.logging_service, 'log_processing_complete'))
+            self.assertTrue(hasattr(app.logging_service, 'log_error'))
             
             # Test logging methods are callable
-            self.assertTrue(callable(app.output_manager.log_info))
-            self.assertTrue(callable(app.output_manager.log_error))
-            self.assertTrue(callable(app.output_manager.log_warning))
-            self.assertTrue(callable(app.output_manager.log_debug))
+            self.assertTrue(callable(app.logging_service.log_application_start))
+            self.assertTrue(callable(app.logging_service.log_application_shutdown))
+            self.assertTrue(callable(app.logging_service.log_processing_start))
+            self.assertTrue(callable(app.logging_service.log_processing_complete))
+            self.assertTrue(callable(app.logging_service.log_error))
 
 
 if __name__ == '__main__':

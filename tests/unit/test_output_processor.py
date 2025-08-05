@@ -31,10 +31,12 @@ class TestOutputProcessor(unittest.TestCase):
         self.mock_config = Mock()
         self.mock_output_manager = Mock(spec=OutputManager)
         
-        # Set up mock output manager methods
-        self.mock_output_manager.save_transcription.return_value = f"{self.temp_dir}/test.json"
-        self.mock_output_manager.save_transcription_text.return_value = f"{self.temp_dir}/test.txt"
-        self.mock_output_manager.save_transcription_docx.return_value = f"{self.temp_dir}/test.docx"
+        # Set up mock output manager methods - use the actual save_transcription method
+        self.mock_output_manager.save_transcription.return_value = {
+            'json': f"{self.temp_dir}/test.json",
+            'txt': f"{self.temp_dir}/test.txt", 
+            'docx': f"{self.temp_dir}/test.docx"
+        }
         
         # Initialize processor
         self.processor = OutputProcessor(self.mock_config, self.mock_output_manager)
@@ -124,8 +126,12 @@ class TestOutputProcessor(unittest.TestCase):
             'file_name': 'test.wav'
         }
         
-        # Mock output manager to fail on DOCX
-        self.mock_output_manager.save_transcription_docx.return_value = None
+        # Mock output manager to return only json and txt, not docx
+        self.mock_output_manager.save_transcription.return_value = {
+            'json': f"{self.temp_dir}/test.json",
+            'txt': f"{self.temp_dir}/test.txt"
+            # No 'docx' key - this simulates DOCX failure
+        }
         
         result = self.processor.process_output(transcription_result, input_metadata)
         
@@ -157,9 +163,12 @@ class TestOutputProcessor(unittest.TestCase):
         self.assertEqual(result['format'], 'json')
         self.assertIn('file_path', result)
         
-        # Verify output manager was called
+        # Verify output manager was called with keyword arguments
         self.mock_output_manager.save_transcription.assert_called_once_with(
-            input_file, transcription_data, model, engine
+            transcription_data=transcription_data,
+            audio_file=input_file,
+            model=model,
+            engine=engine
         )
     
     def test_save_json_output_failure(self):
@@ -187,8 +196,8 @@ class TestOutputProcessor(unittest.TestCase):
         self.assertEqual(result['format'], 'txt')
         self.assertIn('file_path', result)
         
-        # Verify output manager was called
-        self.mock_output_manager.save_transcription_text.assert_called_once()
+        # Verify output manager was called with save_transcription
+        self.mock_output_manager.save_transcription.assert_called_once()
     
     def test_save_docx_output_success(self):
         """Test successful DOCX output saving"""
@@ -203,20 +212,20 @@ class TestOutputProcessor(unittest.TestCase):
         self.assertEqual(result['format'], 'docx')
         self.assertIn('file_path', result)
         
-        # Verify output manager was called
-        self.mock_output_manager.save_transcription_docx.assert_called_once()
+        # Verify output manager was called with save_transcription
+        self.mock_output_manager.save_transcription.assert_called_once()
     
     def test_save_docx_output_failure(self):
         """Test DOCX output saving failure"""
-        # Mock output manager to return None
-        self.mock_output_manager.save_transcription_docx.return_value = None
+        # Mock output manager to return empty dict (no docx file created)
+        self.mock_output_manager.save_transcription.return_value = {}
         
         result = self.processor._save_docx_output([], 'test.wav', 'base', 'faster-whisper')
         
         self.assertFalse(result['success'])
         self.assertEqual(result['format'], 'docx')
         self.assertIn('error', result)
-        self.assertIn('Failed to create DOCX file', result['error'])
+        self.assertIn('DOCX file not created', result['error'])
     
     def test_extract_text_content_string(self):
         """Test text content extraction from string"""
