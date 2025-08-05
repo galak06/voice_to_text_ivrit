@@ -93,6 +93,10 @@ class TestTranscriptionApplication(unittest.TestCase):
             mock_input_processor.assert_called_once_with(mock_config_manager_instance, mock_output_manager_instance)
             mock_output_processor.assert_called_once_with(mock_config_manager_instance, mock_output_manager_instance)
             mock_orchestrator.assert_called_once_with(mock_config_manager_instance, mock_output_manager_instance)
+            
+            # Verify AudioTranscriptionClient injection (may be None if RunPod not available)
+            # The audio_client property handles the case where RunPod is not available
+            self.assertTrue(hasattr(app, 'audio_client'))
     
     @patch('src.core.application.ConfigManager')
     @patch('src.core.application.OutputManager')
@@ -324,6 +328,7 @@ class TestTranscriptionApplication(unittest.TestCase):
             self.assertIn('input_processor_ready', status)
             self.assertIn('output_processor_ready', status)
             self.assertIn('transcription_orchestrator_ready', status)
+            self.assertIn('audio_client_ready', status)
             self.assertIn('timestamp', status)
             
             # Verify status values
@@ -332,6 +337,101 @@ class TestTranscriptionApplication(unittest.TestCase):
             self.assertTrue(status['input_processor_ready'])
             self.assertTrue(status['output_processor_ready'])
             self.assertTrue(status['transcription_orchestrator_ready'])
+            # audio_client_ready may be False if RunPod is not available
+            self.assertIn('audio_client_ready', status)
+    
+    @patch('src.core.application.ConfigManager')
+    @patch('src.core.application.OutputManager')
+    @patch('src.core.application.InputProcessor')
+    @patch('src.core.application.OutputProcessor')
+    @patch('src.core.application.TranscriptionOrchestrator')
+    @patch('src.core.application.AudioTranscriptionClient')
+    def test_transcribe_with_runpod_success(self, mock_audio_client, mock_orchestrator, 
+                                           mock_output_processor, mock_input_processor, 
+                                           mock_output_manager, mock_config_manager):
+        """Test successful RunPod transcription"""
+        # Setup mocks
+        mock_config_manager_instance = Mock()
+        mock_config_manager_instance.config = self.mock_config
+        mock_config_manager.return_value = mock_config_manager_instance
+        
+        mock_output_manager_instance = Mock()
+        mock_output_manager.return_value = mock_output_manager_instance
+        
+        mock_input_processor_instance = Mock()
+        mock_input_processor.return_value = mock_input_processor_instance
+        
+        mock_output_processor_instance = Mock()
+        mock_output_processor.return_value = mock_output_processor_instance
+        
+        mock_orchestrator_instance = Mock()
+        mock_orchestrator.return_value = mock_orchestrator_instance
+        
+        mock_audio_client_instance = Mock()
+        mock_audio_client_instance.transcribe_audio.return_value = True
+        mock_audio_client.return_value = mock_audio_client_instance
+        
+        # Test RunPod transcription
+        with TranscriptionApplication() as app:
+            result = app.transcribe_with_runpod('test.wav', model='custom-model', engine='faster-whisper')
+            
+            # Verify result
+            self.assertTrue(result['success'])
+            self.assertEqual(result['file'], 'test.wav')
+            self.assertEqual(result['method'], 'runpod')
+            self.assertEqual(result['model'], 'custom-model')
+            self.assertEqual(result['engine'], 'faster-whisper')
+            self.assertIn('session_id', result)
+            
+            # Verify AudioTranscriptionClient was called
+            mock_audio_client_instance.transcribe_audio.assert_called_once_with(
+                audio_file_path='test.wav',
+                model='custom-model',
+                engine='faster-whisper',
+                save_output=True
+            )
+    
+    @patch('src.core.application.ConfigManager')
+    @patch('src.core.application.OutputManager')
+    @patch('src.core.application.InputProcessor')
+    @patch('src.core.application.OutputProcessor')
+    @patch('src.core.application.TranscriptionOrchestrator')
+    @patch('src.core.application.AudioTranscriptionClient')
+    def test_transcribe_with_runpod_failure(self, mock_audio_client, mock_orchestrator, 
+                                           mock_output_processor, mock_input_processor, 
+                                           mock_output_manager, mock_config_manager):
+        """Test failed RunPod transcription"""
+        # Setup mocks
+        mock_config_manager_instance = Mock()
+        mock_config_manager_instance.config = self.mock_config
+        mock_config_manager.return_value = mock_config_manager_instance
+        
+        mock_output_manager_instance = Mock()
+        mock_output_manager.return_value = mock_output_manager_instance
+        
+        mock_input_processor_instance = Mock()
+        mock_input_processor.return_value = mock_input_processor_instance
+        
+        mock_output_processor_instance = Mock()
+        mock_output_processor.return_value = mock_output_processor_instance
+        
+        mock_orchestrator_instance = Mock()
+        mock_orchestrator.return_value = mock_orchestrator_instance
+        
+        mock_audio_client_instance = Mock()
+        mock_audio_client_instance.transcribe_audio.return_value = False
+        mock_audio_client.return_value = mock_audio_client_instance
+        
+        # Test RunPod transcription failure
+        with TranscriptionApplication() as app:
+            result = app.transcribe_with_runpod('test.wav')
+            
+            # Verify result
+            self.assertFalse(result['success'])
+            self.assertEqual(result['file'], 'test.wav')
+            self.assertEqual(result['method'], 'runpod')
+            self.assertIn('error', result)
+            self.assertIn('session_id', result)
     
     @patch('src.core.application.ConfigManager')
     @patch('src.core.application.OutputManager')

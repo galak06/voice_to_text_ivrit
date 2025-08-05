@@ -11,7 +11,14 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 from src.utils.config_manager import ConfigManager
 from src.models import AppConfig
-import runpod
+
+# Optional import for RunPod
+try:
+    import runpod
+    RUNPOD_AVAILABLE = True
+except ImportError:
+    runpod = None
+    RUNPOD_AVAILABLE = False
 
 
 class AudioTranscriptionClient:
@@ -45,15 +52,19 @@ class AudioTranscriptionClient:
         if not self.config_manager.validate():
             raise ValueError("Configuration validation failed! Please set up your environment variables first.")
         
+        if not RUNPOD_AVAILABLE:
+            raise ImportError("RunPod module not available. Please install it with: pip install runpod")
+        
         if not self.config.runpod:
             raise ValueError("RunPod configuration not found!")
         
         # Configure RunPod
-        runpod.api_key = self.config.runpod.api_key
-        endpoint_id = self.config.runpod.endpoint_id
-        if endpoint_id is None:
-            raise ValueError("RunPod endpoint ID not configured!")
-        self.endpoint = runpod.Endpoint(endpoint_id)
+        if runpod is not None:  # Type check for linter
+            runpod.api_key = self.config.runpod.api_key
+            endpoint_id = self.config.runpod.endpoint_id
+            if endpoint_id is None:
+                raise ValueError("RunPod endpoint ID not configured!")
+            self.endpoint = runpod.Endpoint(endpoint_id)
     
     def _validate_audio_file(self, audio_file_path: str) -> Dict[str, Any]:
         """

@@ -4,10 +4,20 @@ import os
 import requests
 import time
 
-import runpod
+# Optional import for RunPod
+try:
+    import runpod
+    RUNPOD_AVAILABLE = True
+except ImportError:
+    runpod = None
+    RUNPOD_AVAILABLE = False
+
 from src.models import AppConfig
 
 def transcribe(model, payload_type, path_or_url, config: AppConfig = None):  
+    if not RUNPOD_AVAILABLE:
+        raise ImportError("RunPod module not available. Please install it with: pip install runpod")
+    
     if not payload_type in ["blob", "url"]:
         raise 1
 

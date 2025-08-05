@@ -14,6 +14,7 @@ from src.core.transcription_orchestrator import TranscriptionOrchestrator
 from src.utils.config_manager import ConfigManager
 from src.output_data import OutputManager
 from src.logging import LoggingService
+from src.clients.send_audio import AudioTranscriptionClient
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,9 @@ class TranscriptionApplication:
         
         # Get logging service for application events
         self.logging_service = LoggingService(self.config_manager)
+        
+        # Initialize audio transcription client lazily (only when needed)
+        self._audio_client = None
         
         # Log application start
         self.logging_service.log_application_start()
@@ -270,6 +274,79 @@ class TranscriptionApplication:
                 'timestamp': datetime.now().isoformat()
             }
     
+    def transcribe_with_runpod(self, audio_file_path: str, model: Optional[str] = None, 
+                              engine: Optional[str] = None, save_output: bool = True) -> Dict[str, Any]:
+        """
+        Transcribe audio file using RunPod endpoint directly
+        
+        Args:
+            audio_file_path: Path to the audio file
+            model: Optional model to use for transcription
+            engine: Optional engine to use for transcription
+            save_output: Whether to save outputs in all formats
+            
+        Returns:
+            Dictionary with transcription result
+        """
+        try:
+            logger.info(f"🎤 Transcribing with RunPod: {audio_file_path}")
+            
+            # Check if AudioTranscriptionClient is available
+            if self.audio_client is None:
+                raise ImportError("RunPod module not available. Please install it with: pip install runpod")
+            
+            # Use the injected AudioTranscriptionClient
+            success = self.audio_client.transcribe_audio(
+                audio_file_path=audio_file_path,
+                model=model,
+                engine=engine,
+                save_output=save_output
+            )
+            
+            result = {
+                'success': success,
+                'file': audio_file_path,
+                'method': 'runpod',
+                'model': model,
+                'engine': engine,
+                'session_id': self.current_session_id,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            if success:
+                logger.info(f"✅ RunPod transcription completed: {audio_file_path}")
+                self.logging_service.log_processing_complete(1, 1, batch_mode=False)
+            else:
+                logger.error(f"❌ RunPod transcription failed: {audio_file_path}")
+                result['error'] = 'RunPod transcription failed'
+                self.logging_service.log_error(Exception("RunPod transcription failed"), f"transcribe_with_runpod: {audio_file_path}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error in RunPod transcription: {e}")
+            self.logging_service.log_error(e, f"transcribe_with_runpod: {audio_file_path}")
+            return {
+                'success': False,
+                'error': str(e),
+                'file': audio_file_path,
+                'method': 'runpod',
+                'session_id': self.current_session_id,
+                'timestamp': datetime.now().isoformat()
+            }
+    
+    @property
+    def audio_client(self) -> Optional[AudioTranscriptionClient]:
+        """Lazy-load AudioTranscriptionClient when needed"""
+        if self._audio_client is None:
+            try:
+                self._audio_client = AudioTranscriptionClient(self.config)
+            except ImportError as e:
+                # If RunPod is not available, log warning and return None
+                logger.warning(f"RunPod not available: {e}")
+                return None
+        return self._audio_client
+    
     def get_status(self) -> Dict[str, Any]:
         """Get current application status"""
         return {
@@ -279,6 +356,7 @@ class TranscriptionApplication:
             'input_processor_ready': self.input_processor is not None,
             'output_processor_ready': self.output_processor is not None,
             'transcription_orchestrator_ready': self.transcription_orchestrator is not None,
+            'audio_client_ready': self.audio_client is not None,
             'processing_stats': self.processing_stats,
             'timestamp': datetime.now().isoformat()
         }
