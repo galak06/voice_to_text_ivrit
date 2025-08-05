@@ -14,15 +14,31 @@ class DataUtils:
     
     @staticmethod
     def is_transcription_result(obj: Any) -> bool:
-        """Check if object is a TranscriptionResult dataclass"""
+        """Check if object is a TranscriptionResult dataclass or Pydantic model"""
+        # Check for Pydantic models
+        if hasattr(obj, 'model_dump') and hasattr(obj, 'speakers'):
+            return True
+        
+        # Check for dataclasses
         return is_dataclass(obj) and hasattr(obj, 'speakers')
     
     @staticmethod
     def convert_transcription_result_to_dict(transcription_data: Any) -> Dict[str, Any]:
-        """Convert TranscriptionResult dataclass to dictionary"""
+        """Convert TranscriptionResult dataclass or Pydantic model to dictionary"""
+        # Handle Pydantic models
+        if hasattr(transcription_data, 'model_dump'):
+            return transcription_data.model_dump()
+        
+        # Handle dataclasses
         if DataUtils.is_transcription_result(transcription_data):
             return asdict(transcription_data)
-        return transcription_data
+        
+        # If it's already a dict, return as is
+        if isinstance(transcription_data, dict):
+            return transcription_data
+        
+        # For other types, return as a simple dict with the string representation
+        return {"content": str(transcription_data)}
     
     @staticmethod
     def extract_speakers_data(data: Any) -> Dict[str, List[Dict[str, Any]]]:

@@ -22,7 +22,7 @@ class TranscriptionConfig:
     """Transcription engine configuration"""
     default_model: str = "base"
     fallback_model: str = "tiny"
-    default_engine: str = "faster-whisper"
+    default_engine: str = "speaker-diarization"
     beam_size: int = 5
     language: str = "he"
     word_timestamps: bool = True

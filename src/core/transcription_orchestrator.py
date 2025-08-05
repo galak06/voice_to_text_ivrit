@@ -12,6 +12,8 @@ from src.core.transcription_service import TranscriptionService
 from src.core.speaker_transcription_service import SpeakerTranscriptionService
 
 
+logger = logging.getLogger(__name__)
+
 class TranscriptionOrchestrator:
     """
     Orchestrates the transcription process
@@ -31,8 +33,6 @@ class TranscriptionOrchestrator:
         """
         self.config = config
         self.output_manager = output_manager
-        self.logger = logging.getLogger('transcription-orchestrator')
-        
         # Initialize transcription services
         self.transcription_service = TranscriptionService(output_manager)
         self.speaker_service = SpeakerTranscriptionService(config)
@@ -53,7 +53,7 @@ class TranscriptionOrchestrator:
             Dictionary containing transcription results
         """
         try:
-            self.logger.info(f"Starting transcription for: {input_data.get('file_name', 'unknown')}")
+            logger.info(f"Starting transcription for: {input_data.get('file_name', 'unknown')}")
             
             # Prepare job parameters
             job_params = self._prepare_job_params(input_data, **kwargs)
@@ -69,11 +69,11 @@ class TranscriptionOrchestrator:
             # Update processing stats
             self._update_stats(result)
             
-            self.logger.info(f"Transcription completed for: {input_data.get('file_name', 'unknown')}")
+            logger.info(f"Transcription completed for: {input_data.get('file_name', 'unknown')}")
             return result
             
         except Exception as e:
-            self.logger.error(f"Error during transcription: {e}")
+            logger.error(f"Error during transcription: {e}")
             return {
                 'success': False,
                 'error': str(e),
@@ -94,18 +94,29 @@ class TranscriptionOrchestrator:
         # Default parameters
         default_params = {
             'model': 'base',
-            'engine': 'faster-whisper',
+            'engine': 'speaker-diarization',
             'save_output': True,
             'streaming': False,
             'speaker_config_preset': 'conversation'
         }
         
+        logger.info(f"Default params: {default_params}")
+        
         # Override with config defaults
         if hasattr(self.config, 'transcription'):
-            default_params.update(self.config.transcription.__dict__)
+            config_params = self.config.transcription.__dict__
+            logger.info(f"Config params: {config_params}")
+            default_params.update(config_params)
+            logger.info(f"After config override: {default_params}")
         
         # Override with kwargs
-        default_params.update(kwargs)
+        if kwargs:
+            # Only override with non-None values
+            non_none_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+            if non_none_kwargs:
+                logger.info(f"Kwargs: {non_none_kwargs}")
+                default_params.update(non_none_kwargs)
+                logger.info(f"After kwargs override: {default_params}")
         
         # Add input data
         job_params = {
@@ -119,6 +130,7 @@ class TranscriptionOrchestrator:
             **default_params
         }
         
+        logger.info(f"Final job parameters: {job_params}")
         return job_params
     
     def _transcribe_standard(self, job_params: Dict[str, Any]) -> Dict[str, Any]:
@@ -132,7 +144,7 @@ class TranscriptionOrchestrator:
             Dictionary containing transcription results
         """
         try:
-            self.logger.info("Using standard transcription service")
+            logger.info("Using standard transcription service")
             
             # Create job for transcription service
             job = {
@@ -178,7 +190,7 @@ class TranscriptionOrchestrator:
             }
             
         except Exception as e:
-            self.logger.error(f"Error in standard transcription: {e}")
+            logger.error(f"Error in standard transcription: {e}")
             return {
                 'success': False,
                 'error': str(e),
@@ -197,7 +209,7 @@ class TranscriptionOrchestrator:
             Dictionary containing transcription results
         """
         try:
-            self.logger.info("Using speaker diarization transcription service")
+            logger.info("Using speaker diarization transcription service")
             
             # Extract parameters
             audio_file = job_params['input']['data']
@@ -228,7 +240,7 @@ class TranscriptionOrchestrator:
             }
             
         except Exception as e:
-            self.logger.error(f"Error in speaker diarization transcription: {e}")
+            logger.error(f"Error in speaker diarization transcription: {e}")
             return {
                 'success': False,
                 'error': str(e),
@@ -271,7 +283,7 @@ class TranscriptionOrchestrator:
             'total_transcriptions': 0,
             'last_transcription': None
         }
-        self.logger.info("Processing statistics reset")
+        logger.info("Processing statistics reset")
     
     def get_available_engines(self) -> Dict[str, str]:
         """
@@ -331,7 +343,7 @@ class TranscriptionOrchestrator:
     def cleanup(self):
         """Cleanup orchestrator resources"""
         try:
-            self.logger.info("Cleaning up transcription orchestrator")
+            logger.info("Cleaning up transcription orchestrator")
             
             # Reset stats
             self.reset_stats()
@@ -339,7 +351,7 @@ class TranscriptionOrchestrator:
             # Clear current job
             self.current_job = None
             
-            self.logger.info("Transcription orchestrator cleanup completed")
+            logger.info("Transcription orchestrator cleanup completed")
             
         except Exception as e:
-            self.logger.error(f"Error during orchestrator cleanup: {e}") 
+           logger.error(f"Error during orchestrator cleanup: {e}") 

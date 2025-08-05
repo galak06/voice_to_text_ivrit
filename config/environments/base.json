@@ -2,7 +2,7 @@
   "transcription": {
             "default_model": "ivrit-ai/whisper-large-v3-ct2",
         "fallback_model": "ivrit-ai/whisper-large-v3-turbo-ct2",
-    "default_engine": "faster-whisper",
+    "default_engine": "speaker-diarization",
     "beam_size": 5,
     "language": "he",
     "word_timestamps": true,
