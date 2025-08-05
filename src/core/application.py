@@ -86,7 +86,7 @@ class TranscriptionApplication:
     
     def _ensure_config_initialized(self):
         """Ensure all configuration sections are properly initialized"""
-        from src.utils.config_manager import (
+        from src.models import (
             TranscriptionConfig, SpeakerConfig, BatchConfig, 
             DockerConfig, RunPodConfig, OutputConfig, 
             SystemConfig, InputConfig

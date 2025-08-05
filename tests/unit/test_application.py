@@ -16,7 +16,10 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.core.application import TranscriptionApplication
-from src.utils.config_manager import AppConfig, TranscriptionConfig, OutputConfig, InputConfig
+from src.models import (
+    AppConfig, TranscriptionConfig, OutputConfig, InputConfig,
+    SpeakerConfig, BatchConfig, DockerConfig, RunPodConfig, SystemConfig
+)
 
 
 class TestTranscriptionApplication(unittest.TestCase):
@@ -27,10 +30,15 @@ class TestTranscriptionApplication(unittest.TestCase):
         # Create temporary directory for test outputs
         self.temp_dir = tempfile.mkdtemp()
         
-        # Mock configuration
+        # Mock configuration with all required sections
         self.mock_config = Mock(spec=AppConfig)
         self.mock_config.transcription = Mock(spec=TranscriptionConfig)
+        self.mock_config.speaker = Mock(spec=SpeakerConfig)
+        self.mock_config.batch = Mock(spec=BatchConfig)
+        self.mock_config.docker = Mock(spec=DockerConfig)
+        self.mock_config.runpod = Mock(spec=RunPodConfig)
         self.mock_config.output = Mock(spec=OutputConfig)
+        self.mock_config.system = Mock(spec=SystemConfig)
         self.mock_config.input = Mock(spec=InputConfig)
         
         # Set up mock config values

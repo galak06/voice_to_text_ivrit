@@ -6,4 +6,5 @@ torch>=2.4.1
 torchvision
 torchaudio
 python-docx>=0.8.11
-tqdm>=4.65.0 
+tqdm>=4.65.0
+pydantic>=2.0.0 
