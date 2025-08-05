@@ -4,7 +4,6 @@ Audio transcription client for RunPod endpoint
 """
 
 import os
-import sys
 import time
 import base64
 from pathlib import Path
@@ -339,29 +338,4 @@ def send_audio_file(audio_file_path: str, config: Optional[AppConfig] = None,
     return client.transcribe_audio(audio_file_path, model, engine, save_output)
 
 
-def main():
-    """Main function for command-line usage"""
-    if len(sys.argv) < 2:
-        print("Usage: python audio_transcription_client.py <audio_file_path> [model] [engine]")
-        print("Example: python audio_transcription_client.py voice/rachel_1.wav")
-        print("Example: python audio_transcription_client.py voice/rachel_1.wav ivrit-ai/whisper-large-v3-turbo-ct2 faster-whisper")
-        return
-    
-    audio_file = sys.argv[1]
-    model = sys.argv[2] if len(sys.argv) > 2 else None
-    engine = sys.argv[3] if len(sys.argv) > 3 else None
-    
-    print("🎤 ivrit-ai RunPod Audio Transcription")
-    print("=" * 40)
-    
-    success = send_audio_file(audio_file, model=model, engine=engine, save_output=True)
-    
-    if success:
-        print("✅ Transcription completed successfully!")
-    else:
-        print("❌ Transcription failed!")
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main() 
+ 
