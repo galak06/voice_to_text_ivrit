@@ -318,24 +318,7 @@ class AudioTranscriptionClient:
             return False
 
 
-def send_audio_file(audio_file_path: str, config: Optional[AppConfig] = None, 
-                   model: Optional[str] = None, engine: Optional[str] = None, 
-                   save_output: bool = True) -> bool:
-    """
-    Convenience function to send an audio file for transcription
-    
-    Args:
-        audio_file_path: Path to the audio file
-        config: Optional application configuration
-        model: Optional model to use for transcription
-        engine: Optional engine to use for transcription
-        save_output: Whether to save outputs in all formats
-        
-    Returns:
-        True if transcription was successful, False otherwise
-    """
-    client = AudioTranscriptionClient(config)
-    return client.transcribe_audio(audio_file_path, model, engine, save_output)
+
 
 
  
