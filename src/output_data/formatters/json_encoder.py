@@ -14,8 +14,16 @@ class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj: Any) -> Any:
         """Handle non-serializable objects by converting them to strings"""
         try:
-            # Try to convert to string representation
-            return str(obj)
+            # Handle numpy objects specifically
+            if hasattr(obj, 'item'):
+                # Convert numpy scalars to Python types
+                return obj.item()
+            elif hasattr(obj, 'tolist'):
+                # Convert numpy arrays to lists
+                return obj.tolist()
+            else:
+                # Try to convert to string representation
+                return str(obj)
         except:
             # If that fails, return a placeholder
             return f"<Non-serializable object: {type(obj).__name__}>" 

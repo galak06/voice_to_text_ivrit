@@ -37,6 +37,10 @@ class DataUtils:
         if isinstance(transcription_data, dict):
             return transcription_data
         
+        # Handle lists (from faster-whisper)
+        if isinstance(transcription_data, list):
+            return {"segments": transcription_data}
+        
         # For other types, return as a simple dict with the string representation
         return {"content": str(transcription_data)}
     

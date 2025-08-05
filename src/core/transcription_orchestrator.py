@@ -37,7 +37,7 @@ class TranscriptionOrchestrator:
         self.config = config_manager.config
         self.output_manager = output_manager
         # Initialize transcription services
-        self.transcription_service = TranscriptionService(self.config_manager)
+        self.transcription_service = TranscriptionService(self.config_manager, self.output_manager)
         
         # Convert SpeakerConfig to the expected type
         speaker_config = None

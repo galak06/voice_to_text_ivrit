@@ -73,7 +73,21 @@ class OutputProcessor:
             # Get input file path for output naming
             input_file_path = input_metadata.get('file_name', 'unknown')
             
-            # Process different output formats
+            # Check if transcription service already saved the output
+            # If transcription_data is a list of segments, it means the transcription service
+            # already saved the output and we don't need to save it again
+            if isinstance(transcription_data, list) and transcription_data:
+                # Transcription service already saved the output, just return success
+                self.logger.info("Transcription service already saved output, skipping duplicate save")
+                return {
+                    'success': True,
+                    'output_files': {},
+                    'formats_generated': [],
+                    'timestamp': datetime.now().isoformat(),
+                    'note': 'Output already saved by transcription service'
+                }
+            
+            # Process different output formats (only if not already saved)
             output_results = {}
             
             # JSON output

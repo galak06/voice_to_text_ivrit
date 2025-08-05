@@ -17,12 +17,13 @@ logger = logging.getLogger(__name__)
 class TranscriptionService:
     """Core transcription service that orchestrates the transcription process"""
     
-    def __init__(self, config_manager: Optional[ConfigManager] = None, max_payload_size: int = 200 * 1024 * 1024):
+    def __init__(self, config_manager: Optional[ConfigManager] = None, output_manager: Optional[OutputManager] = None, max_payload_size: int = 200 * 1024 * 1024):
         """
         Initialize transcription service
         
         Args:
             config_manager: Configuration manager for service settings
+            output_manager: Output manager instance (injected for consistency)
             max_payload_size: Maximum payload size in bytes
         """
         self.config_manager = config_manager
@@ -34,7 +35,7 @@ class TranscriptionService:
         self.validator = JobValidator()
         self.audio_processor = AudioFileProcessor(max_payload_size)
         self.engine_factory = TranscriptionEngineFactory()
-        self.output_manager = OutputManager()
+        self.output_manager = output_manager or OutputManager()
     
     def transcribe(self, job: Dict[str, Any]) -> Generator[Dict[str, Any], None, None]:
         """
