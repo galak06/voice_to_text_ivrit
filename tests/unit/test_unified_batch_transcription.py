@@ -31,26 +31,28 @@ class TestBatchTranscriptionConfig:
     def test_default_configuration(self):
         """Test default configuration values using current ConfigManager"""
         config_manager = ConfigManager()
-        config = config_manager.get_config()
+        config = config_manager.config
         
         # Test that we can access the configuration
-        assert 'transcription' in config
-        assert 'speaker' in config
-        assert config['transcription']['default_model'] == "ivrit-ai/whisper-large-v3-ct2"
-        assert config['transcription']['default_engine'] == "faster-whisper"
+        assert config.transcription is not None
+        assert config.speaker is not None
+        if config.transcription:
+            assert config.transcription.default_model == "ivrit-ai/whisper-large-v3-ct2"
+            assert config.transcription.default_engine == "faster-whisper"
     
     def test_custom_configuration(self):
         """Test custom configuration values using current ConfigManager"""
         config_manager = ConfigManager()
         
-        # Test that we can override configuration
-        config = config_manager.get_config()
-        original_model = config['transcription']['default_model']
+        # Test that we can access configuration
+        config = config_manager.config
+        if config.transcription:
+            original_model = config.transcription.default_model
         
-        # Test configuration override capability
-        assert isinstance(config, dict)
-        assert 'transcription' in config
-        assert 'speaker' in config
+        # Test configuration access capability
+        assert config is not None
+        assert config.transcription is not None
+        assert config.speaker is not None
 
 class TestBatchTranscriptionProcessor:
     """Test the BatchTranscriptionProcessor class - Updated for current architecture"""
@@ -58,7 +60,8 @@ class TestBatchTranscriptionProcessor:
     def setup_method(self):
         """Setup test method"""
         self.config_manager = ConfigManager()
-        self.app = TranscriptionApplication(self.config_manager)
+        # Create application with config directory
+        self.app = TranscriptionApplication()
     
     def test_discover_audio_files_existing_directory(self):
         """Test audio file discovery in existing directory"""
@@ -87,10 +90,11 @@ class TestBatchTranscriptionProcessor:
     
     def test_discover_audio_files_nonexistent_directory(self):
         """Test audio file discovery with nonexistent directory"""
-        if PYTEST_AVAILABLE:
+        try:
+            import pytest
             with pytest.raises(FileNotFoundError):
                 self.app.input_processor.discover_files("nonexistent_directory")
-        else:
+        except ImportError:
             # Fallback for when pytest is not available
             try:
                 self.app.input_processor.discover_files("nonexistent_directory")
@@ -156,21 +160,21 @@ def test_config_file_loading():
     config_manager = ConfigManager()
     
     # Test that configuration can be loaded
-    config = config_manager.get_config()
-    assert isinstance(config, dict)
-    assert 'transcription' in config
-    assert 'speaker' in config
+    config = config_manager.config
+    assert config is not None
+    assert config.transcription is not None
+    assert config.speaker is not None
     
     # Test that we can access specific configuration values
-    assert 'default_model' in config['transcription']
-    assert 'default_engine' in config['transcription']
-    assert 'min_speakers' in config['speaker']
-    assert 'max_speakers' in config['speaker']
+    assert hasattr(config.transcription, 'default_model')
+    assert hasattr(config.transcription, 'default_engine')
+    assert hasattr(config.speaker, 'min_speakers')
+    assert hasattr(config.speaker, 'max_speakers')
 
 def test_integration_with_real_directory():
     """Test integration with real directory structure"""
     config_manager = ConfigManager()
-    app = TranscriptionApplication(config_manager)
+    app = TranscriptionApplication()
     
     # Test with examples directory if it exists
     examples_dir = Path("examples/audio/voice")
@@ -196,15 +200,16 @@ def main():
     # Test configuration
     print("🧪 Testing Configuration...")
     config_manager = ConfigManager()
-    config = config_manager.get_config()
+    config = config_manager.config
     print(f"✅ Configuration loaded successfully")
-    print(f"   Default model: {config['transcription']['default_model']}")
-    print(f"   Default engine: {config['transcription']['default_engine']}")
+    if config.transcription:
+        print(f"   Default model: {config.transcription.default_model}")
+        print(f"   Default engine: {config.transcription.default_engine}")
     print()
     
     # Test application initialization
     print("🧪 Testing Application Initialization...")
-    app = TranscriptionApplication(config_manager)
+    app = TranscriptionApplication()
     print("✅ Application initialized successfully")
     print()
     

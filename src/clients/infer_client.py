@@ -5,16 +5,22 @@ import requests
 import time
 
 import runpod
-from src.utils.config_manager import config
+from src.models import AppConfig
 
-# Use configuration values
-IN_QUEUE_TIMEOUT = config.runpod.in_queue_timeout
-MAX_STREAM_TIMEOUTS = config.runpod.max_stream_timeouts
-RUNPOD_MAX_PAYLOAD_LEN = config.runpod.max_payload_len
-
-def transcribe(model, payload_type, path_or_url):  
+def transcribe(model, payload_type, path_or_url, config: AppConfig = None):  
     if not payload_type in ["blob", "url"]:
         raise 1
+
+    # Use configuration values with defaults
+    if config and config.runpod:
+        in_queue_timeout = config.runpod.in_queue_timeout
+        max_stream_timeouts = config.runpod.max_stream_timeouts
+        runpod_max_payload_len = config.runpod.max_payload_size
+    else:
+        # Default values if no config provided
+        in_queue_timeout = 300
+        max_stream_timeouts = 5
+        runpod_max_payload_len = 200 * 1024 * 1024  # 200MB
 
     payload = {
         "input": {
@@ -30,8 +36,8 @@ def transcribe(model, payload_type, path_or_url):
     else:
         payload["input"]["url"] = path_or_url
 
-    if len(str(payload)) > RUNPOD_MAX_PAYLOAD_LEN:
-        return {"error": f"Payload length is {len(str(payload))}, exceeding max payload length of {RUNPOD_MAX_PAYLOAD_LEN}."}
+    if len(str(payload)) > runpod_max_payload_len:
+        return {"error": f"Payload length is {len(str(payload))}, exceeding max payload length of {runpod_max_payload_len}."}
 
     # Configure runpod endpoint, and execute
     runpod.api_key = os.environ["RUNPOD_API_KEY"]
@@ -39,8 +45,8 @@ def transcribe(model, payload_type, path_or_url):
     run_request = ep.run(payload)
 
     # Wait for task to be queued.
-    # Max wait time is IN_QUEUE_WAIT_TIME seconds.
-    for i in range(IN_QUEUE_TIMEOUT):
+    # Max wait time is in_queue_timeout seconds.
+    for i in range(in_queue_timeout):
         if run_request.status() == "IN_QUEUE":
             time.sleep(1)
             continue
@@ -63,8 +69,8 @@ def transcribe(model, payload_type, path_or_url):
 
         except requests.exceptions.ReadTimeout as e:
             timeouts += 1
-            if timeouts > MAX_STREAM_TIMEOUTS:
-                return {"error": f"Number of request.stream() timeouts exceeded the maximum ({MAX_STREAM_TIMEOUTS})."}
+            if timeouts > max_stream_timeouts:
+                return {"error": f"Number of request.stream() timeouts exceeded the maximum ({max_stream_timeouts})."}
             pass
 
         except Exception as e:

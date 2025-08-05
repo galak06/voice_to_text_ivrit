@@ -8,21 +8,29 @@ import sys
 import time
 import base64
 from pathlib import Path
-from src.utils.config_manager import config_manager, config
+from src.utils.config_manager import ConfigManager
+from src.models import AppConfig
 import runpod
 
-def send_audio_file(audio_file_path: str, model: str = None, engine: str = None, save_output: bool = True):
+def send_audio_file(audio_file_path: str, config: AppConfig = None, model: str = None, engine: str = None, save_output: bool = True):
     """
     Send an audio file to RunPod endpoint for transcription
     
     Args:
         audio_file_path (str): Path to the audio file
+        config (AppConfig): Application configuration
         model (str): Model to use for transcription
         engine (str): Engine to use (faster-whisper or stable-whisper)
         save_output (bool): Whether to save outputs in all formats
     """
     
+    # Use provided config or create default
+    if config is None:
+        config_manager = ConfigManager()
+        config = config_manager.config
+    
     # Validate configuration
+    config_manager = ConfigManager()
     if not config_manager.validate():
         print("❌ Configuration validation failed!")
         print("Please set up your environment variables first.")
@@ -39,22 +47,31 @@ def send_audio_file(audio_file_path: str, model: str = None, engine: str = None,
     print(f"📊 File size: {file_size:,} bytes ({file_size / 1024 / 1024:.1f} MB)")
     
     # Check file size limit
-    if file_size > config.runpod.max_payload_size:
+    if config.runpod and file_size > config.runpod.max_payload_size:
         print(f"❌ File too large! Max size: {config.runpod.max_payload_size:,} bytes")
         return False
     
     # Use default values if not provided
-    model = model or config.transcription.default_model
-    engine = engine or config.transcription.default_engine
+    if config.transcription:
+        model = model or config.transcription.default_model
+        engine = engine or config.transcription.default_engine
+    else:
+        model = model or "ivrit-ai/whisper-large-v3-ct2"
+        engine = engine or "faster-whisper"
     
     print(f"🤖 Model: {model}")
     print(f"⚙️  Engine: {engine}")
-    print(f"☁️  Endpoint: {config.runpod.endpoint_id}")
+    if config.runpod:
+        print(f"☁️  Endpoint: {config.runpod.endpoint_id}")
     
     try:
         # Configure RunPod
-        runpod.api_key = config.runpod.api_key
-        endpoint = runpod.Endpoint(config.runpod.endpoint_id)
+        if config.runpod:
+            runpod.api_key = config.runpod.api_key
+            endpoint = runpod.Endpoint(config.runpod.endpoint_id)
+        else:
+            print("❌ RunPod configuration not found!")
+            return False
         
         # Prepare payload
         with open(audio_file_path, 'rb') as f:
@@ -69,7 +86,7 @@ def send_audio_file(audio_file_path: str, model: str = None, engine: str = None,
                 "data": audio_data_b64,
                 "model": model,
                 "engine": engine,
-                "streaming": config.runpod.streaming_enabled
+                "streaming": config.runpod.streaming_enabled if config.runpod else False
             }
         }
         

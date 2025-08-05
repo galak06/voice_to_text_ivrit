@@ -11,6 +11,7 @@ from typing import Optional, Dict, List
 
 from ..models.speaker_models import SpeakerConfig, TranscriptionResult, SpeakerDiarizationRequest
 from .speaker_engines import TranscriptionEngineFactory
+from src.models import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -20,17 +21,18 @@ class SpeakerTranscriptionService:
     Uses Strategy Pattern for different transcription engines
     """
     
-    def __init__(self, config: Optional[SpeakerConfig] = None):
+    def __init__(self, config: Optional[SpeakerConfig] = None, app_config: Optional[AppConfig] = None):
         """
         Initialize the speaker transcription service
         
         Args:
             config: Speaker configuration (uses defaults if None)
+            app_config: Application configuration (uses defaults if None)
         """
-        from src.utils.config_manager import config as app_config
+        from src.models import AppConfig
         
         self.config = config or SpeakerConfig()
-        self.app_config = app_config
+        self.app_config = app_config or AppConfig()
     
     def speaker_diarization(
         self, 

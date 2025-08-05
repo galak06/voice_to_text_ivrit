@@ -35,7 +35,7 @@ class TranscriptionOrchestrator:
         self.output_manager = output_manager
         # Initialize transcription services
         self.transcription_service = TranscriptionService(output_manager)
-        self.speaker_service = SpeakerTranscriptionService(config)
+        self.speaker_service = SpeakerTranscriptionService(config, self.config)
         
         # Current processing state
         self.current_job: Optional[Dict[str, Any]] = None

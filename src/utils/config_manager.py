@@ -227,9 +227,16 @@ class ConfigPrinter:
 
 
 class ConfigManager:
-    """Simplified configuration manager"""
+    """Configuration manager supporting dependency injection"""
     
-    def __init__(self, config_dir: str = "config"):
+    def __init__(self, config_dir: str = "config", environment: Optional[Environment] = None):
+        """
+        Initialize configuration manager
+        
+        Args:
+            config_dir: Directory containing configuration files
+            environment: Optional environment override (defaults to ENVIRONMENT env var)
+        """
         self.config_dir = Path(config_dir)
         self.config_dir.mkdir(exist_ok=True)
         
@@ -237,7 +244,7 @@ class ConfigManager:
         self._load_env_file()
         
         # Determine environment
-        self.environment = self._determine_environment()
+        self.environment = environment or self._determine_environment()
         
         # Load configuration
         loader = ConfigLoader(self.config_dir)
@@ -276,7 +283,7 @@ class ConfigManager:
     def save_config(self, filename: Optional[str] = None):
         """Save configuration to file"""
         if filename is None:
-            filename = f"config_{self.config.environment.value}.json"
+            filename = f"config_{self.environment.value}.json"
         
         config_file = self.config_dir / filename
         
@@ -291,26 +298,4 @@ class ConfigManager:
     def get_speaker_config(self, preset: str = "default"):
         """Get speaker configuration for specific preset"""
         from src.core.speaker_config_factory import SpeakerConfigFactory
-        return SpeakerConfigFactory.get_config(preset)
-
-
-# Simple singleton pattern
-_config_manager = None
-
-
-def get_config_manager() -> ConfigManager:
-    """Get configuration manager instance"""
-    global _config_manager
-    if _config_manager is None:
-        _config_manager = ConfigManager()
-    return _config_manager
-
-
-def get_config() -> AppConfig:
-    """Get current configuration"""
-    return get_config_manager().config
-
-
-# Backward compatibility
-config_manager = get_config_manager()
-config = get_config() 
+        return SpeakerConfigFactory.get_config(preset) 
