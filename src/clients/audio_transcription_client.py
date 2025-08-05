@@ -342,9 +342,9 @@ def send_audio_file(audio_file_path: str, config: Optional[AppConfig] = None,
 def main():
     """Main function for command-line usage"""
     if len(sys.argv) < 2:
-        print("Usage: python send_audio.py <audio_file_path> [model] [engine]")
-        print("Example: python send_audio.py voice/rachel_1.wav")
-        print("Example: python send_audio.py voice/rachel_1.wav ivrit-ai/whisper-large-v3-turbo-ct2 faster-whisper")
+        print("Usage: python audio_transcription_client.py <audio_file_path> [model] [engine]")
+        print("Example: python audio_transcription_client.py voice/rachel_1.wav")
+        print("Example: python audio_transcription_client.py voice/rachel_1.wav ivrit-ai/whisper-large-v3-turbo-ct2 faster-whisper")
         return
     
     audio_file = sys.argv[1]

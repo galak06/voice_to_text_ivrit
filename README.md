@@ -139,7 +139,7 @@ voice_to_text_ivrit/
 │   │   ├── output_manager.py         # Output file management
 │   │   └── file_downloader.py        # File download functionality
 │   ├── clients/                      # Client implementations
-│   │   ├── send_audio.py             # RunPod client
+│   │   ├── audio_transcription_client.py  # RunPod client
 │   │   └── infer_client.py           # Inference client
 │   └── tests/                        # Testing
 │       └── test_setup.py             # Setup tests
