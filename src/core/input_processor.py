@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 
 from src.output_data import OutputManager
+from src.utils.config_manager import ConfigManager
 
 
 class InputProcessor:
@@ -19,22 +20,32 @@ class InputProcessor:
     solely on input-related operations.
     """
     
-    def __init__(self, config: Any, output_manager: OutputManager):
+    def __init__(self, config_manager: ConfigManager, output_manager: OutputManager):
         """
         Initialize the input processor
         
         Args:
-            config: Application configuration
+            config_manager: Configuration manager instance
             output_manager: Output manager instance for logging
         """
-        self.config = config
+        self.config_manager = config_manager
+        self.config = config_manager.config
         self.output_manager = output_manager
         self.logger = logging.getLogger('input-processor')
         
-        # Supported audio formats
-        self.supported_formats = {
-            '.wav', '.mp3', '.m4a', '.flac', '.ogg', '.aac', '.wma'
-        }
+        # Supported audio formats - can be overridden by config
+        if self.config.input and hasattr(self.config.input, 'supported_formats'):
+            supported_formats = getattr(self.config.input, 'supported_formats', None)
+            if supported_formats and isinstance(supported_formats, (list, tuple)):
+                self.supported_formats = set(supported_formats)
+            else:
+                self.supported_formats = {
+                    '.wav', '.mp3', '.m4a', '.flac', '.ogg', '.aac', '.wma'
+                }
+        else:
+            self.supported_formats = {
+                '.wav', '.mp3', '.m4a', '.flac', '.ogg', '.aac', '.wma'
+            }
     
     def discover_files(self, input_directory: str) -> List[str]:
         """

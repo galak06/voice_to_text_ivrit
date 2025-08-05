@@ -4,11 +4,12 @@ Core transcription service
 Handles the main transcription logic and orchestration
 """
 
-from typing import Dict, Any, Generator
+from typing import Dict, Any, Generator, Optional
 from src.engines.transcription_engine_factory import TranscriptionEngineFactory
 from src.core.job_validator import JobValidator
 from src.core.audio_file_processor import AudioFileProcessor
 from src.output_data import OutputManager
+from src.utils.config_manager import ConfigManager
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,8 +17,20 @@ logger = logging.getLogger(__name__)
 class TranscriptionService:
     """Core transcription service that orchestrates the transcription process"""
     
-    def __init__(self, max_payload_size: int = 200 * 1024 * 1024):
-        """Initialize transcription service"""
+    def __init__(self, config_manager: Optional[ConfigManager] = None, max_payload_size: int = 200 * 1024 * 1024):
+        """
+        Initialize transcription service
+        
+        Args:
+            config_manager: Configuration manager for service settings
+            max_payload_size: Maximum payload size in bytes
+        """
+        self.config_manager = config_manager
+        
+        # Use config payload size if available
+        if config_manager and config_manager.config.system:
+            max_payload_size = getattr(config_manager.config.system, 'max_payload_size', max_payload_size)
+        
         self.validator = JobValidator()
         self.audio_processor = AudioFileProcessor(max_payload_size)
         self.engine_factory = TranscriptionEngineFactory()

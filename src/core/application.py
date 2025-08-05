@@ -62,22 +62,22 @@ class TranscriptionApplication:
             output_base_path=self.config.output.output_dir
         )
         
-        # Initialize specialized processors
-        self.input_processor = InputProcessor(self.config, self.output_manager)
-        self.output_processor = OutputProcessor(self.config, self.output_manager)
+        # Initialize specialized processors with ConfigManager injection
+        self.input_processor = InputProcessor(self.config_manager, self.output_manager)
+        self.output_processor = OutputProcessor(self.config_manager, self.output_manager)
         self.transcription_orchestrator = TranscriptionOrchestrator(
-            self.config, 
+            self.config_manager, 
             self.output_manager
         )
         
-        # Setup logging
+        # Setup logging with ConfigManager
         self._setup_logging()
         
         # Application state
         self.processing_stats: Dict[str, Any] = {}
         
         # Get logging service for application events
-        self.logging_service = LoggingService()
+        self.logging_service = LoggingService(self.config_manager)
         
         # Log application start
         self.logging_service.log_application_start()

@@ -90,9 +90,9 @@ class TestTranscriptionApplication(unittest.TestCase):
             self.assertIsNotNone(app.current_session_id)
             
             # Verify dependency injection
-            mock_input_processor.assert_called_once_with(self.mock_config, mock_output_manager_instance)
-            mock_output_processor.assert_called_once_with(self.mock_config, mock_output_manager_instance)
-            mock_orchestrator.assert_called_once_with(self.mock_config, mock_output_manager_instance)
+            mock_input_processor.assert_called_once_with(mock_config_manager_instance, mock_output_manager_instance)
+            mock_output_processor.assert_called_once_with(mock_config_manager_instance, mock_output_manager_instance)
+            mock_orchestrator.assert_called_once_with(mock_config_manager_instance, mock_output_manager_instance)
     
     @patch('src.core.application.ConfigManager')
     @patch('src.core.application.OutputManager')

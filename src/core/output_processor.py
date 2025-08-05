@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from src.output_data import OutputManager
+from src.utils.config_manager import ConfigManager
 
 
 class OutputProcessor:
@@ -19,20 +20,28 @@ class OutputProcessor:
     solely on output-related operations.
     """
     
-    def __init__(self, config: Any, output_manager: OutputManager):
+    def __init__(self, config_manager: ConfigManager, output_manager: OutputManager):
         """
         Initialize the output processor
         
         Args:
-            config: Application configuration
+            config_manager: Configuration manager instance
             output_manager: Output manager instance
         """
-        self.config = config
+        self.config_manager = config_manager
+        self.config = config_manager.config
         self.output_manager = output_manager
         self.logger = logging.getLogger('output-processor')
         
-        # Output formats supported
-        self.supported_formats = ['json', 'txt', 'docx']
+        # Output formats supported - can be overridden by config
+        if self.config.output and hasattr(self.config.output, 'supported_formats'):
+            supported_formats = getattr(self.config.output, 'supported_formats', None)
+            if supported_formats and isinstance(supported_formats, (list, tuple)):
+                self.supported_formats = list(supported_formats)
+            else:
+                self.supported_formats = ['json', 'txt', 'docx']
+        else:
+            self.supported_formats = ['json', 'txt', 'docx']
     
     def process_output(self, transcription_result: Dict[str, Any], 
                       input_metadata: Dict[str, Any]) -> Dict[str, Any]:

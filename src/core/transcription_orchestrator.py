@@ -10,6 +10,8 @@ from datetime import datetime
 from src.output_data import OutputManager
 from src.core.transcription_service import TranscriptionService
 from src.core.speaker_transcription_service import SpeakerTranscriptionService
+from src.utils.config_manager import ConfigManager
+from src.models.speaker_models import SpeakerConfig
 
 
 logger = logging.getLogger(__name__)
@@ -23,19 +25,35 @@ class TranscriptionOrchestrator:
     to specialized services.
     """
     
-    def __init__(self, config: Any, output_manager: OutputManager):
+    def __init__(self, config_manager: ConfigManager, output_manager: OutputManager):
         """
         Initialize the transcription orchestrator
         
         Args:
-            config: Application configuration
+            config_manager: Configuration manager instance
             output_manager: Output manager instance
         """
-        self.config = config
+        self.config_manager = config_manager
+        self.config = config_manager.config
         self.output_manager = output_manager
         # Initialize transcription services
-        self.transcription_service = TranscriptionService(output_manager)
-        self.speaker_service = SpeakerTranscriptionService(config, self.config)
+        self.transcription_service = TranscriptionService(self.config_manager)
+        
+        # Convert SpeakerConfig to the expected type
+        speaker_config = None
+        if self.config.speaker:
+            speaker_config = SpeakerConfig(
+                min_speakers=self.config.speaker.min_speakers,
+                max_speakers=self.config.speaker.max_speakers,
+                silence_threshold=getattr(self.config.speaker, 'silence_threshold', 1.5),
+                vad_enabled=getattr(self.config.speaker, 'vad_enabled', True),
+                word_timestamps=getattr(self.config.speaker, 'word_timestamps', True),
+                language=getattr(self.config.speaker, 'language', 'he'),
+                beam_size=getattr(self.config.speaker, 'beam_size', 5),
+                vad_min_silence_duration_ms=getattr(self.config.speaker, 'vad_min_silence_duration_ms', 300)
+            )
+        
+        self.speaker_service = SpeakerTranscriptionService(speaker_config, self.config)
         
         # Current processing state
         self.current_job: Optional[Dict[str, Any]] = None
