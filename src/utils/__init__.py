@@ -8,5 +8,6 @@ from .config_manager import ConfigManager
 from .file_downloader import FileDownloader
 from ..output_data import OutputManager
 from .ui_manager import ApplicationUI
+from .argument_parser import ArgumentParser
 
-__all__ = ['ConfigManager', 'FileDownloader', 'OutputManager', 'ApplicationUI'] 
+__all__ = ['ConfigManager', 'FileDownloader', 'OutputManager', 'ApplicationUI', 'ArgumentParser'] 

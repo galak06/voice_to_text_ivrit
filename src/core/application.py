@@ -15,6 +15,7 @@ from src.utils.config_manager import ConfigManager
 from src.output_data import OutputManager
 from src.logging import LoggingService
 from src.clients.audio_transcription.audio_transcription_client import AudioTranscriptionClient
+from src.utils.ui_manager import ApplicationUI
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +28,14 @@ class TranscriptionApplication:
     to specialized components through dependency injection.
     """
     
-    def __init__(self, config_manager: Optional[ConfigManager] = None, config_path: Optional[str] = None):
+    def __init__(self, config_manager: Optional[ConfigManager] = None, config_path: Optional[str] = None, ui_manager: Optional[ApplicationUI] = None):
         """
         Initialize the transcription application
         
         Args:
             config_manager: Optional ConfigManager instance (creates default if None)
             config_path: Optional path to configuration file or directory (used if config_manager is None)
+            ui_manager: Optional ApplicationUI instance (creates default if None)
         """
         # Initialize configuration first (dependency)
         if config_manager is not None:
@@ -84,6 +86,9 @@ class TranscriptionApplication:
         
         # Get logging service for application events
         self.logging_service = LoggingService(self.config_manager)
+        
+        # Initialize UI manager with dependency injection
+        self.ui_manager = ui_manager or ApplicationUI(self.config_manager)
         
         # Initialize audio transcription client lazily (only when needed)
         self._audio_client = None

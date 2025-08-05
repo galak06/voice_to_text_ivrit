@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 """
 Main Application Entry Point
-Uses the new software architecture with proper dependency injection
-All functionality is controlled through configuration files
+Voice-to-Text Transcription Application
 """
 
 import sys
-import argparse
 import logging
 from pathlib import Path
-from datetime import datetime
 from typing import Optional
 
 # Add project root to path
@@ -17,6 +14,8 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from src.core.application import TranscriptionApplication
+from src.utils.argument_parser import ArgumentParser
+from src.utils.config_manager import ConfigManager
 from src.utils.ui_manager import ApplicationUI
 
 
@@ -36,77 +35,41 @@ def setup_logging(verbose: bool = False):
 
 def main():
     """Main application entry point"""
-    parser = argparse.ArgumentParser(
-        description="Voice-to-Text Transcription Application",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python main_app.py single examples/audio/voice/rachel_1.wav --model base
-  python main_app.py batch --model base --engine faster-whisper
-  python main_app.py batch --config-file config/environments/voice_task.json
-  python main_app.py batch --config-file config/environments/docker_batch.json
-  python main_app.py status
-  python main_app.py --help
-        """
-    )
-    
-    # Global options
-    parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output')
-    parser.add_argument('--config-file', help='Configuration file path')
-    parser.add_argument('--help-config', action='store_true', help='Show configuration information')
-    
-    # Subcommands
-    subparsers = parser.add_subparsers(dest='command', help='Available commands')
-    
-    # Single file processing
-    single_parser = subparsers.add_parser('single', help='Process a single audio file')
-    single_parser.add_argument('file', help='Audio file to process')
-    single_parser.add_argument('--model', help='Model to use for transcription')
-    single_parser.add_argument('--engine', help='Engine to use for transcription')
-    single_parser.add_argument('--speaker-preset', choices=['default', 'conversation', 'interview'], 
-                              help='Speaker diarization preset')
-    
-    # Batch processing
-    batch_parser = subparsers.add_parser('batch', help='Process multiple audio files')
-    batch_parser.add_argument('--model', help='Model to use for transcription')
-    batch_parser.add_argument('--engine', help='Engine to use for transcription')
-    batch_parser.add_argument('--input-dir', help='Input directory (overrides config)')
-    batch_parser.add_argument('--speaker-preset', choices=['default', 'conversation', 'interview'], 
-                             help='Speaker diarization preset')
-    
-    # Status
-    status_parser = subparsers.add_parser('status', help='Show application status')
-    
-    args = parser.parse_args()
+    # Parse command-line arguments
+    args = ArgumentParser.parse_args()
     
     # Setup logging
     setup_logging(args.verbose)
     
-    # Print banner
-    ApplicationUI.print_banner()
-    
-    # Handle help-config
-    if args.help_config:
-        ApplicationUI.print_config_info(args.config_file)
-        return
-    
-    # Handle no command
-    if not args.command:
-        ApplicationUI.print_help()
-        return
-    
     try:
-        # Initialize application with configuration
-        config_file: Optional[str] = args.config_file if args.config_file else None
-        with TranscriptionApplication(config_file) as app:
+        # Initialize configuration manager
+        config_manager = None
+        if args.config_file:
+            config_manager = ConfigManager(args.config_file)
+        
+        # Initialize application with dependency injection
+        with TranscriptionApplication(config_manager=config_manager) as app:
+            
+            # Print banner
+            app.ui_manager.print_banner()
+            
+            # Handle help-config
+            if args.help_config:
+                app.ui_manager.print_config_info(args.config_file)
+                return 0
+            
+            # Handle no command
+            if not args.command:
+                app.ui_manager.print_help()
+                return 0
             
             if args.command == 'status':
-                ApplicationUI.print_status(app)
-                return
+                app.ui_manager.print_status(app)
+                return 0
             
             elif args.command == 'single':
                 # Print processing information
-                ApplicationUI.print_processing_info(
+                app.ui_manager.print_processing_info(
                     "single",
                     file=args.file,
                     model=args.model,
@@ -123,14 +86,14 @@ Examples:
                 )
                 
                 # Print results
-                ApplicationUI.print_processing_result(result, "single")
+                app.ui_manager.print_processing_result(result, "single")
                 
                 if not result['success']:
                     return 1
             
             elif args.command == 'batch':
                 # Print processing information
-                ApplicationUI.print_processing_info(
+                app.ui_manager.print_processing_info(
                     "batch",
                     model=args.model,
                     engine=args.engine,
@@ -147,19 +110,23 @@ Examples:
                 )
                 
                 # Print results
-                ApplicationUI.print_processing_result(result, "batch")
+                app.ui_manager.print_processing_result(result, "batch")
                 
                 if not result['success']:
                     return 1
         
-        ApplicationUI.print_success_message()
+        app.ui_manager.print_success_message()
         return 0
         
     except KeyboardInterrupt:
-        ApplicationUI.print_interrupt_message()
+        # Create temporary UI for error messages
+        temp_ui = ApplicationUI()
+        temp_ui.print_interrupt_message()
         return 130
     except Exception as e:
-        ApplicationUI.print_error_message(str(e), args.verbose)
+        # Create temporary UI for error messages
+        temp_ui = ApplicationUI()
+        temp_ui.print_error_message(str(e), args.verbose)
         return 1
 
 

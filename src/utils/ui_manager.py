@@ -10,10 +10,20 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.core.application import TranscriptionApplication
+    from src.utils.config_manager import ConfigManager
 
 
 class ApplicationUI:
     """Clean and organized UI for the transcription application"""
+    
+    def __init__(self, config_manager: Optional['ConfigManager'] = None):
+        """
+        Initialize ApplicationUI with dependency injection
+        
+        Args:
+            config_manager: Configuration manager instance
+        """
+        self.config_manager = config_manager
     
     # UI Constants
     BANNER_WIDTH = 60
@@ -24,32 +34,28 @@ class ApplicationUI:
     WARNING_ICON = "⚠️"
     INFO_ICON = "ℹ️"
     
-    @classmethod
-    def print_banner(cls):
+    def print_banner(self):
         """Print clean application banner"""
         print()
-        print("🎤 Voice-to-Text Transcription Application".center(cls.BANNER_WIDTH))
-        print("=" * cls.BANNER_WIDTH)
-        print(f"🚀 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}".center(cls.BANNER_WIDTH))
+        print("🎤 Voice-to-Text Transcription Application".center(self.BANNER_WIDTH))
+        print("=" * self.BANNER_WIDTH)
+        print(f"🚀 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}".center(self.BANNER_WIDTH))
         print()
     
-    @classmethod
-    def print_section_header(cls, title: str, icon: str = "📋"):
+    def print_section_header(self, title: str, icon: str = "📋"):
         """Print a clean section header"""
         print(f"{icon} {title}")
-        print(cls.SEPARATOR_CHAR * cls.SECTION_WIDTH)
+        print(self.SEPARATOR_CHAR * self.SECTION_WIDTH)
     
-    @classmethod
-    def print_section_footer(cls):
+    def print_section_footer(self):
         """Print section footer"""
         print()
     
-    @classmethod
-    def print_status(cls, app: 'TranscriptionApplication'):
+    def print_status(self, app: 'TranscriptionApplication'):
         """Print clean application status"""
         status = app.get_status()
         
-        cls.print_section_header("Application Status", "📊")
+        self.print_section_header("Application Status", "📊")
         
         # Status items with consistent formatting
         status_items = [
@@ -63,16 +69,15 @@ class ApplicationUI:
         
         for label, value in status_items:
             if isinstance(value, bool):
-                icon = cls.SUCCESS_ICON if value else cls.ERROR_ICON
+                icon = self.SUCCESS_ICON if value else self.ERROR_ICON
                 status_text = "Ready" if value else "Not Ready"
                 print(f"  {label:<25} {icon} {status_text}")
             else:
                 print(f"  {label:<25} {value}")
         
-        cls.print_section_footer()
+        self.print_section_footer()
     
-    @classmethod
-    def print_help(cls):
+    def print_help(self):
         """Print clean and organized help information"""
         help_sections = [
             {
@@ -162,7 +167,7 @@ class ApplicationUI:
         ]
         
         for section in help_sections:
-            cls.print_section_header(section["title"], section["icon"])
+            self.print_section_header(section["title"], section["icon"])
             
             if "description" in section:
                 print(f"  {section['description']}")
@@ -172,16 +177,17 @@ class ApplicationUI:
                 for item in section["items"]:
                     print(f"  • {item}")
             
-            cls.print_section_footer()
+            self.print_section_footer()
     
-    @classmethod
-    def print_config_info(cls, config_file: Optional[str] = None):
+    def print_config_info(self, config_file: Optional[str] = None):
         """Print clean configuration information"""
-        cls.print_section_header("Configuration Information", "📋")
+        self.print_section_header("Configuration Information", "📋")
         
         # Current configuration
         if config_file:
             print(f"  Current Config: {config_file}")
+        elif self.config_manager and self.config_manager.config_path:
+            print(f"  Current Config: {self.config_manager.config_path}")
         else:
             print("  Current Config: Using default (config/environments/base.json)")
         
@@ -195,7 +201,7 @@ class ApplicationUI:
             for config_file_name in config_files:
                 print(f"    • {config_file_name}")
         else:
-            print(f"    {cls.WARNING_ICON} No configuration directory found")
+            print(f"    {self.WARNING_ICON} No configuration directory found")
         
         print()
         
@@ -215,13 +221,12 @@ class ApplicationUI:
         for section in sections:
             print(f"    • {section}")
         
-        cls.print_section_footer()
+        self.print_section_footer()
     
-    @classmethod
-    def print_processing_info(cls, command: str, **kwargs):
+    def print_processing_info(self, command: str, **kwargs):
         """Print clean processing information"""
         if command == "single":
-            cls.print_section_header("Single File Processing", "🎤")
+            self.print_section_header("Single File Processing", "🎤")
             print(f"  File: {kwargs.get('file', 'Unknown')}")
             print(f"  Model: {kwargs.get('model', 'default')}")
             print(f"  Engine: {kwargs.get('engine', 'default')}")
@@ -229,7 +234,7 @@ class ApplicationUI:
                 print(f"  Speaker Preset: {kwargs['speaker_preset']}")
         
         elif command == "batch":
-            cls.print_section_header("Batch Processing", "🔄")
+            self.print_section_header("Batch Processing", "🔄")
             print(f"  Model: {kwargs.get('model', 'default')}")
             print(f"  Engine: {kwargs.get('engine', 'default')}")
             if kwargs.get('input_dir'):
@@ -237,14 +242,13 @@ class ApplicationUI:
             if kwargs.get('speaker_preset'):
                 print(f"  Speaker Preset: {kwargs['speaker_preset']}")
         
-        print(cls.SEPARATOR_CHAR * cls.SECTION_WIDTH)
+        print(self.SEPARATOR_CHAR * self.SECTION_WIDTH)
     
-    @classmethod
-    def print_processing_result(cls, result: Dict[str, Any], command: str):
+    def print_processing_result(self, result: Dict[str, Any], command: str):
         """Print clean processing results"""
         if result['success']:
             if command == "single":
-                cls.print_section_header("Processing Complete", "✅")
+                self.print_section_header("Processing Complete", "✅")
                 print("  Single file processing completed successfully!")
                 
                 output_info = result.get('output', {})
@@ -253,7 +257,7 @@ class ApplicationUI:
                     print(f"  Output Formats: {formats}")
             
             elif command == "batch":
-                cls.print_section_header("Batch Processing Complete", "✅")
+                self.print_section_header("Batch Processing Complete", "✅")
                 print("  Batch processing completed successfully!")
                 print()
                 print("  Summary:")
@@ -261,24 +265,22 @@ class ApplicationUI:
                 print(f"    • Successful: {result['successful']}")
                 print(f"    • Failed: {result['failed']}")
         else:
-            cls.print_section_header("Processing Failed", "❌")
+            self.print_section_header("Processing Failed", "❌")
             error_msg = result.get('error', 'Unknown error')
             print(f"  {error_msg}")
         
-        cls.print_section_footer()
+        self.print_section_footer()
     
-    @classmethod
-    def print_success_message(cls):
+    def print_success_message(self):
         """Print clean success message"""
         print()
-        print("🎉 Application completed successfully!".center(cls.BANNER_WIDTH))
+        print("🎉 Application completed successfully!".center(self.BANNER_WIDTH))
         print()
     
-    @classmethod
-    def print_error_message(cls, error: str, verbose: bool = False):
+    def print_error_message(self, error: str, verbose: bool = False):
         """Print clean error message"""
         print()
-        cls.print_section_header("Application Error", "❌")
+        self.print_section_header("Application Error", "❌")
         print(f"  {error}")
         
         if verbose:
@@ -287,11 +289,10 @@ class ApplicationUI:
             import traceback
             traceback.print_exc()
         
-        cls.print_section_footer()
+        self.print_section_footer()
     
-    @classmethod
-    def print_interrupt_message(cls):
+    def print_interrupt_message(self):
         """Print clean interrupt message"""
         print()
-        print("⚠️  Application interrupted by user".center(cls.BANNER_WIDTH))
+        print("⚠️  Application interrupted by user".center(self.BANNER_WIDTH))
         print() 
