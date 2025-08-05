@@ -12,15 +12,15 @@ from .protocols import (
     RunPodEndpoint,
     RunPodEndpointFactory
 )
-from .validators import DefaultAudioFileValidator
-from .builders import DefaultTranscriptionPayloadBuilder
-from .collectors import DefaultTranscriptionResultCollector
-from .savers import DefaultOutputSaver
-from .displays import DefaultResultDisplay
-from .providers import TranscriptionParameterProvider
-from .waiters import QueueWaiter
-from .factories import DefaultRunPodEndpointFactory
-from .client import AudioTranscriptionClient
+from .audio_file_validator import DefaultAudioFileValidator
+from .transcription_payload_builder import DefaultTranscriptionPayloadBuilder
+from .transcription_result_collector import DefaultTranscriptionResultCollector
+from .output_saver import DefaultOutputSaver
+from .result_display import DefaultResultDisplay
+from .transcription_parameter_provider import TranscriptionParameterProvider
+from .queue_waiter import QueueWaiter
+from .runpod_endpoint_factory import DefaultRunPodEndpointFactory
+from .audio_transcription_client import AudioTranscriptionClient
 
 __all__ = [
     # Models
