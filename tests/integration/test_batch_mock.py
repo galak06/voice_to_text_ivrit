@@ -3,6 +3,7 @@
 Mock batch processing test to verify the complete flow without actual transcription
 """
 
+import sys
 from pathlib import Path
 
 # Add project root to path
