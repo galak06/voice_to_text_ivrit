@@ -10,7 +10,7 @@ import base64
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Protocol
-from dataclasses import dataclass
+from pydantic import BaseModel
 from src.utils.config_manager import ConfigManager
 from src.models import AppConfig
 
@@ -23,18 +23,16 @@ except ImportError:
     RUNPOD_AVAILABLE = False
 
 
-@dataclass
-class TranscriptionRequest:
-    """Data class for transcription request parameters"""
+class TranscriptionRequest(BaseModel):
+    """Pydantic model for transcription request parameters"""
     audio_file_path: str
     model: str
     engine: str
     streaming_enabled: bool = False
 
 
-@dataclass
-class TranscriptionResult:
-    """Data class for transcription results"""
+class TranscriptionResult(BaseModel):
+    """Pydantic model for transcription results"""
     success: bool
     segments: List[Dict[str, Any]]
     error_message: Optional[str] = None
