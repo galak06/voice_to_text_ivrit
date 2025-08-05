@@ -313,13 +313,4 @@ def get_config() -> AppConfig:
 
 # Backward compatibility
 config_manager = get_config_manager()
-config = get_config()
-
-
-if __name__ == "__main__":
-    config_manager.print_config()
-    print()
-    if config_manager.validate():
-        print("✅ Configuration is valid!")
-    else:
-        print("❌ Configuration validation failed!") 
+config = get_config() 
