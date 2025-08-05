@@ -67,6 +67,23 @@ class DataUtils:
                         speakers[speaker] = []
                     speakers[speaker].append(segment)
                 return speakers
+            elif 'content' in data and isinstance(data['content'], str):
+                # Handle case where data is stored as string representation
+                try:
+                    import ast
+                    content_data = ast.literal_eval(data['content'])
+                    if isinstance(content_data, list):
+                        # Convert segments to speakers format
+                        speakers = {}
+                        for segment in content_data:
+                            speaker = segment.get('speaker', 'Unknown')
+                            if speaker not in speakers:
+                                speakers[speaker] = []
+                            speakers[speaker].append(segment)
+                        return speakers
+                except (ValueError, SyntaxError) as e:
+                    # If ast.literal_eval fails, try to extract as text
+                    pass
         
         return {}
     
@@ -89,6 +106,21 @@ class DataUtils:
             for field in text_fields:
                 if field in data and data[field]:
                     return str(data[field])
+            
+            # Handle case where data is stored as string representation
+            if 'content' in data and isinstance(data['content'], str):
+                try:
+                    import ast
+                    content_data = ast.literal_eval(data['content'])
+                    if isinstance(content_data, list):
+                        text_parts = []
+                        for segment in content_data:
+                            if isinstance(segment, dict) and 'text' in segment:
+                                text_parts.append(segment['text'])
+                        return ' '.join(text_parts)
+                except (ValueError, SyntaxError) as e:
+                    # If ast.literal_eval fails, return the content as is
+                    return data['content']
             
             # If no direct text field, try to extract from speakers
             speakers = DataUtils.extract_speakers_data(data)
