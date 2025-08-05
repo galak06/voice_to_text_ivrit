@@ -3,7 +3,6 @@
 Mock batch processing test to verify the complete flow without actual transcription
 """
 
-import sys
 from pathlib import Path
 
 # Add project root to path
@@ -131,28 +130,4 @@ def mock_batch_processing(voice_dir: str = "examples/audio/voice", save_output: 
         print(f"\n❌ Mock batch processing failed!")
         return False
 
-def main():
-    """Main test function"""
-    print("🎤 Mock Batch Processing Verification")
-    print("=" * 60)
-    print()
-    
-    # Test 1: Mock batch processing with output
-    print("🧪 Test 1: Mock Batch Processing with Output")
-    print("-" * 40)
-    success = mock_batch_processing(save_output=True)
-    print()
-    
-    if success:
-        print("🎉 Mock batch processing test passed!")
-        print("\n💡 Next steps:")
-        print("   1. Check output files in output/transcriptions/")
-        print("   2. Run real batch processing: python main_app.py batch")
-        print("   3. Verify transcription quality")
-        return 0
-    else:
-        print("❌ Mock batch processing test failed!")
-        return 1
-
-if __name__ == "__main__":
-    sys.exit(main()) 
+ 

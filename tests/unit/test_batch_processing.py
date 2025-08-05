@@ -104,42 +104,4 @@ def test_output_structure():
     
     return True
 
-def main():
-    """Main test function"""
-    print("🎤 Batch Processing Verification Test")
-    print("=" * 60)
-    print()
-    
-    # Test 1: Voice file discovery
-    voice_files = test_voice_file_discovery()
-    print()
-    
-    # Test 2: Output structure
-    output_ok = test_output_structure()
-    print()
-    
-    # Test 3: Batch processing logic
-    logic_ok = test_batch_processing_logic()
-    print()
-    
-    # Summary
-    print("📊 Test Summary")
-    print("=" * 60)
-    print(f"✅ Voice files found: {len(voice_files)}")
-    print(f"✅ Output structure: {'OK' if output_ok else 'FAILED'}")
-    print(f"✅ Batch logic: {'OK' if logic_ok else 'FAILED'}")
-    
-    if len(voice_files) > 0 and output_ok and logic_ok:
-        print("\n🎉 All tests passed! Batch processing is ready.")
-        print("\n💡 Next steps:")
-        print("   1. Install required packages: pip install faster-whisper stable-whisper")
-        print("   2. Run batch processing: python main_app.py batch")
-        print("   3. Check outputs in: output/transcriptions/")
-    else:
-        print("\n❌ Some tests failed. Please check the issues above.")
-        return 1
-    
-    return 0
-
-if __name__ == "__main__":
-    sys.exit(main()) 
+ 
