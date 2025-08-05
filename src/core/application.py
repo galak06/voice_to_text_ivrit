@@ -14,7 +14,7 @@ from src.core.transcription_orchestrator import TranscriptionOrchestrator
 from src.utils.config_manager import ConfigManager
 from src.output_data import OutputManager
 from src.logging import LoggingService
-from src.clients.audio_transcription_client import AudioTranscriptionClient
+from src.clients.audio_transcription.audio_transcription_client import AudioTranscriptionClient
 
 logger = logging.getLogger(__name__)
 
