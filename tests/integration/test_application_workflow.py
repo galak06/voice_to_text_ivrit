@@ -79,7 +79,7 @@ class TestApplicationWorkflow(unittest.TestCase):
         # This test would require actual transcription service
         # For now, we'll test the application structure and configuration
         
-        with TranscriptionApplication(str(self.config_path)) as app:
+        with TranscriptionApplication(config_path=str(self.config_path)) as app:
             # Test application initialization
             self.assertIsNotNone(app.config)
             self.assertIsNotNone(app.input_processor)
@@ -95,7 +95,7 @@ class TestApplicationWorkflow(unittest.TestCase):
     
     def test_application_initialization_with_config(self):
         """Test application initialization with custom configuration"""
-        with TranscriptionApplication(str(self.config_path)) as app:
+        with TranscriptionApplication(config_path=str(self.config_path)) as app:
             # Verify configuration was loaded correctly
             # Note: The config manager merges with base config, so we check the actual values
             self.assertIsNotNone(app.config.transcription.default_model)
@@ -105,7 +105,7 @@ class TestApplicationWorkflow(unittest.TestCase):
     
     def test_input_processor_integration(self):
         """Test input processor integration"""
-        with TranscriptionApplication(str(self.config_path)) as app:
+        with TranscriptionApplication(config_path=str(self.config_path)) as app:
             # Test file discovery
             files = app.input_processor.discover_files(self.temp_dir)
             self.assertIn(str(self.test_audio_file), files)
@@ -125,7 +125,7 @@ class TestApplicationWorkflow(unittest.TestCase):
     
     def test_output_processor_integration(self):
         """Test output processor integration"""
-        with TranscriptionApplication(str(self.config_path)) as app:
+        with TranscriptionApplication(config_path=str(self.config_path)) as app:
             # Test output processor initialization
             self.assertIsNotNone(app.output_processor.supported_formats)
             self.assertIn('json', app.output_processor.supported_formats)
@@ -144,7 +144,7 @@ class TestApplicationWorkflow(unittest.TestCase):
     
     def test_transcription_orchestrator_integration(self):
         """Test transcription orchestrator integration"""
-        with TranscriptionApplication(str(self.config_path)) as app:
+        with TranscriptionApplication(config_path=str(self.config_path)) as app:
             # Test orchestrator initialization
             self.assertIsNotNone(app.transcription_orchestrator)
             
@@ -177,7 +177,7 @@ class TestApplicationWorkflow(unittest.TestCase):
     
     def test_output_manager_integration(self):
         """Test output manager integration"""
-        with TranscriptionApplication(str(self.config_path)) as app:
+        with TranscriptionApplication(config_path=str(self.config_path)) as app:
             # Test output manager initialization
             self.assertIsNotNone(app.output_manager)
             
@@ -190,7 +190,7 @@ class TestApplicationWorkflow(unittest.TestCase):
     
     def test_error_handling_integration(self):
         """Test error handling integration"""
-        with TranscriptionApplication(str(self.config_path)) as app:
+        with TranscriptionApplication(config_path=str(self.config_path)) as app:
             # Test processing nonexistent file
             result = app.process_single_file("/nonexistent/file.wav")
             self.assertFalse(result['success'])
@@ -204,7 +204,7 @@ class TestApplicationWorkflow(unittest.TestCase):
     
     def test_configuration_integration(self):
         """Test configuration integration"""
-        with TranscriptionApplication(str(self.config_path)) as app:
+        with TranscriptionApplication(config_path=str(self.config_path)) as app:
             # Test configuration structure
             self.assertIsNotNone(app.config.transcription)
             self.assertIsNotNone(app.config.output)
@@ -222,7 +222,7 @@ class TestApplicationWorkflow(unittest.TestCase):
         session_ids = []
         
         for i in range(3):
-            with TranscriptionApplication(str(self.config_path)) as app:
+            with TranscriptionApplication(config_path=str(self.config_path)) as app:
                 session_id = app.current_session_id
                 self.assertIsNotNone(session_id)
                 self.assertTrue(session_id.startswith('session_'))
@@ -236,7 +236,7 @@ class TestApplicationWorkflow(unittest.TestCase):
     
     def test_cleanup_integration(self):
         """Test cleanup integration"""
-        with TranscriptionApplication(str(self.config_path)) as app:
+        with TranscriptionApplication(config_path=str(self.config_path)) as app:
             # Verify cleanup method exists
             self.assertTrue(hasattr(app, 'cleanup'))
             self.assertTrue(callable(app.cleanup))
@@ -247,7 +247,7 @@ class TestApplicationWorkflow(unittest.TestCase):
     
     def test_logging_integration(self):
         """Test logging integration"""
-        with TranscriptionApplication(str(self.config_path)) as app:
+        with TranscriptionApplication(config_path=str(self.config_path)) as app:
             # Test logging service exists
             self.assertTrue(hasattr(app, 'logging_service'))
             self.assertIsNotNone(app.logging_service)

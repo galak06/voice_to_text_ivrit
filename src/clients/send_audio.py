@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to send audio files to RunPod endpoint for transcription
+Audio transcription client for RunPod endpoint
 """
 
 import os
@@ -8,134 +8,202 @@ import sys
 import time
 import base64
 from pathlib import Path
+from typing import Optional, List, Dict, Any
 from src.utils.config_manager import ConfigManager
 from src.models import AppConfig
 import runpod
 
-def send_audio_file(audio_file_path: str, config: AppConfig = None, model: str = None, engine: str = None, save_output: bool = True):
+
+class AudioTranscriptionClient:
     """
-    Send an audio file to RunPod endpoint for transcription
+    Client for sending audio files to RunPod endpoint for transcription
     
-    Args:
-        audio_file_path (str): Path to the audio file
-        config (AppConfig): Application configuration
-        model (str): Model to use for transcription
-        engine (str): Engine to use (faster-whisper or stable-whisper)
-        save_output (bool): Whether to save outputs in all formats
+    This class follows the Single Responsibility Principle by handling
+    audio file transcription through RunPod, with clear separation of
+    concerns for validation, configuration, and processing.
     """
     
-    # Use provided config or create default
-    if config is None:
-        config_manager = ConfigManager()
-        config = config_manager.config
-    else:
-        # Use provided config, create ConfigManager only for validation
-        config_manager = ConfigManager()
-    
-    # Validate configuration
-    if not config_manager.validate():
-        print("❌ Configuration validation failed!")
-        print("Please set up your environment variables first.")
-        return False
-    
-    # Check if file exists
-    if not Path(audio_file_path).exists():
-        print(f"❌ Audio file not found: {audio_file_path}")
-        return False
-    
-    # Get file size
-    file_size = Path(audio_file_path).stat().st_size
-    print(f"📁 Audio file: {audio_file_path}")
-    print(f"📊 File size: {file_size:,} bytes ({file_size / 1024 / 1024:.1f} MB)")
-    
-    # Check file size limit
-    if config.runpod and file_size > config.runpod.max_payload_size:
-        print(f"❌ File too large! Max size: {config.runpod.max_payload_size:,} bytes")
-        return False
-    
-    # Use default values if not provided
-    if config.transcription:
-        model = model or config.transcription.default_model
-        engine = engine or config.transcription.default_engine
-    else:
-        model = model or "ivrit-ai/whisper-large-v3-ct2"
-        engine = engine or "faster-whisper"
-    
-    print(f"🤖 Model: {model}")
-    print(f"⚙️  Engine: {engine}")
-    if config.runpod:
-        print(f"☁️  Endpoint: {config.runpod.endpoint_id}")
-    
-    try:
-        # Configure RunPod
-        if config.runpod:
-            runpod.api_key = config.runpod.api_key
-            endpoint = runpod.Endpoint(config.runpod.endpoint_id)
-        else:
-            print("❌ RunPod configuration not found!")
-            return False
+    def __init__(self, config: Optional[AppConfig] = None):
+        """
+        Initialize the audio transcription client
         
-        # Prepare payload
+        Args:
+            config: Optional application configuration
+        """
+        self.config = config or self._load_default_config()
+        self.config_manager = ConfigManager()
+        self.endpoint = None
+        self._validate_configuration()
+    
+    def _load_default_config(self) -> AppConfig:
+        """Load default configuration"""
+        config_manager = ConfigManager()
+        return config_manager.config
+    
+    def _validate_configuration(self) -> None:
+        """Validate configuration and setup RunPod endpoint"""
+        if not self.config_manager.validate():
+            raise ValueError("Configuration validation failed! Please set up your environment variables first.")
+        
+        if not self.config.runpod:
+            raise ValueError("RunPod configuration not found!")
+        
+        # Configure RunPod
+        runpod.api_key = self.config.runpod.api_key
+        endpoint_id = self.config.runpod.endpoint_id
+        if endpoint_id is None:
+            raise ValueError("RunPod endpoint ID not configured!")
+        self.endpoint = runpod.Endpoint(endpoint_id)
+    
+    def _validate_audio_file(self, audio_file_path: str) -> Dict[str, Any]:
+        """
+        Validate audio file and return file information
+        
+        Args:
+            audio_file_path: Path to the audio file
+            
+        Returns:
+            Dictionary containing file information
+            
+        Raises:
+            FileNotFoundError: If file doesn't exist
+            ValueError: If file is too large
+        """
+        file_path = Path(audio_file_path)
+        
+        if not file_path.exists():
+            raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
+        
+        file_size = file_path.stat().st_size
+        
+        if self.config.runpod and self.config.runpod.max_payload_size:
+            max_size = self.config.runpod.max_payload_size
+            if file_size > max_size:
+                raise ValueError(
+                    f"File too large! Max size: {max_size:,} bytes, "
+                    f"actual size: {file_size:,} bytes"
+                )
+        
+        return {
+            'path': str(file_path),
+            'size': file_size,
+            'size_mb': file_size / 1024 / 1024
+        }
+    
+    def _get_transcription_parameters(self, model: Optional[str] = None, engine: Optional[str] = None) -> Dict[str, str]:
+        """
+        Get transcription parameters with defaults
+        
+        Args:
+            model: Optional model name
+            engine: Optional engine name
+            
+        Returns:
+            Dictionary with model and engine parameters
+        """
+        if self.config.transcription:
+            default_model = self.config.transcription.default_model
+            default_engine = self.config.transcription.default_engine
+        else:
+            default_model = "ivrit-ai/whisper-large-v3-ct2"
+            default_engine = "faster-whisper"
+        
+        return {
+            'model': model or default_model,
+            'engine': engine or default_engine
+        }
+    
+    def _prepare_audio_payload(self, audio_file_path: str, model: str, engine: str) -> Dict[str, Any]:
+        """
+        Prepare audio payload for RunPod
+        
+        Args:
+            audio_file_path: Path to audio file
+            model: Model to use
+            engine: Engine to use
+            
+        Returns:
+            Prepared payload dictionary
+        """
         with open(audio_file_path, 'rb') as f:
             audio_data = f.read()
         
-        # Encode audio data as base64
         audio_data_b64 = base64.b64encode(audio_data).decode('utf-8')
         
-        payload = {
+        return {
             "input": {
                 "type": "blob",
                 "data": audio_data_b64,
                 "model": model,
                 "engine": engine,
-                "streaming": config.runpod.streaming_enabled if config.runpod else False
+                "streaming": self.config.runpod.streaming_enabled if self.config.runpod else False
             }
         }
+    
+    def _wait_for_queue(self, run_request, timeout_seconds: int = 300) -> str:
+        """
+        Wait for task to be queued and return status
         
-        print("🚀 Sending to RunPod endpoint...")
-        
-        # Send request
-        run_request = endpoint.run(payload)
-        
-        # Wait for task to be queued
-        print("⏳ Waiting for task to be queued...")
-        for i in range(300):  # 5 minutes timeout
+        Args:
+            run_request: RunPod request object
+            timeout_seconds: Maximum time to wait
+            
+        Returns:
+            Final status string
+        """
+        status = "UNKNOWN"
+        for i in range(timeout_seconds):
             status = run_request.status()
             if status == "IN_QUEUE":
                 time.sleep(1)
                 continue
             break
         
-        print(f"📊 Task status: {status}")
+        return status
+    
+    def _collect_transcription_results(self, run_request, max_timeouts: int = 5) -> List[Dict[str, Any]]:
+        """
+        Collect transcription results from RunPod
         
-        # Collect results
-        print("🎧 Collecting transcription results...")
+        Args:
+            run_request: RunPod request object
+            max_timeouts: Maximum number of timeouts allowed
+            
+        Returns:
+            List of transcription segments
+            
+        Raises:
+            RuntimeError: If too many timeouts occur
+        """
         segments = []
-        
         timeouts = 0
-        max_timeouts = 5
         
         while True:
             try:
                 for segment in run_request.stream():
                     if "error" in segment:
-                        print(f"❌ Error: {segment['error']}")
-                        return False
+                        raise RuntimeError(f"Transcription error: {segment['error']}")
                     
                     segments.append(segment)
-                    print(f"📝 Segment: {segment}")
                 
                 break  # Successfully completed
                 
             except Exception as e:
                 timeouts += 1
                 if timeouts > max_timeouts:
-                    print(f"❌ Too many timeouts ({max_timeouts})")
-                    return False
-                print(f"⚠️  Timeout {timeouts}/{max_timeouts}, retrying...")
+                    raise RuntimeError(f"Too many timeouts ({max_timeouts})")
+                
                 time.sleep(1)
         
-        # Display results
+        return segments
+    
+    def _display_results(self, segments: List[Dict[str, Any]]) -> None:
+        """
+        Display transcription results
+        
+        Args:
+            segments: List of transcription segments
+        """
         print("\n🎉 Transcription completed!")
         print("=" * 50)
         
@@ -148,52 +216,120 @@ def send_audio_file(audio_file_path: str, config: AppConfig = None, model: str =
                 print()
         else:
             print("No transcription segments received")
+    
+    def _save_outputs(self, audio_file_path: str, segments: List[Dict[str, Any]], 
+                     model: str, engine: str) -> None:
+        """
+        Save transcription outputs in multiple formats
         
-        # Save outputs in all formats if requested
-        if save_output and segments:
-            try:
-                from src.output_data import OutputManager
+        Args:
+            audio_file_path: Path to original audio file
+            segments: Transcription segments
+            model: Model used for transcription
+            engine: Engine used for transcription
+        """
+        try:
+            from src.output_data import OutputManager
+            
+            output_manager = OutputManager()
+            
+            # Save all formats using the unified method
+            saved_files = output_manager.save_transcription(
+                transcription_data=segments,
+                audio_file=audio_file_path,
+                model=model,
+                engine=engine
+            )
+            
+            print(f"💾 All formats saved:")
+            for format_type, file_path in saved_files.items():
+                print(f"   📄 {format_type.upper()}: {file_path}")
                 
-                output_manager = OutputManager()
-                
-                # Save as JSON
-                json_file = output_manager.save_transcription(
-                    audio_file_path, segments, model, engine
-                )
-                
-                # Save as text
-                text_content = "\n".join([seg.get('text', '') for seg in segments if 'text' in seg])
-                if text_content.strip():
-                    text_file = output_manager.save_transcription_text(
-                        audio_file_path, text_content, model, engine
-                    )
-                
-                # Save as Word document
-                docx_file = output_manager.save_transcription_docx(
-                    audio_file_path, segments, model, engine
-                )
-                
-                print(f"💾 All formats saved:")
-                print(f"   📄 JSON: {json_file}")
-                print(f"   📄 Text: {text_file}")
-                if docx_file:
-                    print(f"   📄 Word: {docx_file}")
-                else:
-                    print(f"   📄 Word: Skipped (python-docx not available)")
-                    
-            except Exception as e:
-                print(f"⚠️  Warning: Failed to save outputs: {e}")
-        elif not save_output:
-            print("💾 Output saving disabled")
+        except Exception as e:
+            print(f"⚠️  Warning: Failed to save outputs: {e}")
+    
+    def transcribe_audio(self, audio_file_path: str, model: Optional[str] = None, 
+                        engine: Optional[str] = None, save_output: bool = True) -> bool:
+        """
+        Transcribe an audio file using RunPod
         
-        return True
+        Args:
+            audio_file_path: Path to the audio file
+            model: Optional model to use for transcription
+            engine: Optional engine to use for transcription
+            save_output: Whether to save outputs in all formats
+            
+        Returns:
+            True if transcription was successful, False otherwise
+        """
+        try:
+            # Validate audio file
+            file_info = self._validate_audio_file(audio_file_path)
+            print(f"📁 Audio file: {file_info['path']}")
+            print(f"📊 File size: {file_info['size']:,} bytes ({file_info['size_mb']:.1f} MB)")
+            
+            # Get transcription parameters
+            params = self._get_transcription_parameters(model, engine)
+            print(f"🤖 Model: {params['model']}")
+            print(f"⚙️  Engine: {params['engine']}")
+            if self.config.runpod and self.config.runpod.endpoint_id:
+                print(f"☁️  Endpoint: {self.config.runpod.endpoint_id}")
+            
+            # Prepare and send payload
+            payload = self._prepare_audio_payload(audio_file_path, params['model'], params['engine'])
+            print("🚀 Sending to RunPod endpoint...")
+            
+            if self.endpoint is None:
+                raise RuntimeError("RunPod endpoint not initialized!")
+            run_request = self.endpoint.run(payload)
+            
+            # Wait for task to be queued
+            print("⏳ Waiting for task to be queued...")
+            status = self._wait_for_queue(run_request)
+            print(f"📊 Task status: {status}")
+            
+            # Collect results
+            print("🎧 Collecting transcription results...")
+            segments = self._collect_transcription_results(run_request)
+            
+            # Display results
+            self._display_results(segments)
+            
+            # Save outputs if requested
+            if save_output and segments:
+                self._save_outputs(audio_file_path, segments, params['model'], params['engine'])
+            elif not save_output:
+                print("💾 Output saving disabled")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error transcribing audio file: {e}")
+            return False
+
+
+def send_audio_file(audio_file_path: str, config: Optional[AppConfig] = None, 
+                   model: Optional[str] = None, engine: Optional[str] = None, 
+                   save_output: bool = True) -> bool:
+    """
+    Convenience function to send an audio file for transcription
+    
+    Args:
+        audio_file_path: Path to the audio file
+        config: Optional application configuration
+        model: Optional model to use for transcription
+        engine: Optional engine to use for transcription
+        save_output: Whether to save outputs in all formats
         
-    except Exception as e:
-        print(f"❌ Error sending audio file: {e}")
-        return False
+    Returns:
+        True if transcription was successful, False otherwise
+    """
+    client = AudioTranscriptionClient(config)
+    return client.transcribe_audio(audio_file_path, model, engine, save_output)
+
 
 def main():
-    """Main function"""
+    """Main function for command-line usage"""
     if len(sys.argv) < 2:
         print("Usage: python send_audio.py <audio_file_path> [model] [engine]")
         print("Example: python send_audio.py voice/rachel_1.wav")
@@ -207,13 +343,14 @@ def main():
     print("🎤 ivrit-ai RunPod Audio Transcription")
     print("=" * 40)
     
-    success = send_audio_file(audio_file, model, engine, save_output=True)
+    success = send_audio_file(audio_file, model=model, engine=engine, save_output=True)
     
     if success:
         print("✅ Transcription completed successfully!")
     else:
         print("❌ Transcription failed!")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main() 
