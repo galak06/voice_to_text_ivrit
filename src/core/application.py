@@ -26,16 +26,20 @@ class TranscriptionApplication:
     to specialized components through dependency injection.
     """
     
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_manager: Optional[ConfigManager] = None, config_path: Optional[str] = None):
         """
         Initialize the transcription application
         
         Args:
-            config_path: Optional path to configuration file or directory
+            config_manager: Optional ConfigManager instance (creates default if None)
+            config_path: Optional path to configuration file or directory (used if config_manager is None)
         """
         # Initialize configuration first (dependency)
-        if config_path:
-            # Check if it's a file or directory
+        if config_manager is not None:
+            # Use provided ConfigManager
+            self.config_manager = config_manager
+        elif config_path:
+            # Create ConfigManager with custom path
             config_path_obj = Path(config_path)
             if config_path_obj.is_file():
                 # It's a file, use the parent directory
@@ -45,6 +49,7 @@ class TranscriptionApplication:
                 config_dir = config_path
             self.config_manager = ConfigManager(config_dir)
         else:
+            # Create default ConfigManager
             self.config_manager = ConfigManager()
         
         self.config = self.config_manager.config
