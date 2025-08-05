@@ -28,9 +28,11 @@ def send_audio_file(audio_file_path: str, config: AppConfig = None, model: str =
     if config is None:
         config_manager = ConfigManager()
         config = config_manager.config
+    else:
+        # Use provided config, create ConfigManager only for validation
+        config_manager = ConfigManager()
     
     # Validate configuration
-    config_manager = ConfigManager()
     if not config_manager.validate():
         print("❌ Configuration validation failed!")
         print("Please set up your environment variables first.")
