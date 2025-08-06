@@ -8,13 +8,13 @@ from src.utils.config_manager import ConfigManager
 from src.models import AppConfig
 
 from .models import TranscriptionRequest, TranscriptionResult
-from .protocols import (
-    AudioFileValidator,
-    TranscriptionPayloadBuilder,
-    TranscriptionResultCollector,
-    OutputSaver,
-    ResultDisplay,
-    RunPodEndpointFactory
+from .interfaces import (
+    AudioFileValidatorInterface,
+    TranscriptionPayloadBuilderInterface,
+    TranscriptionResultCollectorInterface,
+    OutputSaverInterface,
+    ResultDisplayInterface,
+    RunPodEndpointFactoryInterface
 )
 from .audio_file_validator import DefaultAudioFileValidator
 from .transcription_payload_builder import DefaultTranscriptionPayloadBuilder
@@ -24,6 +24,14 @@ from .result_display import DefaultResultDisplay
 from .transcription_parameter_provider import TranscriptionParameterProvider
 from .queue_waiter import QueueWaiter
 from .runpod_endpoint_factory import DefaultRunPodEndpointFactory
+
+import logging
+logger = logging.getLogger(__name__)
+
+# Type hint for DataUtils   
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.output_data.utils.data_utils import DataUtils
 
 
 class AudioTranscriptionClient:
@@ -41,14 +49,15 @@ class AudioTranscriptionClient:
     def __init__(
         self, 
         config: Optional[AppConfig] = None,
-        endpoint_factory: Optional[RunPodEndpointFactory] = None,
-        file_validator: Optional[AudioFileValidator] = None,
-        payload_builder: Optional[TranscriptionPayloadBuilder] = None,
-        result_collector: Optional[TranscriptionResultCollector] = None,
-        output_saver: Optional[OutputSaver] = None,
-        result_display: Optional[ResultDisplay] = None,
+        endpoint_factory: Optional[RunPodEndpointFactoryInterface] = None,
+        file_validator: Optional[AudioFileValidatorInterface] = None,
+        payload_builder: Optional[TranscriptionPayloadBuilderInterface] = None,
+        result_collector: Optional[TranscriptionResultCollectorInterface] = None,
+        output_saver: Optional[OutputSaverInterface] = None,
+        result_display: Optional[ResultDisplayInterface] = None,
         parameter_provider: Optional[TranscriptionParameterProvider] = None,
-        queue_waiter: Optional[QueueWaiter] = None
+        queue_waiter: Optional[QueueWaiter] = None,
+        data_utils: Optional['DataUtils'] = None
     ):
         """
         Initialize the audio transcription client with dependency injection
@@ -63,6 +72,7 @@ class AudioTranscriptionClient:
             result_display: Display for transcription results
             parameter_provider: Provider for transcription parameters
             queue_waiter: Waiter for queue processing
+            data_utils: DataUtils instance for data processing
         """
         self.config = config or self._load_default_config()
         self.config_manager = ConfigManager()
@@ -72,7 +82,7 @@ class AudioTranscriptionClient:
         self.file_validator = file_validator or DefaultAudioFileValidator(self.config)
         self.payload_builder = payload_builder or DefaultTranscriptionPayloadBuilder()
         self.result_collector = result_collector or DefaultTranscriptionResultCollector()
-        self.output_saver = output_saver or DefaultOutputSaver()
+        self.output_saver = output_saver or DefaultOutputSaver(data_utils=data_utils)
         self.result_display = result_display or DefaultResultDisplay()
         self.parameter_provider = parameter_provider or TranscriptionParameterProvider(self.config)
         self.queue_waiter = queue_waiter or QueueWaiter()
@@ -144,31 +154,31 @@ class AudioTranscriptionClient:
             
             # Log processing time
             processing_time = time.time() - start_time
-            print(f"⏱️  Processing time: {processing_time:.2f} seconds")
+            logger.info(f"Processing time: {processing_time:.2f} seconds")
             
             return result.success
             
         except Exception as e:
-            print(f"❌ Error transcribing audio file: {e}")
+            logger.error(f"Error transcribing audio file: {e}")
             return False
     
     def _execute_transcription(self, request: TranscriptionRequest, save_output: bool) -> TranscriptionResult:
         """Execute the transcription process"""
         # Prepare and send payload
         payload = self.payload_builder.build(request)
-        print("🚀 Sending to RunPod endpoint...")
+        logger.info("Sending to RunPod endpoint...")
         
         if self.endpoint is None:
             raise RuntimeError("RunPod endpoint not initialized!")
         run_request = self.endpoint.run(payload)
         
         # Wait for task to be queued
-        print("⏳ Waiting for task to be queued...")
+        logger.info("Waiting for task to be queued...")
         status = self.queue_waiter.wait_for_queue(run_request)
-        print(f"📊 Task status: {status}")
+        logger.info(f"Task status: {status}")
         
         # Collect results
-        print("🎧 Collecting transcription results...")
+        logger.info("Collecting transcription results...")
         segments = self.result_collector.collect(run_request)
         
         # Display results
@@ -183,9 +193,9 @@ class AudioTranscriptionClient:
                 )
                 self._log_saved_files(saved_files)
             except Exception as e:
-                print(f"⚠️  Warning: Failed to save outputs: {e}")
+                logger.warning(f"Failed to save outputs: {e}")
         elif not save_output:
-            print("💾 Output saving disabled")
+            logger.info("Output saving disabled")
         
         return TranscriptionResult(
             success=True,
@@ -195,18 +205,18 @@ class AudioTranscriptionClient:
     
     def _log_file_info(self, file_info: Dict[str, Any]) -> None:
         """Log file information"""
-        print(f"📁 Audio file: {file_info['path']}")
-        print(f"📊 File size: {file_info['size']:,} bytes ({file_info['size_mb']:.1f} MB)")
+        logger.info(f"Audio file: {file_info['path']}")
+        logger.info(f"File size: {file_info['size']:,} bytes ({file_info['size_mb']:.1f} MB)")
     
     def _log_parameters(self, params: Dict[str, str]) -> None:
         """Log transcription parameters"""
-        print(f"🤖 Model: {params['model']}")
-        print(f"⚙️  Engine: {params['engine']}")
+        logger.info(f"Model: {params['model']}")
+        logger.info(f"Engine: {params['engine']}")
         if self.config.runpod and self.config.runpod.endpoint_id:
-            print(f"☁️  Endpoint: {self.config.runpod.endpoint_id}")
+            logger.info(f"Endpoint: {self.config.runpod.endpoint_id}")
     
     def _log_saved_files(self, saved_files: Dict[str, str]) -> None:
         """Log saved files information"""
-        print(f"💾 All formats saved:")
+        logger.info("All formats saved:")
         for format_type, file_path in saved_files.items():
-            print(f"   📄 {format_type.upper()}: {file_path}") 
+            logger.info(f"  {format_type.upper()}: {file_path}") 

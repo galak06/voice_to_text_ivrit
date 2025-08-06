@@ -4,7 +4,8 @@ Transcription engines
 Contains different transcription engine implementations
 """
 
-from .transcription_engine import TranscriptionEngine, FasterWhisperEngine, StableWhisperEngine
+from .interfaces import TranscriptionEngineInterface
+from .transcription_engine import FasterWhisperEngine, StableWhisperEngine
 from .transcription_engine_factory import TranscriptionEngineFactory
 
-__all__ = ['TranscriptionEngine', 'FasterWhisperEngine', 'StableWhisperEngine', 'TranscriptionEngineFactory'] 
+__all__ = ['TranscriptionEngineInterface', 'FasterWhisperEngine', 'StableWhisperEngine', 'TranscriptionEngineFactory'] 

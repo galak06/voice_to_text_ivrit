@@ -66,8 +66,14 @@ class TranscriptionApplication:
         # Initialize core components with dependency injection
         # At this point, config.output is guaranteed to be initialized
         assert self.config.output is not None, "Output configuration must be initialized"
+        
+        # Create DataUtils instance for dependency injection
+        from src.output_data.utils.data_utils import DataUtils
+        data_utils = DataUtils()
+        
         self.output_manager = OutputManager(
-            output_base_path=self.config.output.output_dir
+            output_base_path=self.config.output.output_dir,
+            data_utils=data_utils
         )
         
         # Initialize specialized processors with ConfigManager injection
@@ -345,7 +351,12 @@ class TranscriptionApplication:
         """Lazy-load AudioTranscriptionClient when needed"""
         if self._audio_client is None:
             try:
-                self._audio_client = AudioTranscriptionClient(self.config)
+                # Get the DataUtils instance from OutputManager for injection
+                data_utils = self.output_manager.data_utils if self.output_manager else None
+                self._audio_client = AudioTranscriptionClient(
+                    config=self.config,
+                    data_utils=data_utils
+                )
             except ImportError as e:
                 # If RunPod is not available, log warning and return None
                 logger.warning(f"RunPod not available: {e}")

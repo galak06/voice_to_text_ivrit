@@ -4,8 +4,11 @@ Speaker Configuration Factory
 Provides predefined speaker diarization configurations
 """
 
+import logging
 from typing import Dict, Any
 from ..models.speaker_models import SpeakerConfig
+
+logger = logging.getLogger(__name__)
 
 
 class SpeakerConfigFactory:
@@ -82,7 +85,7 @@ class SpeakerConfigFactory:
         }
         
         if preset not in configs:
-            print(f"Warning: Unknown preset '{preset}', using default configuration")
+            logger.warning(f"Unknown preset '{preset}', using default configuration")
             return configs["default"]
         
         return configs[preset]

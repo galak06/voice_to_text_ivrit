@@ -182,23 +182,25 @@ class ApplicationOrchestrator:
     
     def _handle_interrupt(self) -> int:
         """Handle keyboard interrupt with proper UI"""
+        logger = logging.getLogger(__name__)
         if self.ui:
             self.ui.print_interrupt_message()
         else:
             # Fallback if UI not available
-            print("\n⚠️  Application interrupted by user")
+            logger.warning("Application interrupted by user")
         return ExitCodes.INTERRUPT
     
     def _handle_error(self, error: Exception, verbose: bool) -> int:
         """Handle application errors with proper UI"""
+        logger = logging.getLogger(__name__)
         if self.ui:
             self.ui.print_error_message(str(error), verbose)
         else:
             # Fallback if UI not available
-            print(f"\n❌ Application Error: {error}")
+            logger.error(f"Application Error: {error}")
             if verbose:
                 import traceback
-                traceback.print_exc()
+                logger.debug(f"Traceback: {traceback.format_exc()}")
         return ExitCodes.ERROR
 
 

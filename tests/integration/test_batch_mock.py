@@ -65,7 +65,11 @@ def mock_batch_processing(voice_dir: str = "examples/audio/voice", save_output: 
     print(f"🌐 Mode: mock-local")
     print("=" * 60)
     
-    output_manager = OutputManager()
+    from src.output_data.managers.output_manager import OutputManager
+    from src.output_data.utils.data_utils import DataUtils
+    
+    data_utils = DataUtils()
+    output_manager = OutputManager(data_utils=data_utils)
     success_count = 0
     failed_count = 0
     failed_files = []
@@ -79,27 +83,17 @@ def mock_batch_processing(voice_dir: str = "examples/audio/voice", save_output: 
             mock_data = create_mock_transcription(audio_file)
             
             if save_output:
-                # Save as JSON
-                json_file = output_manager.save_transcription(
-                    audio_file, mock_data, "mock-model", "mock-engine"
-                )
-                
-                # Save as text
-                text_content = "\n".join([seg.get('text', '') for seg in mock_data if 'text' in seg])
-                if text_content.strip():
-                    text_file = output_manager.save_transcription_text(
-                        audio_file, text_content, "mock-model", "mock-engine"
-                    )
-                
-                # Save as Word document
-                docx_file = output_manager.save_transcription_docx(
-                    audio_file, mock_data, "mock-model", "mock-engine"
+                # Save transcription in all formats
+                saved_files = output_manager.save_transcription(
+                    transcription_data=mock_data,
+                    audio_file=audio_file,
+                    model="mock-model",
+                    engine="mock-engine"
                 )
                 
                 print(f"✅ Mock transcription saved for {Path(audio_file).name}")
-                print(f"   📄 JSON: {Path(json_file).name}")
-                print(f"   📝 TXT: {Path(text_file).name}")
-                print(f"   📘 DOCX: {Path(docx_file).name}")
+                for format_type, file_path in saved_files.items():
+                    print(f"   📄 {format_type.upper()}: {Path(file_path).name}")
             else:
                 print(f"✅ Mock transcription created for {Path(audio_file).name} (not saved)")
             
@@ -125,7 +119,7 @@ def mock_batch_processing(voice_dir: str = "examples/audio/voice", save_output: 
     
     if success_count > 0:
         print(f"\n🎉 Mock batch processing completed successfully!")
-        print(f"💾 Output files saved to: {output_manager.transcriptions_dir}")
+        print(f"💾 Output files saved to: {output_manager.output_base_path}")
         return True
     else:
         print(f"\n❌ Mock batch processing failed!")

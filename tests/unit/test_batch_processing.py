@@ -75,25 +75,20 @@ def test_output_structure():
     print("🧪 Testing Output Structure")
     print("=" * 50)
     
-    from src.output_data import OutputManager
+    from src.output_data.managers.output_manager import OutputManager
+    from src.output_data.utils.data_utils import DataUtils
     
     try:
-        output_manager = OutputManager()
+        data_utils = DataUtils()
+        output_manager = OutputManager(data_utils=data_utils)
         print("✅ Output manager initialized successfully")
         
-        # Check directories
-        dirs_to_check = [
-            output_manager.base_output_dir,
-            output_manager.transcriptions_dir,
-            output_manager.logs_dir,
-            output_manager.temp_dir
-        ]
-        
-        for dir_path in dirs_to_check:
-            if dir_path.exists():
-                print(f"✅ Directory exists: {dir_path}")
-            else:
-                print(f"⚠️  Directory missing: {dir_path}")
+        # Check output directory
+        import os
+        if os.path.exists(output_manager.output_base_path):
+            print(f"✅ Output directory exists: {output_manager.output_base_path}")
+        else:
+            print(f"⚠️  Output directory missing: {output_manager.output_base_path}")
         
         print()
         print("✅ Output structure ready for batch processing!")

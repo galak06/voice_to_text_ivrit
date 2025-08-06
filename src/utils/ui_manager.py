@@ -4,9 +4,12 @@ UI Manager for the Voice-to-Text Transcription Application
 Provides clean, organized, and readable output formatting
 """
 
+import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any, TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from src.core.application import TranscriptionApplication
@@ -36,6 +39,7 @@ class ApplicationUI:
     
     def print_banner(self):
         """Print clean application banner"""
+        logger.info("Displaying application banner")
         print()
         print("🎤 Voice-to-Text Transcription Application".center(self.BANNER_WIDTH))
         print("=" * self.BANNER_WIDTH)
@@ -44,15 +48,18 @@ class ApplicationUI:
     
     def print_section_header(self, title: str, icon: str = "📋"):
         """Print a clean section header"""
+        logger.debug(f"Displaying section header: {title}")
         print(f"{icon} {title}")
         print(self.SEPARATOR_CHAR * self.SECTION_WIDTH)
     
     def print_section_footer(self):
         """Print section footer"""
+        logger.debug("Displaying section footer")
         print()
     
     def print_status(self, app: 'TranscriptionApplication'):
         """Print clean application status"""
+        logger.info("Displaying application status")
         status = app.get_status()
         
         self.print_section_header("Application Status", "📊")

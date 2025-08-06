@@ -21,9 +21,10 @@ logger = logging.getLogger(__name__)
 class OutputManager:
     """Main output manager for transcription results"""
     
-    def __init__(self, output_base_path: str = "output/transcriptions"):
-        """Initialize output manager"""
+    def __init__(self, output_base_path: str = "output/transcriptions", data_utils: Optional[DataUtils] = None):
+        """Initialize output manager with dependency injection"""
         self.output_base_path = output_base_path
+        self.data_utils = data_utils or DataUtils()
         
         # Ensure base output directory exists
         os.makedirs(output_base_path, exist_ok=True)
@@ -39,10 +40,10 @@ class OutputManager:
         """Save transcription in all formats"""
         try:
             # Convert dataclass to dict if needed
-            data_dict = DataUtils.convert_transcription_result_to_dict(transcription_data)
+            data_dict = self.data_utils.convert_transcription_result_to_dict(transcription_data)
             
             # Extract file path
-            input_file_path = DataUtils.get_audio_file(data_dict) or audio_file
+            input_file_path = self.data_utils.get_audio_file(data_dict) or audio_file
             
             # Create output directory
             output_dir = FileManager.create_output_directory(
@@ -96,11 +97,11 @@ class OutputManager:
         """Save transcription as text"""
         try:
             # Extract and format text
-            speakers = DataUtils.extract_speakers_data(data)
+            speakers = self.data_utils.extract_speakers_data(data)
             if speakers:
                 text_content = TextFormatter.format_conversation_text(speakers)
             else:
-                text_content = DataUtils.extract_text_content(data)
+                text_content = self.data_utils.extract_text_content(data)
             
             # Improve Hebrew punctuation
             text_content = TextFormatter.improve_hebrew_punctuation(text_content)
@@ -122,7 +123,7 @@ class OutputManager:
         """Save transcription as DOCX"""
         try:
             # Convert data to DOCX format
-            speakers = DataUtils.extract_speakers_data(data)
+            speakers = self.data_utils.extract_speakers_data(data)
             docx_data = []
             
             for speaker_name, segments in speakers.items():
@@ -138,8 +139,8 @@ class OutputManager:
             # Create document
             doc = DocxFormatter.create_transcription_document(
                 docx_data, 
-                DataUtils.get_audio_file(data),
-                DataUtils.get_model_name(data),
+                self.data_utils.get_audio_file(data),
+                self.data_utils.get_model_name(data),
                 engine
             )
             

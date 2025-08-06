@@ -6,13 +6,17 @@ This example shows different ways to initialize the TranscriptionApplication
 with ConfigManager dependency injection.
 """
 
+import logging
 from src.core.application import TranscriptionApplication
 from src.utils.config_manager import ConfigManager
 from src.models import Environment
 
+logger = logging.getLogger(__name__)
+
 
 def example_default_config():
     """Example using default configuration"""
+    logger.info("Running Example 1: Default Configuration")
     print("🔧 Example 1: Default Configuration")
     print("=" * 50)
     
@@ -27,6 +31,7 @@ def example_default_config():
 
 def example_custom_config_path():
     """Example using custom configuration path"""
+    logger.info("Running Example 2: Custom Configuration Path")
     print("🔧 Example 2: Custom Configuration Path")
     print("=" * 50)
     
@@ -41,6 +46,7 @@ def example_custom_config_path():
 
 def example_injected_config_manager():
     """Example using injected ConfigManager"""
+    logger.info("Running Example 3: Injected ConfigManager")
     print("🔧 Example 3: Injected ConfigManager")
     print("=" * 50)
     
@@ -61,6 +67,7 @@ def example_injected_config_manager():
 
 def example_config_validation():
     """Example showing configuration validation"""
+    logger.info("Running Example 4: Configuration Validation")
     print("🔧 Example 4: Configuration Validation")
     print("=" * 50)
     
@@ -85,6 +92,7 @@ def example_config_validation():
 
 def example_component_config_access():
     """Example showing how components access configuration"""
+    logger.info("Running Example 5: Component Configuration Access")
     print("🔧 Example 5: Component Configuration Access")
     print("=" * 50)
     
@@ -109,6 +117,7 @@ def example_component_config_access():
 
 def main():
     """Run all examples"""
+    logger.info("Starting ConfigManager injection examples")
     print("🎤 TranscriptionApplication ConfigManager Injection Examples")
     print("=" * 70)
     print()
@@ -120,6 +129,7 @@ def main():
         example_config_validation()
         example_component_config_access()
         
+        logger.info("All examples completed successfully")
         print("🎉 All examples completed successfully!")
         print()
         print("💡 Key Benefits of ConfigManager Injection:")
@@ -130,6 +140,7 @@ def main():
         print("   • Better separation of concerns")
         
     except Exception as e:
+        logger.error(f"Error running examples: {e}")
         print(f"❌ Error running examples: {e}")
         return 1
     

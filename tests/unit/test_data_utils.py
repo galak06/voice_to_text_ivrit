@@ -17,6 +17,10 @@ from src.output_data.utils.data_utils import DataUtils
 class TestDataUtils(unittest.TestCase):
     """Test DataUtils functionality"""
     
+    def setUp(self):
+        """Set up test fixtures"""
+        self.data_utils = DataUtils()
+    
     def test_extract_speakers_data_from_string_content(self):
         """Test extracting speakers data from string content representation"""
         # Simulate the actual data structure from the JSON file
@@ -24,7 +28,7 @@ class TestDataUtils(unittest.TestCase):
             "content": "[{'id': 1, 'seek': 0, 'start': 0.0, 'end': 5.32, 'text': 'Test Hebrew text', 'speaker': 'Speaker 1'}, {'id': 2, 'seek': 0, 'start': 5.32, 'end': 10.0, 'text': 'More Hebrew text', 'speaker': 'Speaker 2'}]"
         }
         
-        result = DataUtils.extract_speakers_data(data)
+        result = self.data_utils.extract_speakers_data(data)
         
         self.assertIsInstance(result, dict)
         self.assertIn('Speaker 1', result)
@@ -41,7 +45,7 @@ class TestDataUtils(unittest.TestCase):
             "content": "[{'id': 1, 'seek': 0, 'start': 0.0, 'end': 5.32, 'text': 'Test Hebrew text', 'speaker': 'Speaker 1'}, {'id': 2, 'seek': 0, 'start': 5.32, 'end': 10.0, 'text': 'More Hebrew text', 'speaker': 'Speaker 2'}]"
         }
         
-        result = DataUtils.extract_text_content(data)
+        result = self.data_utils.extract_text_content(data)
         
         self.assertIsInstance(result, str)
         self.assertIn('Test Hebrew text', result)
@@ -54,7 +58,7 @@ class TestDataUtils(unittest.TestCase):
             {'text': 'Another segment', 'start': 1, 'end': 2, 'speaker': 'Speaker 2'}
         ]
         
-        result = DataUtils.extract_speakers_data(data)
+        result = self.data_utils.extract_speakers_data(data)
         
         self.assertIsInstance(result, dict)
         self.assertIn('Speaker 1', result)
@@ -69,7 +73,7 @@ class TestDataUtils(unittest.TestCase):
             {'text': 'Another segment', 'start': 1, 'end': 2}
         ]
         
-        result = DataUtils.extract_text_content(data)
+        result = self.data_utils.extract_text_content(data)
         
         self.assertIsInstance(result, str)
         self.assertIn('Test transcription', result)
@@ -84,7 +88,7 @@ class TestDataUtils(unittest.TestCase):
             }
         }
         
-        result = DataUtils.extract_speakers_data(data)
+        result = self.data_utils.extract_speakers_data(data)
         
         self.assertIsInstance(result, dict)
         self.assertIn('Speaker 1', result)
@@ -99,7 +103,7 @@ class TestDataUtils(unittest.TestCase):
             ]
         }
         
-        result = DataUtils.extract_speakers_data(data)
+        result = self.data_utils.extract_speakers_data(data)
         
         self.assertIsInstance(result, dict)
         self.assertIn('Speaker 1', result)
@@ -111,7 +115,7 @@ class TestDataUtils(unittest.TestCase):
             'text': 'Simple text transcription'
         }
         
-        result = DataUtils.extract_text_content(data)
+        result = self.data_utils.extract_text_content(data)
         
         self.assertEqual(result, 'Simple text transcription')
     
@@ -119,7 +123,7 @@ class TestDataUtils(unittest.TestCase):
         """Test extracting speakers data returns empty dict for invalid data"""
         invalid_data = "not a list or dict"
         
-        result = DataUtils.extract_speakers_data(invalid_data)
+        result = self.data_utils.extract_speakers_data(invalid_data)
         
         self.assertEqual(result, {})
     
@@ -127,7 +131,7 @@ class TestDataUtils(unittest.TestCase):
         """Test extracting text content fallback for invalid data"""
         invalid_data = 123
         
-        result = DataUtils.extract_text_content(invalid_data)
+        result = self.data_utils.extract_text_content(invalid_data)
         
         self.assertEqual(result, "")
     
@@ -137,7 +141,7 @@ class TestDataUtils(unittest.TestCase):
             "content": "invalid python literal"
         }
         
-        result = DataUtils.extract_speakers_data(data)
+        result = self.data_utils.extract_speakers_data(data)
         
         self.assertEqual(result, {})
     
@@ -147,7 +151,7 @@ class TestDataUtils(unittest.TestCase):
             "content": "invalid python literal"
         }
         
-        result = DataUtils.extract_text_content(data)
+        result = self.data_utils.extract_text_content(data)
         
         self.assertEqual(result, "invalid python literal")
 

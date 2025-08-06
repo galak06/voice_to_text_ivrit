@@ -5,15 +5,16 @@ Implements the Factory Pattern for transcription engine creation and caching
 """
 
 from typing import Dict
-from src.engines.transcription_engine import TranscriptionEngine, FasterWhisperEngine, StableWhisperEngine
+from src.engines.interfaces import TranscriptionEngineInterface
+from src.engines.transcription_engine import FasterWhisperEngine, StableWhisperEngine
 
 class TranscriptionEngineFactory:
     """Factory for creating transcription engines following Factory Pattern"""
     
-    _engines: Dict[str, TranscriptionEngine] = {}
+    _engines: Dict[str, TranscriptionEngineInterface] = {}
     
     @classmethod
-    def get_engine(cls, engine_type: str, model_name: str) -> TranscriptionEngine:
+    def get_engine(cls, engine_type: str, model_name: str) -> TranscriptionEngineInterface:
         """Get or create a transcription engine instance"""
         cache_key = f"{engine_type}_{model_name}"
         

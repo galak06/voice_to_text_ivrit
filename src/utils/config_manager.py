@@ -6,8 +6,11 @@ Simplified and focused on core configuration management
 
 import os
 import json
+import logging
 from typing import Dict, Any, Optional
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from src.models import (
     Environment,
@@ -56,7 +59,7 @@ class ConfigLoader:
             with open(file_path, 'r') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"⚠️  Warning: Could not load {filename}: {e}")
+            logger.warning(f"Could not load {filename}: {e}")
             return {}
     
     def _merge_configs(self, base: Dict[str, Any], env: Dict[str, Any]) -> Dict[str, Any]:
@@ -115,7 +118,7 @@ class ConfigLoader:
                 input=InputConfig(**config_dict.get('input', {})) if config_dict.get('input') else None
             )
         except Exception as e:
-            print(f"❌ Error creating configuration: {e}")
+            logger.error(f"Error creating configuration: {e}")
             return AppConfig(environment=environment)
 
 
@@ -138,13 +141,13 @@ class ConfigValidator:
                 missing_vars.append('RUNPOD_ENDPOINT_ID')
             
             if missing_vars:
-                print(f"❌ Missing required environment variables: {', '.join(missing_vars)}")
+                logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
                 return False
             
             return True
             
         except Exception as e:
-            print(f"❌ Configuration validation failed: {e}")
+            logger.error(f"Configuration validation failed: {e}")
             return False
 
 
@@ -154,8 +157,8 @@ class ConfigPrinter:
     @staticmethod
     def print_config(config: AppConfig, show_sensitive: bool = False):
         """Print configuration in a readable format"""
-        print(f"🔧 Configuration ({config.environment.value}):")
-        print("=" * 50)
+        logger.info(f"Configuration ({config.environment.value}):")
+        logger.info("=" * 50)
         
         sections = [
             ('🎤 Transcription', config.transcription, [
@@ -212,18 +215,18 @@ class ConfigPrinter:
         
         for title, section, fields in sections:
             if section:
-                print(f"\n{title}:")
+                logger.info(f"\n{title}:")
                 for field_name, attr_name, *formatters in fields:
                     value = getattr(section, attr_name, None)
                     if len(formatters) > 0 and formatters[0]:
                         value = formatters[0](value)
-                    print(f"   {field_name}: {value}")
+                    logger.info(f"   {field_name}: {value}")
                     
                     # Handle sensitive data
                     if show_sensitive and attr_name == 'api_key' and value == '✅ Set':
                         api_key = getattr(section, attr_name, '')
                         if api_key:
-                            print(f"   API Key: {api_key[:10]}...")
+                            logger.info(f"   API Key: {api_key[:10]}...")
 
 
 class ConfigManager:
@@ -291,9 +294,9 @@ class ConfigManager:
             config_dict = self.config.model_dump(exclude_none=True)
             with open(config_file, 'w') as f:
                 json.dump(config_dict, f, indent=2, default=str)
-            print(f"✅ Configuration saved to {config_file}")
+            logger.info(f"Configuration saved to {config_file}")
         except Exception as e:
-            print(f"❌ Error saving configuration: {e}")
+            logger.error(f"Error saving configuration: {e}")
     
     def get_speaker_config(self, preset: str = "default"):
         """Get speaker configuration for specific preset"""

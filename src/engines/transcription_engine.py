@@ -1,20 +1,14 @@
 #!/usr/bin/env python3
 """
-Transcription engine protocol and implementations
-Defines the interface and concrete implementations for transcription engines
+Transcription engine implementations
+Defines concrete implementations for transcription engines
 """
 
-from typing import Protocol, Any
+from typing import Any
 import torch
+from .interfaces import TranscriptionEngineInterface
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-class TranscriptionEngine(Protocol):
-    """Protocol defining the interface for transcription engines"""
-    
-    def transcribe(self, audio_file: str, language: str = 'he', word_timestamps: bool = True) -> Any:
-        """Transcribe audio file and return segments"""
-        ...
 
 class FasterWhisperEngine:
     """Faster Whisper transcription engine implementation"""
@@ -49,4 +43,4 @@ class StableWhisperEngine:
             )
         
         result = self.model.transcribe(audio_file, language=language, word_timestamps=word_timestamps)
-        return result.segments, None 
+        return result 

@@ -3,14 +3,14 @@ Audio transcription client package
 """
 
 from .models import TranscriptionRequest, TranscriptionResult
-from .protocols import (
-    AudioFileValidator,
-    TranscriptionPayloadBuilder,
-    TranscriptionResultCollector,
-    OutputSaver,
-    ResultDisplay,
-    RunPodEndpoint,
-    RunPodEndpointFactory
+from .interfaces import (
+    AudioFileValidatorInterface,
+    TranscriptionPayloadBuilderInterface,
+    TranscriptionResultCollectorInterface,
+    OutputSaverInterface,
+    ResultDisplayInterface,
+    RunPodEndpointInterface,
+    RunPodEndpointFactoryInterface
 )
 from .audio_file_validator import DefaultAudioFileValidator
 from .transcription_payload_builder import DefaultTranscriptionPayloadBuilder

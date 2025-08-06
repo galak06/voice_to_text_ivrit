@@ -10,13 +10,13 @@ except ImportError:
     runpod = None
     RUNPOD_AVAILABLE = False
 
-from .protocols import RunPodEndpointFactory, RunPodEndpoint
+from .interfaces import RunPodEndpointFactoryInterface, RunPodEndpointInterface
 
 
-class DefaultRunPodEndpointFactory(RunPodEndpointFactory):
+class DefaultRunPodEndpointFactory(RunPodEndpointFactoryInterface):
     """Default implementation of RunPod endpoint factory"""
     
-    def create_endpoint(self, endpoint_id: str) -> RunPodEndpoint:
+    def create_endpoint(self, endpoint_id: str) -> RunPodEndpointInterface:
         """Create a RunPod endpoint"""
         if not RUNPOD_AVAILABLE:
             raise ImportError("RunPod module not available. Please install it with: pip install runpod")
