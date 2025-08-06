@@ -48,7 +48,7 @@ class OutputManager:
             
             # Create output directory
             output_dir = FileManager.create_output_directory(
-                self.output_base_path, model, engine, session_id
+                self.output_base_path, model, engine, session_id, audio_file
             )
             
             # Save in different formats

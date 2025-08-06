@@ -74,9 +74,10 @@ class OutputProcessor:
             input_file_path = input_metadata.get('file_name', 'unknown')
             
             # Check if transcription service already saved the output
-            # If transcription_data is a list of segments, it means the transcription service
-            # already saved the output and we don't need to save it again
-            if isinstance(transcription_data, list) and transcription_data:
+            # If transcription_data is a TranscriptionResult object or has already been processed,
+            # it means the transcription service already saved the output and we don't need to save it again
+            if (hasattr(transcription_data, 'success') and transcription_data.success) or \
+               (isinstance(transcription_data, dict) and transcription_data.get('success', False)):
                 # Transcription service already saved the output, just return success
                 self.logger.info("Transcription service already saved output, skipping duplicate save")
                 return {

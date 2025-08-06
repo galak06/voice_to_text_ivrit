@@ -77,6 +77,11 @@ class StableWhisperEngine(TranscriptionEngine):
                 if idx % 10 == 0:
                     logger.info(f"[PROGRESS] stable-whisper processed {idx+1} segments...")
                 
+                # Validate segment timing
+                if segment.end <= segment.start:
+                    logger.warning(f"Skipping segment {idx} with invalid timing: start={segment.start}, end={segment.end}")
+                    continue
+                
                 # Since stable-whisper doesn't support speaker diarization, use alternating speakers
                 speaker = f"Speaker {idx % 2 + 1}"  # Alternate between Speaker 1 and 2
                 
@@ -88,6 +93,13 @@ class StableWhisperEngine(TranscriptionEngine):
                 if hasattr(segment, 'words') and segment.words:
                     words_data = []
                     for word in segment.words:
+                        # Validate word timing
+                        word_start = getattr(word, 'start', 0)
+                        word_end = getattr(word, 'end', 0)
+                        if word_end <= word_start:
+                            logger.warning(f"Skipping word with invalid timing: start={word_start}, end={word_end}")
+                            continue
+                            
                         if hasattr(word, '__dict__'):
                             words_data.append(word.__dict__)
                         elif isinstance(word, dict):
@@ -95,22 +107,26 @@ class StableWhisperEngine(TranscriptionEngine):
                         else:
                             # Convert to dict if it's a simple object
                             words_data.append({
-                                'start': getattr(word, 'start', 0),
-                                'end': getattr(word, 'end', 0),
+                                'start': word_start,
+                                'end': word_end,
                                 'word': getattr(word, 'word', str(word))
                             })
                 
-                # Create TranscriptionSegment
-                segment_data = TranscriptionSegment(
-                    text=segment.text.strip(),
-                    start=segment.start,
-                    end=segment.end,
-                    speaker=speaker,
-                    words=words_data
-                )
-                
-                speakers[speaker].append(segment_data)
-                full_text += f"\n🎤 {speaker}:\n{segment.text.strip()}\n"
+                try:
+                    # Create TranscriptionSegment
+                    segment_data = TranscriptionSegment(
+                        text=segment.text.strip(),
+                        start=segment.start,
+                        end=segment.end,
+                        speaker=speaker,
+                        words=words_data
+                    )
+                    
+                    speakers[speaker].append(segment_data)
+                    full_text += f"\n🎤 {speaker}:\n{segment.text.strip()}\n"
+                except Exception as e:
+                    logger.warning(f"Failed to create segment {idx}: {e}")
+                    continue
             
             logger.info(f"[PROGRESS] stable-whisper finished all {len(result.segments)} segments.")
             

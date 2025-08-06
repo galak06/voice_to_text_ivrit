@@ -17,8 +17,8 @@ class FileManager:
     """File management utilities"""
     
     @staticmethod
-    def create_output_directory(base_path: str, model: str, engine: str, session_id: Optional[str] = None) -> str:
-        """Create timestamped output directory"""
+    def create_output_directory(base_path: str, model: str, engine: str, session_id: Optional[str] = None, audio_filename: Optional[str] = None) -> str:
+        """Create timestamped output directory with optional audio filename"""
         from ..utils.path_utils import PathUtils
         
         # Use provided session_id or create new timestamp
@@ -31,11 +31,21 @@ class FileManager:
         engine_safe = PathUtils.sanitize_model_name(engine)
         
         # Create directory path
-        output_dir = os.path.join(
-            base_path,
-            f"run_{timestamp}",
-            f"{timestamp}_{PathUtils.sanitize_model_name(model)}"
-        )
+        if audio_filename:
+            # Include audio filename for better separation
+            audio_name = PathUtils.sanitize_filename(audio_filename)
+            output_dir = os.path.join(
+                base_path,
+                f"run_{timestamp}",
+                f"{timestamp}_{PathUtils.sanitize_model_name(model)}_{audio_name}"
+            )
+        else:
+            # Fallback to original format
+            output_dir = os.path.join(
+                base_path,
+                f"run_{timestamp}",
+                f"{timestamp}_{PathUtils.sanitize_model_name(model)}"
+            )
         
         # Ensure directory exists
         os.makedirs(output_dir, exist_ok=True)

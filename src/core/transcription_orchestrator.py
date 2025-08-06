@@ -245,7 +245,8 @@ class TranscriptionOrchestrator:
             result = self.speaker_service.speaker_diarization(
                 audio_file_path=audio_file,
                 model_name=model_name,
-                save_output=save_output
+                save_output=save_output,
+                run_session_id=job_params.get('session_id')
             )
             
             return {
