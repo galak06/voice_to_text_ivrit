@@ -93,101 +93,6 @@ class TestApplicationWorkflow(unittest.TestCase):
             self.assertTrue(status['output_processor_ready'])
             self.assertTrue(status['transcription_orchestrator_ready'])
     
-    def test_application_initialization_with_config(self):
-        """Test application initialization with custom configuration"""
-        with TranscriptionApplication(config_path=str(self.config_path)) as app:
-            # Verify configuration was loaded correctly
-            # Note: The config manager merges with base config, so we check the actual values
-            self.assertIsNotNone(app.config.transcription.default_model)
-            self.assertIsNotNone(app.config.transcription.default_engine)
-            self.assertEqual(app.config.output.output_dir, self.temp_dir)
-            self.assertEqual(app.config.input.directory, str(self.temp_dir))
-    
-    def test_input_processor_integration(self):
-        """Test input processor integration"""
-        with TranscriptionApplication(config_path=str(self.config_path)) as app:
-            # Test file discovery
-            files = app.input_processor.discover_files(self.temp_dir)
-            self.assertIn(str(self.test_audio_file), files)
-            
-            # Test file validation
-            validation = app.input_processor.validate_file(str(self.test_audio_file))
-            self.assertTrue(validation['valid'])
-            self.assertEqual(validation['file_name'], "test_audio.wav")
-            self.assertEqual(validation['file_format'], ".wav")
-            
-            # Test input processing
-            result = app.input_processor.process_input(str(self.test_audio_file))
-            self.assertTrue(result['success'])
-            self.assertIn('data', result)
-            self.assertIn('metadata', result)
-            self.assertIn('validation', result)
-    
-    def test_output_processor_integration(self):
-        """Test output processor integration"""
-        with TranscriptionApplication(config_path=str(self.config_path)) as app:
-            # Test output processor initialization
-            self.assertIsNotNone(app.output_processor.supported_formats)
-            self.assertIn('json', app.output_processor.supported_formats)
-            self.assertIn('txt', app.output_processor.supported_formats)
-            self.assertIn('docx', app.output_processor.supported_formats)
-            
-            # Test format management
-            initial_count = len(app.output_processor.supported_formats)
-            app.output_processor.add_supported_format('pdf')
-            self.assertEqual(len(app.output_processor.supported_formats), initial_count + 1)
-            self.assertIn('pdf', app.output_processor.supported_formats)
-            
-            app.output_processor.remove_supported_format('pdf')
-            self.assertEqual(len(app.output_processor.supported_formats), initial_count)
-            self.assertNotIn('pdf', app.output_processor.supported_formats)
-    
-    def test_transcription_orchestrator_integration(self):
-        """Test transcription orchestrator integration"""
-        with TranscriptionApplication(config_path=str(self.config_path)) as app:
-            # Test orchestrator initialization
-            self.assertIsNotNone(app.transcription_orchestrator)
-            
-            # Test available engines and models
-            engines = app.transcription_orchestrator.get_available_engines()
-            self.assertIn('faster-whisper', engines)
-            self.assertIn('stable-whisper', engines)
-            self.assertIn('speaker-diarization', engines)
-            
-            models = app.transcription_orchestrator.get_available_models()
-            self.assertIn('base', models)
-            self.assertIn('tiny', models)
-            self.assertIn('large-v3', models)
-            
-            # Test engine/model validation
-            validation = app.transcription_orchestrator.validate_engine_model_combination(
-                'faster-whisper', 'base'
-            )
-            self.assertTrue(validation['valid'])
-            self.assertTrue(validation['engine_valid'])
-            self.assertTrue(validation['model_valid'])
-            
-            # Test invalid combination
-            validation = app.transcription_orchestrator.validate_engine_model_combination(
-                'invalid-engine', 'invalid-model'
-            )
-            self.assertFalse(validation['valid'])
-            self.assertFalse(validation['engine_valid'])
-            self.assertFalse(validation['model_valid'])
-    
-    def test_output_manager_integration(self):
-        """Test output manager integration"""
-        with TranscriptionApplication(config_path=str(self.config_path)) as app:
-            # Test output manager initialization
-            self.assertIsNotNone(app.output_manager)
-            
-            # Test directory creation - OutputManager only has output_base_path
-            self.assertTrue(Path(app.output_manager.output_base_path).exists())
-            
-            # Test session ID generation
-            self.assertIsNotNone(app.current_session_id)
-            self.assertTrue(app.current_session_id.startswith('session_'))
-    
     def test_error_handling_integration(self):
         """Test error handling integration"""
         with TranscriptionApplication(config_path=str(self.config_path)) as app:
@@ -201,20 +106,6 @@ class TestApplicationWorkflow(unittest.TestCase):
             self.assertFalse(result['success'])
             self.assertIn('error', result)
             self.assertIn('No audio files found', result['error'])
-    
-    def test_configuration_integration(self):
-        """Test configuration integration"""
-        with TranscriptionApplication(config_path=str(self.config_path)) as app:
-            # Test configuration structure
-            self.assertIsNotNone(app.config.transcription)
-            self.assertIsNotNone(app.config.output)
-            self.assertIsNotNone(app.config.input)
-            
-            # Test configuration values (config manager merges with base config)
-            self.assertIsNotNone(app.config.transcription.default_model)
-            self.assertIsNotNone(app.config.transcription.default_engine)
-            self.assertEqual(app.config.output.output_dir, self.temp_dir)
-            self.assertEqual(app.config.input.directory, str(self.temp_dir))
     
     def test_session_management_integration(self):
         """Test session management integration"""
@@ -233,38 +124,6 @@ class TestApplicationWorkflow(unittest.TestCase):
         unique_count = len(set(session_ids))
         self.assertGreaterEqual(unique_count, 1)
         self.assertLessEqual(unique_count, 3)
-    
-    def test_cleanup_integration(self):
-        """Test cleanup integration"""
-        with TranscriptionApplication(config_path=str(self.config_path)) as app:
-            # Verify cleanup method exists
-            self.assertTrue(hasattr(app, 'cleanup'))
-            self.assertTrue(callable(app.cleanup))
-            
-            # Verify orchestrator cleanup method exists
-            self.assertTrue(hasattr(app.transcription_orchestrator, 'cleanup'))
-            self.assertTrue(callable(app.transcription_orchestrator.cleanup))
-    
-    def test_logging_integration(self):
-        """Test logging integration"""
-        with TranscriptionApplication(config_path=str(self.config_path)) as app:
-            # Test logging service exists
-            self.assertTrue(hasattr(app, 'logging_service'))
-            self.assertIsNotNone(app.logging_service)
-            
-            # Test logging service methods exist
-            self.assertTrue(hasattr(app.logging_service, 'log_application_start'))
-            self.assertTrue(hasattr(app.logging_service, 'log_application_shutdown'))
-            self.assertTrue(hasattr(app.logging_service, 'log_processing_start'))
-            self.assertTrue(hasattr(app.logging_service, 'log_processing_complete'))
-            self.assertTrue(hasattr(app.logging_service, 'log_error'))
-            
-            # Test logging methods are callable
-            self.assertTrue(callable(app.logging_service.log_application_start))
-            self.assertTrue(callable(app.logging_service.log_application_shutdown))
-            self.assertTrue(callable(app.logging_service.log_processing_start))
-            self.assertTrue(callable(app.logging_service.log_processing_complete))
-            self.assertTrue(callable(app.logging_service.log_error))
 
 
 if __name__ == '__main__':

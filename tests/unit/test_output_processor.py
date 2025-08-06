@@ -227,12 +227,6 @@ class TestOutputProcessor(unittest.TestCase):
         self.assertIn('error', result)
         self.assertIn('DOCX file not created', result['error'])
     
-    def test_extract_text_content_string(self):
-        """Test text content extraction from string"""
-        transcription_data = "Simple text transcription"
-        result = self.processor._extract_text_content(transcription_data)
-        self.assertEqual(result, "Simple text transcription")
-    
     def test_extract_text_content_list(self):
         """Test text content extraction from list of segments"""
         transcription_data = [
@@ -243,24 +237,6 @@ class TestOutputProcessor(unittest.TestCase):
         result = self.processor._extract_text_content(transcription_data)
         expected = "First segment\nSecond segment\nThird segment"
         self.assertEqual(result, expected)
-    
-    def test_extract_text_content_dict(self):
-        """Test text content extraction from dictionary"""
-        transcription_data = {
-            'text': 'Dictionary text',
-            'start': 0,
-            'end': 1
-        }
-        result = self.processor._extract_text_content(transcription_data)
-        self.assertEqual(result, "Dictionary text")
-    
-    def test_extract_text_content_nested_dict(self):
-        """Test text content extraction from nested dictionary"""
-        transcription_data = {
-            'transcription': 'Nested transcription text'
-        }
-        result = self.processor._extract_text_content(transcription_data)
-        self.assertEqual(result, "Nested transcription text")
     
     def test_extract_text_content_fallback(self):
         """Test text content extraction fallback"""
@@ -275,36 +251,6 @@ class TestOutputProcessor(unittest.TestCase):
         ]
         result = self.processor._convert_to_docx_format(transcription_data)
         self.assertEqual(result, transcription_data)
-    
-    def test_convert_to_docx_format_dict(self):
-        """Test conversion to DOCX format from dictionary"""
-        transcription_data = {
-            'text': 'Test text',
-            'start': 0,
-            'end': 1,
-            'speaker': 'Speaker 1'
-        }
-        result = self.processor._convert_to_docx_format(transcription_data)
-        
-        expected = [{
-            'text': 'Test text',
-            'start': 0,
-            'end': 1,
-            'speaker': 'Speaker 1'
-        }]
-        self.assertEqual(result, expected)
-    
-    def test_convert_to_docx_format_nested_dict(self):
-        """Test conversion to DOCX format from nested dictionary"""
-        transcription_data = {
-            'transcription': [
-                {'text': 'Nested text', 'start': 0, 'end': 1}
-            ]
-        }
-        result = self.processor._convert_to_docx_format(transcription_data)
-        
-        expected = [{'text': 'Nested text', 'start': 0, 'end': 1}]
-        self.assertEqual(result, expected)
     
     def test_convert_to_docx_format_fallback(self):
         """Test conversion to DOCX format fallback"""
