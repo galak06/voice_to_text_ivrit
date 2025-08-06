@@ -21,18 +21,21 @@ class SpeakerTranscriptionService:
     Uses Strategy Pattern for different transcription engines
     """
     
-    def __init__(self, config: Optional[SpeakerConfig] = None, app_config: Optional[AppConfig] = None):
+    def __init__(self, config: Optional[SpeakerConfig] = None, app_config: Optional[AppConfig] = None, output_manager: Optional['OutputManager'] = None):
         """
         Initialize the speaker transcription service
         
         Args:
             config: Speaker configuration (uses defaults if None)
             app_config: Application configuration (uses defaults if None)
+            output_manager: Output manager instance (uses default if None)
         """
         from src.models import AppConfig
+        from src.output_data import OutputManager
         
         self.config = config or SpeakerConfig()
         self.app_config = app_config or AppConfig()
+        self.output_manager = output_manager or OutputManager()
     
     def speaker_diarization(
         self, 
@@ -175,13 +178,8 @@ class SpeakerTranscriptionService:
     ):
         """Save transcription outputs in all formats"""
         try:
-            from src.output_data import OutputManager
-            
-            # Use new OutputManager constructor (no run_session_id parameter)
-            output_manager = OutputManager()
-            
-            # Convert TranscriptionResult to the format expected by new OutputManager
-            # The new OutputManager expects a dictionary with 'speakers' key
+            # Convert TranscriptionResult to the format expected by OutputManager
+            # The OutputManager expects a dictionary with 'speakers' key
             transcription_data = {
                 'speakers': {speaker: [seg.model_dump() for seg in segments] for speaker, segments in result.speakers.items()},
                 'full_text': result.full_text,
@@ -191,8 +189,8 @@ class SpeakerTranscriptionService:
                 'speaker_count': result.speaker_count
             }
             
-            # Use the new unified save_transcription method
-            saved_files = output_manager.save_transcription(
+            # Use the injected output manager
+            saved_files = self.output_manager.save_transcription(
                 transcription_data=transcription_data,
                 audio_file=audio_file_path,
                 model=model_name,

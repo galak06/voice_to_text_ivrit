@@ -53,7 +53,7 @@ class TranscriptionOrchestrator:
                 vad_min_silence_duration_ms=getattr(self.config.speaker, 'vad_min_silence_duration_ms', 300)
             )
         
-        self.speaker_service = SpeakerTranscriptionService(speaker_config, self.config)
+        self.speaker_service = SpeakerTranscriptionService(speaker_config, self.config, self.output_manager)
         
         # Current processing state
         self.current_job: Optional[Dict[str, Any]] = None
