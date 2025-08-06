@@ -48,6 +48,18 @@ class TestTranscriptionApplication(unittest.TestCase):
         self.mock_config.output.temp_dir = f"{self.temp_dir}/temp"
         self.mock_config.input.directory = "examples/audio/voice"
         
+        # Set up RunPod config attributes
+        self.mock_config.runpod.api_key = "test_api_key"
+        self.mock_config.runpod.endpoint_id = "test_endpoint_id"
+        self.mock_config.runpod.enabled = True
+        self.mock_config.runpod.serverless_mode = False
+        self.mock_config.runpod.streaming_enabled = False
+        
+        # Set up other config attributes
+        self.mock_config.transcription.default_model = "base"
+        self.mock_config.transcription.default_engine = "faster-whisper"
+        self.mock_config.system.debug = False
+        
     def tearDown(self):
         """Clean up test fixtures"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
@@ -63,6 +75,7 @@ class TestTranscriptionApplication(unittest.TestCase):
         # Mock config manager
         mock_config_manager_instance = Mock()
         mock_config_manager_instance.config = self.mock_config
+        mock_config_manager_instance.validate.return_value = True
         mock_config_manager.return_value = mock_config_manager_instance
         
         # Mock output manager
@@ -96,6 +109,8 @@ class TestTranscriptionApplication(unittest.TestCase):
             
             # Verify AudioTranscriptionClient injection (may be None if RunPod not available)
             # The audio_client property handles the case where RunPod is not available
+            # We check if the property exists, but don't assert it's not None since it might be None
+            # if RunPod dependencies are not available
             self.assertTrue(hasattr(app, 'audio_client'))
     
     @patch('src.core.application.ConfigManager')
@@ -109,6 +124,7 @@ class TestTranscriptionApplication(unittest.TestCase):
         # Setup mocks
         mock_config_manager_instance = Mock()
         mock_config_manager_instance.config = self.mock_config
+        mock_config_manager_instance.validate.return_value = True
         mock_config_manager.return_value = mock_config_manager_instance
         
         mock_output_manager_instance = Mock()
