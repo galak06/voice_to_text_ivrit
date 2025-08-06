@@ -77,7 +77,7 @@ class TranscriptionOrchestrator:
             job_params = self._prepare_job_params(input_data, **kwargs)
             
             # Determine transcription method
-            engine = job_params.get('engine', 'faster-whisper')
+            engine = job_params.get('engine', 'speaker-diarization')
             
             if engine == 'speaker-diarization':
                 result = self._transcribe_with_speaker_diarization(job_params)
@@ -173,7 +173,8 @@ class TranscriptionOrchestrator:
                     'engine': job_params['engine'],
                     'streaming': job_params['streaming'],
                     'save_output': job_params['save_output']
-                }
+                },
+                'session_id': job_params.get('session_id')  # Add session_id to job
             }
             
             # Perform transcription and consume the generator
@@ -311,8 +312,6 @@ class TranscriptionOrchestrator:
             Dictionary mapping engine names to descriptions
         """
         return {
-            'faster-whisper': 'Fast Whisper transcription engine',
-            'stable-whisper': 'Stable Whisper transcription engine',
             'speaker-diarization': 'Speaker diarization with transcription'
         }
     

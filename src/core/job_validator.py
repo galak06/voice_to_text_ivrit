@@ -21,7 +21,7 @@ class JobValidator:
             Error message if validation fails, None if valid
         """
         datatype = job['input'].get('type', None)
-        engine = job['input'].get('engine', 'faster-whisper')
+        engine = job['input'].get('engine', 'speaker-diarization')
         
         if not datatype:
             return "datatype field not provided. Should be 'blob', 'url', or 'file'."
@@ -29,8 +29,8 @@ class JobValidator:
         if datatype not in ['blob', 'url', 'file']:
             return f"datatype should be 'blob', 'url', or 'file', but is {datatype} instead."
         
-        if engine not in ['faster-whisper', 'stable-whisper']:
-            return f"engine should be 'faster-whisper' or 'stable-whisper', but is {engine} instead."
+        if engine not in ['speaker-diarization', 'stable-whisper']:
+            return f"engine should be 'speaker-diarization' or 'stable-whisper', but is {engine} instead."
         
         return None
     

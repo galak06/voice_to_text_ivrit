@@ -164,6 +164,7 @@ class TranscriptionApplication:
             # Transcription orchestration
             transcription_result = self.transcription_orchestrator.transcribe(
                 input_result['data'], 
+                session_id=self.current_session_id,
                 **kwargs
             )
             

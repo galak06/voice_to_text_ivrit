@@ -90,7 +90,7 @@ class SpeakerTranscriptionService:
             model_name = self.app_config.transcription.default_model
         
         try:
-            # Try stable-whisper first
+            # Use stable-whisper for transcription
             result = self._transcribe_with_engine("stable-whisper", request.audio_file_path, model_name)
             
             if result.success:
@@ -102,21 +102,8 @@ class SpeakerTranscriptionService:
                 
                 return result
             
-            # Fallback to faster-whisper
-            logger.info(f"Stable-whisper failed, trying faster-whisper")
-            result = self._transcribe_with_engine("faster-whisper", request.audio_file_path, model_name)
-            
-            if result.success:
-                logger.info(f"Faster-whisper transcription successful")
-                
-                # Save outputs if requested
-                if request.save_output:
-                    self._save_outputs(result, request.audio_file_path, model_name, request.run_session_id)
-                
-                return result
-            
-            # Both failed
-            logger.error(f"Both transcription engines failed")
+            # Transcription failed
+            logger.error(f"Stable-whisper transcription failed")
             return TranscriptionResult(
                 success=False,
                 speakers={},
@@ -125,7 +112,7 @@ class SpeakerTranscriptionService:
                 model_name=model_name,
                 audio_file=request.audio_file_path,
                 speaker_count=0,
-                error_message="All transcription engines failed"
+                error_message="Transcription engine failed"
             )
             
         except Exception as e:
@@ -194,7 +181,8 @@ class SpeakerTranscriptionService:
                 transcription_data=transcription_data,
                 audio_file=audio_file_path,
                 model=model_name,
-                engine="speaker-diarization"
+                engine="speaker-diarization",
+                session_id=run_session_id
             )
             
             logger.info(f"All formats saved:")

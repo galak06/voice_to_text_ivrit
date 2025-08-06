@@ -43,9 +43,9 @@ class TestApplicationWorkflow(unittest.TestCase):
         self.config_data = {
             "transcription": {
                 "default_model": "base",
-                "fallback_model": "tiny",
-                "default_engine": "faster-whisper",
-                "language": "he"
+                "default_engine": "speaker-diarization",
+                "available_models": ["tiny", "base", "small", "medium", "large-v3"],
+                "available_engines": ["stable-whisper", "speaker-diarization"]
             },
             "output": {
                 "output_dir": self.temp_dir,

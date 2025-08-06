@@ -17,11 +17,16 @@ class FileManager:
     """File management utilities"""
     
     @staticmethod
-    def create_output_directory(base_path: str, model: str, engine: str) -> str:
+    def create_output_directory(base_path: str, model: str, engine: str, session_id: Optional[str] = None) -> str:
         """Create timestamped output directory"""
         from ..utils.path_utils import PathUtils
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Use provided session_id or create new timestamp
+        if session_id:
+            timestamp = session_id
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
         model_safe = PathUtils.sanitize_model_name(model)
         engine_safe = PathUtils.sanitize_model_name(engine)
         

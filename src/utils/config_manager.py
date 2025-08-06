@@ -82,8 +82,11 @@ class ConfigLoader:
                 config['transcription'].get('default_model', 'ivrit-ai/whisper-large-v3-turbo-ct2'))
             config['transcription']['fallback_model'] = os.getenv('FALLBACK_MODEL', 
                 config['transcription'].get('fallback_model', 'ivrit-ai/whisper-large-v3-ct2'))
-            config['transcription']['default_engine'] = os.getenv('DEFAULT_ENGINE', 
-                config['transcription'].get('default_engine', 'faster-whisper'))
+            # Set default values for transcription
+            config['transcription']['default_model'] = (
+                config['transcription'].get('default_model', 'large-v3'))
+            config['transcription']['default_engine'] = (
+                config['transcription'].get('default_engine', 'speaker-diarization'))
         
         # RunPod overrides
         if 'runpod' in config:
@@ -241,6 +244,7 @@ class ConfigManager:
             environment: Optional environment override (defaults to ENVIRONMENT env var)
         """
         self.config_dir = Path(config_dir)
+        self.config_path = str(self.config_dir)
         self.config_dir.mkdir(exist_ok=True)
         
         # Load environment variables

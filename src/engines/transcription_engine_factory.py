@@ -6,7 +6,7 @@ Implements the Factory Pattern for transcription engine creation and caching
 
 from typing import Dict
 from src.engines.interfaces import TranscriptionEngineInterface
-from src.engines.transcription_engine import FasterWhisperEngine, StableWhisperEngine
+from src.engines.transcription_engine import StableWhisperEngine
 
 class TranscriptionEngineFactory:
     """Factory for creating transcription engines following Factory Pattern"""
@@ -19,9 +19,7 @@ class TranscriptionEngineFactory:
         cache_key = f"{engine_type}_{model_name}"
         
         if cache_key not in cls._engines:
-            if engine_type == 'faster-whisper':
-                cls._engines[cache_key] = FasterWhisperEngine(model_name)
-            elif engine_type == 'stable-whisper':
+            if engine_type == 'stable-whisper':
                 cls._engines[cache_key] = StableWhisperEngine(model_name)
             else:
                 raise ValueError(f"Unsupported engine type: {engine_type}")

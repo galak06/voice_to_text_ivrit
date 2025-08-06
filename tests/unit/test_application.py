@@ -57,7 +57,7 @@ class TestTranscriptionApplication(unittest.TestCase):
         
         # Set up other config attributes
         self.mock_config.transcription.default_model = "base"
-        self.mock_config.transcription.default_engine = "faster-whisper"
+        self.mock_config.transcription.default_engine = "speaker-diarization"
         self.mock_config.system.debug = False
         
     def tearDown(self):
@@ -150,13 +150,13 @@ class TestTranscriptionApplication(unittest.TestCase):
             'success': True,
             'transcription': 'Test transcription',
             'model': 'base',
-            'engine': 'faster-whisper'
+            'engine': 'speaker-diarization'
         }
         mock_orchestrator.return_value = mock_orchestrator_instance
         
         # Test single file processing
         with TranscriptionApplication() as app:
-            result = app.process_single_file('test.wav', model='base', engine='faster-whisper')
+            result = app.process_single_file('test.wav', model='base', engine='speaker-diarization')
             
             # Verify result
             self.assertTrue(result['success'])
@@ -248,7 +248,7 @@ class TestTranscriptionApplication(unittest.TestCase):
             'success': True,
             'transcription': 'Test transcription',
             'model': 'base',
-            'engine': 'faster-whisper'
+            'engine': 'speaker-diarization'
         }
         mock_orchestrator.return_value = mock_orchestrator_instance
         
@@ -389,21 +389,21 @@ class TestTranscriptionApplication(unittest.TestCase):
         
         # Test RunPod transcription
         with TranscriptionApplication() as app:
-            result = app.transcribe_with_runpod('test.wav', model='custom-model', engine='faster-whisper')
+            result = app.transcribe_with_runpod('test.wav', model='custom-model', engine='speaker-diarization')
             
             # Verify result
             self.assertTrue(result['success'])
             self.assertEqual(result['file'], 'test.wav')
             self.assertEqual(result['method'], 'runpod')
             self.assertEqual(result['model'], 'custom-model')
-            self.assertEqual(result['engine'], 'faster-whisper')
+            self.assertEqual(result['engine'], 'speaker-diarization')
             self.assertIn('session_id', result)
             
             # Verify AudioTranscriptionClient was called
             mock_audio_client_instance.transcribe_audio.assert_called_once_with(
                 audio_file_path='test.wav',
                 model='custom-model',
-                engine='faster-whisper',
+                engine='speaker-diarization',
                 save_output=True
             )
     

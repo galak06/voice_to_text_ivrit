@@ -35,7 +35,8 @@ class OutputManager:
         audio_file: str,
         model: str,
         engine: str,
-        input_metadata: Optional[Dict[str, Any]] = None
+        input_metadata: Optional[Dict[str, Any]] = None,
+        session_id: Optional[str] = None
     ) -> Dict[str, str]:
         """Save transcription in all formats"""
         try:
@@ -47,7 +48,7 @@ class OutputManager:
             
             # Create output directory
             output_dir = FileManager.create_output_directory(
-                self.output_base_path, model, engine
+                self.output_base_path, model, engine, session_id
             )
             
             # Save in different formats

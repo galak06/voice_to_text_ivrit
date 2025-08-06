@@ -55,10 +55,11 @@ class TranscriptionService:
             return
         
         # Extract parameters
-        engine = job['input'].get('engine', 'faster-whisper')
+        engine = job['input'].get('engine', 'speaker-diarization')
         model_name = job['input'].get('model', 'large-v2')
         is_streaming = job['input'].get('streaming', False)
         save_output = job['input'].get('save_output', True)
+        session_id = job.get('session_id')  # Extract session_id from job
         
         # Prepare audio file
         temp_dir, audio_file = self.audio_processor.prepare_audio_file(job)
@@ -89,7 +90,8 @@ class TranscriptionService:
                             transcription_data=result,
                             audio_file=audio_file,
                             model=model_name,
-                            engine=engine
+                            engine=engine,
+                            session_id=session_id
                         )
                         
                         logger.info(f"Transcription completed and saved for {audio_file}")
@@ -119,11 +121,7 @@ class TranscriptionService:
             transcription_engine = self.engine_factory.get_engine(engine, model_name)
             
             # Perform transcription using the selected engine
-            if engine == 'faster-whisper':
-                segs, _ = transcription_engine.transcribe(audio_file, language='he', word_timestamps=True)
-                # Convert generator to list for processing
-                segs_list = list(segs)
-            elif engine == 'stable-whisper':
+            if engine == 'stable-whisper':
                 segs = transcription_engine.transcribe(audio_file, language='he', word_timestamps=True)
                 # Convert generator to list for processing
                 segs_list = list(segs)

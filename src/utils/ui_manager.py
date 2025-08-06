@@ -120,7 +120,7 @@ class ApplicationUI:
                 "title": "Usage Examples",
                 "items": [
                     "Single File: python main_app.py single file.wav --model base",
-                    "Batch: python main_app.py batch --model base --engine faster-whisper",
+                    "Batch: python main_app.py batch --model base --engine speaker-diarization",
                     "Voice Folder: python main_app.py --config-file config/environments/voice_task.json batch",
                     "Docker Batch: python main_app.py --config-file config/environments/docker_batch.json batch",
                     "Status: python main_app.py status"
@@ -143,9 +143,8 @@ class ApplicationUI:
             {
                 "title": "Available Engines",
                 "items": [
-                    "faster-whisper - Fast Whisper engine",
-                    "stable-whisper - Stable Whisper engine",
-                    "speaker-diarization - Speaker diarization with transcription"
+                    "speaker-diarization - Speaker diarization with transcription",
+                    "stable-whisper - Stable Whisper engine"
                 ],
                 "icon": "⚙️"
             },

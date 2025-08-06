@@ -18,8 +18,9 @@ class TranscriptionParameterProvider:
             default_model = self.config.transcription.default_model
             default_engine = self.config.transcription.default_engine
         else:
-            default_model = "ivrit-ai/whisper-large-v3-ct2"
-            default_engine = "faster-whisper"
+            # Set defaults
+            default_model = "large-v3"
+            default_engine = "speaker-diarization"
         
         return {
             'model': model or default_model,

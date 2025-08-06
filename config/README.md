@@ -69,7 +69,7 @@ export RUNPOD_ENDPOINT_ID=your-endpoint-id
 ### Transcription Configuration
 - `default_model`: Default Whisper model to use
 - `fallback_model`: Fallback model if default fails
-- `default_engine`: Transcription engine (faster-whisper/stable-whisper)
+- `default_engine`: Transcription engine (stable-whisper/speaker-diarization)
 - `beam_size`: Beam search size for accuracy/speed trade-off
 - `language`: Default language for transcription
 - `word_timestamps`: Enable word-level timestamps

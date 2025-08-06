@@ -71,7 +71,7 @@ class TranscriptionDataConverterImpl:
         if isinstance(data, dict):
             return data
         
-        # Handle lists (from faster-whisper)
+        # Handle lists (from transcription engines)
         if isinstance(data, list):
             return {"segments": data}
         
@@ -127,7 +127,7 @@ class SpeakersDataExtractorImpl:
     
     def extract(self, data: Any) -> Dict[str, List[Dict[str, Any]]]:
         """Extract speakers data from transcription data"""
-        # Handle list of segments (from faster-whisper)
+        # Handle list of segments (from transcription engines)
         if isinstance(data, list):
             return self.segment_processor.convert_segments_to_speakers(data)
         
@@ -171,7 +171,7 @@ class TextContentExtractorImpl:
     
     def extract(self, data: Any) -> str:
         """Extract text content from transcription data"""
-        # Handle list of segments (from faster-whisper)
+        # Handle list of segments (from transcription engines)
         if isinstance(data, list):
             return self.segment_processor.extract_text_from_segments(data)
         

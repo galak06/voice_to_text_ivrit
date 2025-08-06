@@ -1,19 +1,17 @@
-# Voice-to-Text Transcription Service
+# Voice-to-Text Transcription Application
 
-A comprehensive voice-to-text transcription service with support for Hebrew audio processing, speaker diarization, and multiple output formats. This project provides both local and cloud-based transcription capabilities using state-of-the-art AI models with a modern, configuration-driven architecture.
+A comprehensive voice-to-text transcription application with speaker diarization support, designed for Hebrew and other languages.
 
-## 🎯 Features
+## Features
 
-- **Single Entry Point**: Unified `main_app.py` for all functionality
-- **Configuration-Driven**: All behavior controlled through JSON configuration files
-- **Multi-Engine Support**: Faster-Whisper and Stable-Whisper engines
-- **Speaker Diarization**: Automatic speaker identification and separation
-- **Multiple Output Formats**: JSON, TXT, and Word Document outputs
+- **Multi-Engine Support**: Stable-Whisper engine with speaker diarization
+- **Speaker Diarization**: Automatic speaker detection and separation
 - **Batch Processing**: Process multiple audio files efficiently
-- **Local & Cloud Deployment**: Run locally or deploy to RunPod
-- **Environment-Based Configuration**: Different configs for different use cases
-- **Hebrew Language Support**: Optimized for Hebrew audio transcription
-- **SOLID Architecture**: Clean, maintainable, and extensible design
+- **Multiple Output Formats**: JSON, TXT, and DOCX output formats
+- **Docker Support**: Containerized deployment with GPU acceleration
+- **RunPod Integration**: Cloud deployment on RunPod serverless
+- **Configuration Management**: Flexible configuration system
+- **Progress Tracking**: Real-time processing progress updates
 
 ## 🚀 Quick Start
 
@@ -52,7 +50,7 @@ nano .env
 python main_app.py single examples/audio/voice/audio.wav
 
 # With specific model and engine
-python main_app.py single examples/audio/voice/audio.wav --model base --engine faster-whisper
+python main_app.py single examples/audio/voice/audio.wav --model base --engine speaker-diarization
 
 # With speaker diarization preset
 python main_app.py single examples/audio/voice/audio.wav --speaker-preset conversation
@@ -64,7 +62,7 @@ python main_app.py single examples/audio/voice/audio.wav --speaker-preset conver
 python main_app.py batch
 
 # With specific model
-python main_app.py batch --model base --engine faster-whisper
+python main_app.py batch --model base --engine speaker-diarization
 
 # Using voice folder optimized configuration
 python main_app.py --config-file config/environments/voice_task.json batch
@@ -283,7 +281,7 @@ DEFAULT_MODEL=ivrit-ai/whisper-large-v3-ct2
 FALLBACK_MODEL=ivrit-ai/whisper-large-v3-ct2
 
 # Transcription Settings
-DEFAULT_ENGINE=faster-whisper
+DEFAULT_ENGINE=speaker-diarization
 MAX_PAYLOAD_SIZE=250000000
 STREAMING_ENABLED=true
 

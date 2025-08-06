@@ -62,7 +62,7 @@ class TestOutputProcessor(unittest.TestCase):
             'success': True,
             'transcription': 'Test transcription text',
             'model': 'base',
-            'engine': 'faster-whisper'
+            'engine': 'stable-whisper'
         }
         
         input_metadata = {
@@ -119,7 +119,7 @@ class TestOutputProcessor(unittest.TestCase):
             'success': True,
             'transcription': 'Test transcription text',
             'model': 'base',
-            'engine': 'faster-whisper'
+            'engine': 'stable-whisper'
         }
         
         input_metadata = {
@@ -155,7 +155,7 @@ class TestOutputProcessor(unittest.TestCase):
         transcription_data = {'text': 'Test transcription', 'segments': []}
         input_file = 'test.wav'
         model = 'base'
-        engine = 'faster-whisper'
+        engine = 'stable-whisper'
         
         result = self.processor._save_json_output(transcription_data, input_file, model, engine)
         
@@ -176,7 +176,7 @@ class TestOutputProcessor(unittest.TestCase):
         # Mock output manager to raise exception
         self.mock_output_manager.save_transcription.side_effect = Exception("Save failed")
         
-        result = self.processor._save_json_output({}, 'test.wav', 'base', 'faster-whisper')
+        result = self.processor._save_json_output({}, 'test.wav', 'base', 'stable-whisper')
         
         self.assertFalse(result['success'])
         self.assertEqual(result['format'], 'json')
@@ -188,7 +188,7 @@ class TestOutputProcessor(unittest.TestCase):
         transcription_data = 'Test transcription text'
         input_file = 'test.wav'
         model = 'base'
-        engine = 'faster-whisper'
+        engine = 'stable-whisper'
         
         result = self.processor._save_text_output(transcription_data, input_file, model, engine)
         
@@ -204,7 +204,7 @@ class TestOutputProcessor(unittest.TestCase):
         transcription_data = [{'text': 'Test transcription', 'start': 0, 'end': 1}]
         input_file = 'test.wav'
         model = 'base'
-        engine = 'faster-whisper'
+        engine = 'stable-whisper'
         
         result = self.processor._save_docx_output(transcription_data, input_file, model, engine)
         
@@ -220,7 +220,7 @@ class TestOutputProcessor(unittest.TestCase):
         # Mock output manager to return empty dict (no docx file created)
         self.mock_output_manager.save_transcription.return_value = {}
         
-        result = self.processor._save_docx_output([], 'test.wav', 'base', 'faster-whisper')
+        result = self.processor._save_docx_output([], 'test.wav', 'base', 'stable-whisper')
         
         self.assertFalse(result['success'])
         self.assertEqual(result['format'], 'docx')
