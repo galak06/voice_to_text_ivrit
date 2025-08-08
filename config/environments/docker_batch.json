@@ -1,6 +1,6 @@
 {
   "transcription": {
-            "default_model": "ivrit-ai/whisper-large-v3-ct2",
+            "default_model": "ivrit-ai/whisper-large-v3",
         "fallback_model": "ivrit-ai/whisper-large-v3-turbo-ct2",
     "default_engine": "speaker-diarization",
     "beam_size": 5,
@@ -9,7 +9,7 @@
     "vad_enabled": true,
     "vad_min_silence_duration_ms": 500,
             "available_models": [
-            "ivrit-ai/whisper-large-v3-ct2",
+            "ivrit-ai/whisper-large-v3",
             "ivrit-ai/whisper-large-v3-turbo-ct2",
             "ivrit-ai/whisper-large-v3",
             "ivrit-ai/whisper-large-v3-turbo",

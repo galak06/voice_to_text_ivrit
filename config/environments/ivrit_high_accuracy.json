@@ -1,0 +1,104 @@
+{
+  "name": "ivrit_high_accuracy",
+  "description": "High-accuracy configuration for Hebrew transcription using optimized Ivrit model parameters",
+  "transcription": {
+    "model": "ivrit-ai/whisper-large-v3",
+    "engine": "custom-whisper",
+    "language": "he",
+    "vad_enabled": true,
+    "word_timestamps": true,
+    "speaker_preset": "conversation",
+    "beam_size": 10,
+    "temperature": 0.0,
+    "do_sample": false,
+    "num_beams": 10,
+    "length_penalty": 1.0,
+    "repetition_penalty": 1.2,
+    "no_speech_threshold": 0.6,
+    "logprob_threshold": -1.0,
+    "compression_ratio_threshold": 2.4,
+    "condition_on_previous_text": true,
+    "prompt_reset_on_timestamp": true,
+    "return_timestamps": true,
+    "return_segments": true,
+    "return_language": true,
+    "return_special_tokens": false,
+    "suppress_tokens": [-1],
+    "suppress_blank": true,
+    "without_timestamps": false,
+    "max_initial_timestamp": 1.0,
+    "prepend_punctuations": "\"'"'([{-",
+    "append_punctuations": "\"'.。，！？：；）]}、",
+    "max_new_tokens": 448,
+    "chunk_length": 30,
+    "chunk_overlap": 5
+  },
+  "speaker_diarization": {
+    "min_speakers": 2,
+    "max_speakers": 2,
+    "min_speaker_duration": 0.5,
+    "speaker_similarity_threshold": 0.7,
+    "silence_threshold": 1.0,
+    "vad_min_silence_duration_ms": 300
+  },
+  "output": {
+    "formats": ["json", "txt", "docx"],
+    "include_metadata": true,
+    "include_word_timestamps": true,
+    "include_segments": true,
+    "include_language_detection": true,
+    "output_directory": "output/transcriptions"
+  },
+  "logging": {
+    "level": "INFO",
+    "include_timestamps": true,
+    "log_to_file": true,
+    "log_transcription_confidence": true
+  },
+  "processing": {
+    "batch_size": 1,
+    "max_audio_duration": 3600,
+    "supported_formats": ["wav", "mp3", "m4a", "flac", "ogg"],
+    "chunk_duration": 120,
+    "chunk_overlap": 5,
+    "sample_rate": 16000,
+    "audio_preprocessing": {
+      "normalize": true,
+      "remove_silence": true,
+      "enhance_clarity": true,
+      "noise_reduction": true
+    }
+  },
+  "model_optimization": {
+    "use_fp16": false,
+    "use_fp32": true,
+    "low_cpu_mem_usage": true,
+    "device_map": "cpu",
+    "torch_dtype": "float32",
+    "model_caching": true,
+    "memory_cleanup_frequency": 5,
+    "gradient_checkpointing": false,
+    "attention_mode": "flash_attention_2"
+  },
+  "accuracy_enhancement": {
+    "post_processing": {
+      "fix_punctuation": true,
+      "fix_capitalization": true,
+      "fix_numbers": true,
+      "fix_hebrew_text": true,
+      "remove_duplicates": true,
+      "sentence_boundary_detection": true
+    },
+    "hebrew_specific": {
+      "fix_nikud": true,
+      "fix_hebrew_punctuation": true,
+      "normalize_hebrew_text": true,
+      "fix_hebrew_numbers": true,
+      "hebrew_spell_check": true
+    },
+    "confidence_threshold": 0.8,
+    "retry_low_confidence": true,
+    "max_retries": 3,
+    "retry_with_different_params": true
+  }
+}

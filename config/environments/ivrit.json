@@ -1,0 +1,34 @@
+{
+  "name": "ivrit_optimized",
+  "description": "Configuration optimized for Hebrew transcription using ivrit-ai/whisper-large-v3 model",
+  "transcription": {
+    "model": "ivrit-ai/whisper-large-v3",
+    "engine": "speaker-diarization",
+    "language": "he",
+    "vad_enabled": true,
+    "word_timestamps": true,
+    "speaker_preset": "conversation"
+  },
+  "speaker_diarization": {
+    "min_speakers": 1,
+    "max_speakers": 4,
+    "min_speaker_duration": 0.5,
+    "speaker_similarity_threshold": 0.7
+  },
+  "output": {
+    "formats": ["json", "txt", "docx"],
+    "include_metadata": true,
+    "include_word_timestamps": true,
+    "output_directory": "output/transcriptions"
+  },
+  "logging": {
+    "level": "INFO",
+    "include_timestamps": true,
+    "log_to_file": true
+  },
+  "processing": {
+    "batch_size": 1,
+    "max_audio_duration": 3600,
+    "supported_formats": ["wav", "mp3", "m4a", "flac", "ogg"]
+  }
+} 

@@ -81,6 +81,10 @@ class TranscriptionOrchestrator:
             
             if engine == 'speaker-diarization':
                 result = self._transcribe_with_speaker_diarization(job_params)
+            elif engine == 'custom-whisper':
+                result = self._transcribe_with_custom_whisper(job_params)
+            elif engine == 'ctranslate2-whisper':
+                result = self._transcribe_with_ctranslate2_whisper(job_params)
             else:
                 result = self._transcribe_standard(job_params)
             
@@ -214,6 +218,219 @@ class TranscriptionOrchestrator:
                 'success': False,
                 'error': str(e),
                 'method': 'standard',
+                'timestamp': datetime.now().isoformat()
+            }
+    
+    def _transcribe_with_custom_whisper(self, job_params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Perform transcription with custom Whisper model
+        
+        Args:
+            job_params: Job parameters
+            
+        Returns:
+            Dictionary containing transcription results
+        """
+        try:
+            logger.info("Using custom Whisper transcription service")
+            
+            # Extract parameters
+            audio_file = job_params['input']['data']
+            model_name = job_params['model']
+            save_output = job_params['save_output']
+            
+            # Import and use custom whisper engine
+            from src.core.speaker_engines import CustomWhisperEngine
+            from src.core.speaker_config_factory import SpeakerConfigFactory
+            
+            # Get speaker config
+            speaker_config = SpeakerConfigFactory.get_config('default')
+            
+            # Create custom whisper engine
+            custom_engine = CustomWhisperEngine(speaker_config)
+            
+            # Perform transcription
+            result = custom_engine.transcribe(audio_file, model_name)
+            
+            # Save output if requested
+            if save_output and result.success:
+                try:
+                    # Convert result to the expected format for output manager
+                    # Use the same format as speaker diarization engine for consistency
+                    speakers_data = {}
+                    for speaker, segments in result.speakers.items():
+                        speakers_data[speaker] = [
+                            {
+                                'speaker': speaker,
+                                'start': segment.start,
+                                'end': segment.end,
+                                'text': segment.text,
+                                'words': segment.words
+                            }
+                            for segment in segments
+                        ]
+                    
+                    transcription_data = {
+                        'speakers': speakers_data,  # Use 'speakers' format for consistency
+                        'segments': [  # Also include segments for backward compatibility
+                            {
+                                'speaker': speaker,
+                                'start': segment.start,
+                                'end': segment.end,
+                                'text': segment.text,
+                                'words': segment.words
+                            }
+                            for speaker, segments in result.speakers.items()
+                            for segment in segments
+                        ],
+                        'model_name': result.model_name,
+                        'audio_file': result.audio_file,
+                        'transcription_time': result.transcription_time,
+                        'speaker_count': result.speaker_count,
+                        'full_text': result.full_text
+                    }
+                    
+                    # Log data conversion for output manager
+                    total_words = sum(len(seg['text'].split()) for seg in transcription_data['segments'])
+                    logger.info(f"🔄 CONVERTING TO OUTPUT FORMAT:")
+                    logger.info(f"   - Input segments from result: {sum(len(segments) for segments in result.speakers.values())}")
+                    logger.info(f"   - Output speakers: {list(speakers_data.keys())}")
+                    logger.info(f"   - Output segments list: {len(transcription_data['segments'])}")
+                    logger.info(f"   - Total text length: {len(result.full_text)} characters")
+                    logger.info(f"   - Total word count: {total_words} words")
+                    logger.info(f"   - Metadata preserved: model_name, audio_file, transcription_time, speaker_count")
+                    
+                    # Log first and last segments for verification
+                    if transcription_data['segments']:
+                        first_words = len(transcription_data['segments'][0]['text'].split())
+                        last_words = len(transcription_data['segments'][-1]['text'].split())
+                        logger.info(f"   - First segment: {transcription_data['segments'][0]['start']:.1f}s - {transcription_data['segments'][0]['end']:.1f}s ({len(transcription_data['segments'][0]['text'])} chars, {first_words} words)")
+                        logger.info(f"   - Last segment: {transcription_data['segments'][-1]['start']:.1f}s - {transcription_data['segments'][-1]['end']:.1f}s ({len(transcription_data['segments'][-1]['text'])} chars, {last_words} words)")
+                    
+                    # Save transcription in all formats
+                    saved_files = self.output_manager.save_transcription(
+                        transcription_data=transcription_data,
+                        audio_file=audio_file,
+                        model=model_name,
+                        engine='custom-whisper',
+                        session_id=job_params.get('session_id')
+                    )
+                    
+                    logger.info(f"Custom Whisper transcription completed and saved for {audio_file}")
+                except Exception as e:
+                    logger.error(f"Failed to save custom Whisper output: {e}")
+            
+            return {
+                'success': result.success,
+                'transcription': transcription_data if save_output and result.success else result.full_text,
+                'speakers': result.speakers,
+                'model': model_name,
+                'engine': 'custom-whisper',
+                'method': 'custom-whisper',
+                'transcription_time': result.transcription_time,
+                'timestamp': datetime.now().isoformat(),
+                'error': getattr(result, 'error_message', None)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in custom Whisper transcription: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'method': 'custom-whisper',
+                'timestamp': datetime.now().isoformat()
+            }
+    
+    def _transcribe_with_ctranslate2_whisper(self, job_params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Perform transcription with CTranslate2 optimized Whisper model
+        
+        Args:
+            job_params: Job parameters
+            
+        Returns:
+            Dictionary containing transcription results
+        """
+        try:
+            logger.info("Using CTranslate2 Whisper transcription service")
+            
+            # Extract parameters
+            audio_file = job_params['input']['data']
+            model_name = job_params['model']
+            save_output = job_params['save_output']
+            
+            # Import and use CTranslate2 whisper engine
+            from src.core.speaker_engines import CTranslate2WhisperEngine
+            from src.core.speaker_config_factory import SpeakerConfigFactory
+            
+            # Get speaker config
+            speaker_config = SpeakerConfigFactory.get_config('default')
+            
+            # Create CTranslate2 whisper engine
+            ctranslate2_engine = CTranslate2WhisperEngine(speaker_config)
+            
+            # Check if engine is available
+            if not ctranslate2_engine.is_available():
+                raise Exception("CTranslate2 engine is not available. Please install ctranslate2 and transformers.")
+            
+            # Perform transcription
+            result = ctranslate2_engine.transcribe(audio_file, model_name)
+            
+            # Save output if requested
+            if save_output and result.success:
+                try:
+                    # Convert result to transcription data format
+                    transcription_data = {
+                        'success': result.success,
+                        'speakers': result.speakers,
+                        'full_text': result.full_text,
+                        'transcription_time': result.transcription_time,
+                        'model_name': result.model_name,
+                        'audio_file': result.audio_file,
+                        'speaker_count': result.speaker_count,
+                        'metadata': result.metadata,
+                        'segments': []  # CTranslate2 doesn't provide segments by default
+                    }
+                    
+                    # Log transcription statistics
+                    total_chars = len(result.full_text)
+                    total_words = len(result.full_text.split())
+                    logger.info(f"CTranslate2 transcription statistics:")
+                    logger.info(f"   - Total characters: {total_chars} chars")
+                    logger.info(f"   - Total word count: {total_words} words")
+                    logger.info(f"   - Metadata preserved: model_name, audio_file, transcription_time, speaker_count")
+                    
+                    # Save transcription in all formats
+                    saved_files = self.output_manager.save_transcription(
+                        transcription_data=transcription_data,
+                        audio_file=audio_file,
+                        model=model_name,
+                        engine='ctranslate2-whisper',
+                        session_id=job_params.get('session_id')
+                    )
+                    
+                    logger.info(f"CTranslate2 Whisper transcription completed and saved for {audio_file}")
+                except Exception as e:
+                    logger.error(f"Failed to save CTranslate2 output: {e}")
+            
+            return {
+                'success': result.success,
+                'transcription': transcription_data if save_output and result.success else result.full_text,
+                'speakers': result.speakers,
+                'model': model_name,
+                'engine': 'ctranslate2-whisper',
+                'method': 'ctranslate2-whisper',
+                'transcription_time': result.transcription_time,
+                'timestamp': datetime.now().isoformat(),
+                'error': getattr(result, 'error_message', None)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in CTranslate2 Whisper transcription: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'method': 'ctranslate2-whisper',
                 'timestamp': datetime.now().isoformat()
             }
     

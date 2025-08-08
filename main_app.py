@@ -125,7 +125,11 @@ class ApplicationOrchestrator:
         """Initialize application components with dependency injection"""
         # Initialize configuration manager
         if config_file:
-            self.config_manager = ConfigManager(config_file)
+            # Extract directory from config file path
+            config_dir = str(Path(config_file).parent)
+            self.config_manager = ConfigManager(config_dir)
+        else:
+            self.config_manager = ConfigManager()
         
         # Initialize application with dependency injection
         self.app = TranscriptionApplication(config_manager=self.config_manager)

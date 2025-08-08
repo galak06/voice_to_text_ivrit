@@ -90,8 +90,19 @@ class SpeakerTranscriptionService:
             model_name = self.app_config.transcription.default_model
         
         try:
-            # Use stable-whisper for transcription
-            result = self._transcribe_with_engine("stable-whisper", request.audio_file_path, model_name)
+            # Check file size to determine engine
+            file_size = Path(request.audio_file_path).stat().st_size
+            file_size_mb = file_size / (1024 * 1024)
+            
+            # Use custom-whisper with chunking for large files (>100MB)
+            if file_size_mb > 100:
+                logger.info(f"📁 Large file detected ({file_size_mb:.1f}MB), using custom-whisper with chunking")
+                engine_type = "custom-whisper"
+            else:
+                logger.info(f"📁 Small file detected ({file_size_mb:.1f}MB), using stable-whisper")
+                engine_type = "stable-whisper"
+            
+            result = self._transcribe_with_engine(engine_type, request.audio_file_path, model_name)
             
             if result.success:
                 logger.info(f"Stable-whisper transcription successful")

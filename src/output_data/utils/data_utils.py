@@ -115,7 +115,37 @@ class StringContentParser:
                 return content_data
         except (ValueError, SyntaxError):
             pass
-        return None
+        
+        # Try to parse custom chunked format
+        return StringContentParser._parse_chunked_format(content)
+    
+    @staticmethod
+    def _parse_chunked_format(content: str) -> Optional[List[Dict[str, Any]]]:
+        """Parse chunked format like '🎤 Speaker 1 (0.0s - 600.0s): text...'"""
+        import re
+        
+        segments = []
+        
+        # Pattern to match: 🎤 Speaker 1 (0.0s - 600.0s): text...
+        pattern = r'🎤\s*([^(]+)\s*\(([0-9.]+)s\s*-\s*([0-9.]+)s\):\s*(.*?)(?=\n\n🎤|\n*$)'
+        
+        matches = re.findall(pattern, content, re.DOTALL)
+        
+        for match in matches:
+            speaker = match[0].strip()
+            start_time = float(match[1])
+            end_time = float(match[2])
+            text = match[3].strip()
+            
+            if text:  # Only add if there's actual text
+                segments.append({
+                    'speaker': speaker,
+                    'text': text,
+                    'start': start_time,
+                    'end': end_time
+                })
+        
+        return segments if segments else None
 
 
 class SpeakersDataExtractorImpl:
@@ -139,18 +169,50 @@ class SpeakersDataExtractorImpl:
     
     def _extract_from_dict(self, data: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
         """Extract speakers data from dictionary"""
-        # Direct speakers field
-        if 'speakers' in data:
-            return data['speakers']
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # Segments field
+        # Direct speakers field (preferred format)
+        if 'speakers' in data:
+            speakers_data = data['speakers']
+            logger.info(f"🔍 Extracting from 'speakers' field: {len(speakers_data)} speakers")
+            
+            # Convert to standard format if needed
+            if isinstance(speakers_data, dict):
+                # Count total segments across all speakers
+                total_segments = sum(len(segments) for segments in speakers_data.values())
+                logger.info(f"🔍 Speakers data: {list(speakers_data.keys())} with {total_segments} total segments")
+                return speakers_data
+            else:
+                logger.warning(f"🔍 'speakers' field is not a dictionary: {type(speakers_data)}")
+        
+        # Segments field (convert to speakers format)
         if 'segments' in data:
-            return self.segment_processor.convert_segments_to_speakers(data['segments'])
+            segments = data['segments']
+            total_words = sum(len(seg.get('text', '').split()) for seg in segments)
+            logger.info(f"🔍 Extracting from 'segments' field: {len(segments)} segments, {total_words} words")
+            result = self.segment_processor.convert_segments_to_speakers(segments)
+            logger.info(f"🔍 Converted to speakers: {list(result.keys())} with {sum(len(segments) for segments in result.values())} total segments")
+            return result
         
         # String content field
         if 'content' in data and isinstance(data['content'], str):
+            logger.info(f"🔍 Extracting from 'content' field: {len(data['content'])} characters")
             return self._extract_from_string_content(data['content'])
         
+        # Full text field (create single speaker)
+        if 'full_text' in data and data['full_text']:
+            logger.info(f"🔍 Extracting from 'full_text' field: {len(data['full_text'])} characters")
+            return {
+                'Speaker 1': [{
+                    'speaker': 'Speaker 1',
+                    'text': data['full_text'],
+                    'start': 0,
+                    'end': 0
+                }]
+            }
+        
+        logger.warning(f"🔍 No valid data fields found in: {list(data.keys())}")
         return {}
     
     def _extract_from_string_content(self, content: str) -> Dict[str, List[Dict[str, Any]]]:

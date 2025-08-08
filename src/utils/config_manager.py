@@ -7,7 +7,7 @@ Simplified and focused on core configuration management
 import os
 import json
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -79,14 +79,14 @@ class ConfigLoader:
         # Transcription overrides
         if 'transcription' in config:
             config['transcription']['default_model'] = os.getenv('DEFAULT_MODEL', 
-                config['transcription'].get('default_model', 'ivrit-ai/whisper-large-v3-turbo-ct2'))
+                config['transcription'].get('default_model', 'ivrit-ai/whisper-large-v3'))
             config['transcription']['fallback_model'] = os.getenv('FALLBACK_MODEL', 
-                config['transcription'].get('fallback_model', 'ivrit-ai/whisper-large-v3-ct2'))
+                config['transcription'].get('fallback_model', 'ivrit-ai/whisper-large-v3-turbo'))
             # Set default values for transcription
             config['transcription']['default_model'] = (
-                config['transcription'].get('default_model', 'large-v3'))
+                config['transcription'].get('default_model', 'ivrit-ai/whisper-large-v3'))
             config['transcription']['default_engine'] = (
-                config['transcription'].get('default_engine', 'speaker-diarization'))
+                config['transcription'].get('default_engine', 'custom-whisper'))
         
         # RunPod overrides
         if 'runpod' in config:
@@ -130,28 +130,164 @@ class ConfigValidator:
     
     @staticmethod
     def validate(config: AppConfig) -> bool:
-        """Validate configuration"""
+        """Validate configuration with comprehensive checks"""
         try:
             # Pydantic validation
             config.model_validate(config.model_dump())
             
             # Business logic validation
-            missing_vars = []
+            errors = []
             
-            if config.runpod and not config.runpod.api_key:
-                missing_vars.append('RUNPOD_API_KEY')
-            if config.runpod and not config.runpod.endpoint_id:
-                missing_vars.append('RUNPOD_ENDPOINT_ID')
-            
+            # Check required environment variables
+            missing_vars = ConfigValidator._check_required_env_vars(config)
             if missing_vars:
-                logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+                errors.extend(missing_vars)
+            
+            # Check file paths and directories
+            path_errors = ConfigValidator._validate_paths(config)
+            if path_errors:
+                errors.extend(path_errors)
+            
+            # Check configuration consistency
+            consistency_errors = ConfigValidator._check_consistency(config)
+            if consistency_errors:
+                errors.extend(consistency_errors)
+            
+            # Check model and engine compatibility
+            compatibility_errors = ConfigValidator._check_model_engine_compatibility(config)
+            if compatibility_errors:
+                errors.extend(compatibility_errors)
+            
+            if errors:
+                logger.error("Configuration validation failed:")
+                for error in errors:
+                    logger.error(f"  - {error}")
                 return False
             
+            logger.info("Configuration validation passed")
             return True
             
         except Exception as e:
             logger.error(f"Configuration validation failed: {e}")
             return False
+    
+    @staticmethod
+    def _check_required_env_vars(config: AppConfig) -> List[str]:
+        """Check for required environment variables"""
+        errors = []
+        
+        if config.runpod and config.runpod.enabled:
+            if not config.runpod.api_key:
+                errors.append('RUNPOD_API_KEY is required when RunPod is enabled')
+            if not config.runpod.endpoint_id:
+                errors.append('RUNPOD_ENDPOINT_ID is required when RunPod is enabled')
+        
+        if config.system and config.system.hugging_face_token:
+            # Validate HF token format (basic check)
+            if len(config.system.hugging_face_token) < 10:
+                errors.append('HUGGING_FACE_TOKEN appears to be invalid (too short)')
+        
+        return errors
+    
+    @staticmethod
+    def _validate_paths(config: AppConfig) -> List[str]:
+        """Validate file paths and directories"""
+        errors = []
+        
+        # Check output directory
+        if config.output and config.output.output_dir:
+            output_path = Path(config.output.output_dir)
+            try:
+                output_path.mkdir(parents=True, exist_ok=True)
+                # Test write permissions
+                test_file = output_path / ".test_write"
+                test_file.write_text("test")
+                test_file.unlink()
+            except Exception as e:
+                errors.append(f'Output directory {config.output.output_dir} is not writable: {e}')
+        
+        # Check logs directory
+        if config.output and config.output.logs_dir:
+            logs_path = Path(config.output.logs_dir)
+            try:
+                logs_path.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                errors.append(f'Logs directory {config.output.logs_dir} cannot be created: {e}')
+        
+        # Check input directory if specified
+        if config.input and config.input.directory:
+            input_path = Path(config.input.directory)
+            if not input_path.exists():
+                errors.append(f'Input directory {config.input.directory} does not exist')
+            elif not input_path.is_dir():
+                errors.append(f'Input path {config.input.directory} is not a directory')
+        
+        return errors
+    
+    @staticmethod
+    def _check_consistency(config: AppConfig) -> List[str]:
+        """Check configuration consistency"""
+        errors = []
+        
+        # Check speaker configuration
+        if config.speaker:
+            if config.speaker.min_speakers > config.speaker.max_speakers:
+                errors.append('min_speakers cannot be greater than max_speakers')
+            
+            if config.speaker.min_speakers < 1:
+                errors.append('min_speakers must be at least 1')
+            
+            if config.speaker.max_speakers > 10:
+                errors.append('max_speakers should not exceed 10 for performance reasons')
+        
+        # Check batch configuration
+        if config.batch and config.batch.enabled:
+            if config.batch.max_workers < 1:
+                errors.append('max_workers must be at least 1')
+            elif config.batch.max_workers > 16:
+                errors.append('max_workers should not exceed 16 for memory management')
+            
+            if config.batch.timeout_per_file < 30:
+                errors.append('timeout_per_file should be at least 30 seconds')
+        
+        # Check system configuration
+        if config.system:
+            if config.system.timeout_seconds < 10:
+                errors.append('timeout_seconds should be at least 10 seconds')
+            
+            if config.system.retry_attempts < 0:
+                errors.append('retry_attempts cannot be negative')
+            elif config.system.retry_attempts > 10:
+                errors.append('retry_attempts should not exceed 10')
+        
+        return errors
+    
+    @staticmethod
+    def _check_model_engine_compatibility(config: AppConfig) -> List[str]:
+        """Check model and engine compatibility"""
+        errors = []
+        
+        if config.transcription:
+            # Define compatible model-engine combinations
+            stable_whisper_models = {
+                'tiny.en', 'tiny', 'base.en', 'base', 'small.en', 'small',
+                'medium.en', 'medium', 'large-v1', 'large-v2', 'large-v3', 'large',
+                'large-v3-turbo', 'turbo'
+            }
+            
+            custom_whisper_models = {
+                'ivrit-ai/whisper-large-v3', 'ivrit-ai/whisper-large-v3-turbo'
+            }
+            
+            model = config.transcription.default_model
+            engine = config.transcription.default_engine
+            
+            if engine == 'stable-whisper' and model in custom_whisper_models:
+                errors.append(f'Model {model} requires custom-whisper engine, not stable-whisper')
+            elif engine == 'custom-whisper' and model in stable_whisper_models:
+                errors.append(f'Model {model} should use stable-whisper engine for better performance')
+        
+        return errors
 
 
 class ConfigPrinter:

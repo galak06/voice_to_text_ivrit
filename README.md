@@ -92,6 +92,8 @@ All functionality is controlled through configuration files in `config/environme
 | `voice_task.json` | Voice folder processing | Quick voice transcription |
 | `docker_batch.json` | Docker-enabled batch | Advanced batch processing |
 | `runpod.json` | RunPod cloud processing | Cloud transcription |
+| `ivrit.json` | Hebrew-optimized transcription | Hebrew audio with ivrit-ai/whisper-large-v3 |
+| `ivrit_high_accuracy.json` | High-accuracy Hebrew transcription | Hebrew audio with ivrit-ai/whisper-large-v3-ct2 (CTranslate2 optimized) |
 | `development.json` | Development settings | Development environment |
 | `production.json` | Production settings | Production environment |
 
@@ -112,12 +114,53 @@ python main_app.py --config-file config/environments/docker_batch.json batch
 python main_app.py --config-file config/environments/runpod.json batch
 ```
 
+**Hebrew Transcription with Ivrit Model:**
+```bash
+python main_app.py --config-file config/environments/ivrit.json single examples/audio/voice/audio.wav
+```
+
+## 🛠️ Helper Scripts
+
+The `scripts/` folder contains utility scripts for various tasks:
+
+### Output Management
+```bash
+# Clean temporary files and old outputs
+python scripts/clean_output.py --temp-chunks --dry-run
+python scripts/clean_output.py --temp-chunks
+
+# Monitor transcription progress
+python scripts/monitor_progress.py --output-dir output/
+```
+
+### Model Management
+```bash
+# Download Hebrew-optimized model
+python scripts/download_ivrit_model.py
+```
+
+### Testing and Development
+```bash
+# Test chunk processing
+python scripts/test_small_chunk.py
+
+# Quick inference test
+python scripts/infer.py examples/audio/voice/audio.wav
+```
+
+For detailed documentation on all scripts, see [scripts/README.md](scripts/README.md).
+
 ## 📁 Project Structure
 
 ```
 voice_to_text_ivrit/
 ├── main_app.py                       # 🎯 Single entry point for all functionality
-├── infer.py                          # RunPod serverless handler
+├── scripts/                          # 🛠️ Helper scripts
+│   ├── clean_output.py               # Output folder cleanup utility
+│   ├── download_ivrit_model.py       # Model download utility
+│   ├── infer.py                      # RunPod serverless handler
+│   ├── monitor_progress.py           # Progress monitoring utility
+│   └── test_small_chunk.py           # Chunk testing utility
 ├── src/                              # 📦 Source code
 │   ├── core/                         # Core application components
 │   │   ├── application.py            # Main application orchestrator
@@ -182,6 +225,9 @@ python main_app.py single examples/audio/voice/audio.wav --speaker-preset conver
 
 # With specific model and engine
 python main_app.py single examples/audio/voice/audio.wav --model base --engine faster-whisper
+
+# With Hebrew-optimized ivrit model
+python main_app.py single examples/audio/voice/audio.wav --model ivrit-ai/whisper-large-v3 --engine speaker-diarization
 ```
 
 ### Cloud Transcription (RunPod)
@@ -240,6 +286,64 @@ output/transcriptions/
 - **Speaker Organization**: Text grouped by speaker with bold speaker names
 - **Combined Text**: All segments from each speaker combined for natural flow
 - **No Technical Details**: Removed segment timestamps for clean reading
+
+## 🤖 Available Models
+
+The system supports multiple Whisper models for different use cases:
+
+### Standard Whisper Models
+- **`tiny`** - Fastest, lowest accuracy (39M parameters)
+- **`base`** - Good balance of speed and accuracy (74M parameters)
+- **`small`** - Better accuracy, moderate speed (244M parameters)
+- **`medium`** - High accuracy, slower (769M parameters)
+- **`large-v1`** - Very high accuracy (1550M parameters)
+- **`large-v2`** - Improved accuracy over v1 (1550M parameters)
+- **`large-v3`** - Latest and most accurate (1550M parameters)
+- **`large-v3-turbo`** - Fast version of large-v3
+
+### Specialized Models
+- **`ivrit-ai/whisper-large-v3-ct2`** - **HIGHEST ACCURACY** - CTranslate2 optimized Hebrew model (recommended)
+  - Based on Whisper Large v3 with CTranslate2 optimization
+  - 2-3x faster processing with 30-50% less memory usage
+  - Enhanced accuracy for Hebrew language
+  - CPU-optimized for maximum performance
+  - **Best choice for Hebrew transcription**
+
+- **`ivrit-ai/whisper-large-v3`** - Hebrew-optimized model for superior Hebrew transcription
+  - Based on Whisper Large v3
+  - Fine-tuned specifically for Hebrew language
+  - Better accuracy for Hebrew accents and dialects
+  - Good alternative for Hebrew audio content
+
+### Model Selection Guide
+```bash
+# For Hebrew content - HIGHEST ACCURACY (recommended)
+python main_app.py single audio.wav --model ivrit-ai/whisper-large-v3-ct2
+
+# For Hebrew content - High accuracy configuration
+python main_app.py --config-file config/environments/ivrit_high_accuracy.json single audio.wav
+
+# For Hebrew content (standard)
+python main_app.py single audio.wav --model ivrit-ai/whisper-large-v3
+
+# For general use with good accuracy
+python main_app.py single audio.wav --model large-v3
+
+# For fast processing
+python main_app.py single audio.wav --model base
+
+# Using configuration file
+python main_app.py --config-file config/environments/ivrit.json single audio.wav
+```
+
+### 🎯 High-Accuracy Features
+
+The `ivrit_high_accuracy.json` configuration includes:
+- **CTranslate2 Engine:** Optimized for CPU processing
+- **Enhanced Parameters:** Beam size 10, best-of-5 selection
+- **99.9% Coverage Verification:** Ensures no voice parts are missed
+- **Memory Optimization:** Automatic cleanup every 5 chunks
+- **Better Hebrew Recognition:** Improved punctuation and character accuracy
 
 ## 👥 Speaker Diarization
 

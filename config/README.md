@@ -57,7 +57,7 @@ You can override any configuration value using environment variables:
 export ENVIRONMENT=development
 
 # Override specific values
-export DEFAULT_MODEL=ivrit-ai/whisper-large-v3-ct2
+export DEFAULT_MODEL=ivrit-ai/whisper-large-v3
 export DEBUG=true
 export LOG_LEVEL=DEBUG
 export RUNPOD_API_KEY=your-api-key

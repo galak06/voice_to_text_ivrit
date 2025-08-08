@@ -46,8 +46,8 @@ class TextFormatter:
             (r'([א-ת])\s*-\s*([א-ת])', r'\1-\2'),  # Hyphens in Hebrew words
             (r'([א-ת])\s*/\s*([א-ת])', r'\1/\2'),  # Slashes in Hebrew words
             
-            # Clean up multiple spaces
-            (r'\s+', ' '),
+            # Clean up multiple spaces (but preserve line breaks)
+            (r'[ \t]+', ' '),
         ]
         
         for pattern, replacement in improvements:
