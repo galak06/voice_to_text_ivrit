@@ -140,43 +140,12 @@ class OutputManager:
             logger.info("Using cached processed data")
             return self._processed_data_cache[cache_key]
         
-        # Remove empty/whitespace-only segments before any processing
-        cleaned_data = data.copy()
+        # Remove empty/whitespace-only segments using DataUtils helper
         try:
-            if isinstance(cleaned_data.get('segments'), list):
-                original_count = len(cleaned_data['segments'])
-                cleaned_segments = [
-                    seg for seg in cleaned_data['segments']
-                    if isinstance(seg, dict) and isinstance(seg.get('text', ''), str) and seg.get('text', '').strip()
-                ]
-                if len(cleaned_segments) != original_count:
-                    logger.info(
-                        f"🧹 Filtered empty segments: kept {len(cleaned_segments)} of {original_count}"
-                    )
-                cleaned_data['segments'] = cleaned_segments
-
-            if isinstance(cleaned_data.get('speakers'), dict):
-                total_before = sum(len(v) for v in cleaned_data['speakers'].values() if isinstance(v, list))
-                new_speakers = {}
-                for speaker_name, segs in cleaned_data['speakers'].items():
-                    if isinstance(segs, list):
-                        filtered = [
-                            seg for seg in segs
-                            if isinstance(seg, dict) and isinstance(seg.get('text', ''), str) and seg.get('text', '').strip()
-                        ]
-                        if filtered:
-                            new_speakers[speaker_name] = filtered
-                total_after = sum(len(v) for v in new_speakers.values())
-                if total_after != total_before:
-                    logger.info(
-                        f"🧹 Filtered empty speaker segments: kept {total_after} of {total_before}"
-                    )
-                if new_speakers:
-                    cleaned_data['speakers'] = new_speakers
-                else:
-                    cleaned_data.pop('speakers', None)
+            cleaned_data = self.data_utils.clean_segments(data)
         except Exception as e:
             logger.warning(f"Segment cleanup skipped due to error: {e}")
+            cleaned_data = data.copy()
 
         # Process and cache speakers data
         speakers = self.data_utils.extract_speakers_data(cleaned_data)

@@ -42,6 +42,9 @@ class ProcessingResult:
     """Standardized processing result structure"""
     success: bool
     context: ProcessingContext
+    # New field to distinguish full success, partial success, and error
+    # Defaults to "success" for backward compatibility when directly instantiated in tests
+    status: str = field(default="success")
     data: Dict[str, Any] = field(default_factory=dict)
     errors: List[Dict[str, Any]] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
@@ -163,6 +166,7 @@ class ProcessingPipeline(ABC):
         return ProcessingResult(
             success=False,
             context=context,
+            status="error",
             errors=[error_obj],
             performance_metrics={'processing_time_seconds': processing_time},
             timestamp=datetime.now()
@@ -176,6 +180,7 @@ class ProcessingPipeline(ABC):
         return ProcessingResult(
             success=True,
             context=context,
+            status="success",
             data=data,
             warnings=warnings or [],
             performance_metrics={'processing_time_seconds': processing_time},
@@ -198,6 +203,7 @@ class ProcessingPipeline(ABC):
         return ProcessingResult(
             success=True,  # Partial success is still success
             context=context,
+            status="partial",
             data=combined_data,
             warnings=warnings,
             performance_metrics={'processing_time_seconds': processing_time},

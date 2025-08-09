@@ -358,4 +358,34 @@ class DataUtils:
         return self.metadata_extractor.get_engine_name(data)
 
 
- 
+    def clean_segments(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Remove empty/whitespace-only segments and empty speaker entries.
+        Returns a shallow-copied cleaned dict."""
+        cleaned_data = data.copy() if isinstance(data, dict) else {}
+        try:
+            # Clean segments list
+            if isinstance(cleaned_data.get('segments'), list):
+                cleaned_segments = [
+                    seg for seg in cleaned_data['segments']
+                    if isinstance(seg, dict) and isinstance(seg.get('text', ''), str) and seg.get('text', '').strip()
+                ]
+                cleaned_data['segments'] = cleaned_segments
+            # Clean speakers dict
+            if isinstance(cleaned_data.get('speakers'), dict):
+                new_speakers = {}
+                for speaker_name, segs in cleaned_data['speakers'].items():
+                    if isinstance(segs, list):
+                        filtered = [
+                            seg for seg in segs
+                            if isinstance(seg, dict) and isinstance(seg.get('text', ''), str) and seg.get('text', '').strip()
+                        ]
+                        if filtered:
+                            new_speakers[speaker_name] = filtered
+                if new_speakers:
+                    cleaned_data['speakers'] = new_speakers
+                else:
+                    cleaned_data.pop('speakers', None)
+        except Exception:
+            # Best-effort cleanup; return original copy on error
+            return cleaned_data
+        return cleaned_data
