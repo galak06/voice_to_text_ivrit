@@ -47,7 +47,7 @@ class AudioTranscriptionClient:
     """
     
     def __init__(
-        self, 
+        self,
         config: Optional[AppConfig] = None,
         endpoint_factory: Optional[RunPodEndpointFactoryInterface] = None,
         file_validator: Optional[AudioFileValidatorInterface] = None,
@@ -57,7 +57,10 @@ class AudioTranscriptionClient:
         result_display: Optional[ResultDisplayInterface] = None,
         parameter_provider: Optional[TranscriptionParameterProvider] = None,
         queue_waiter: Optional[QueueWaiter] = None,
-        data_utils: Optional['DataUtils'] = None
+        data_utils: Optional['DataUtils'] = None,
+        # New: allow injecting a ConfigManager or bypassing RunPod validation entirely (useful for tests)
+        config_manager: Optional[ConfigManager] = None,
+        skip_runpod_validation: bool = False,
     ):
         """
         Initialize the audio transcription client with dependency injection
@@ -74,8 +77,10 @@ class AudioTranscriptionClient:
             queue_waiter: Waiter for queue processing
             data_utils: DataUtils instance for data processing
         """
-        self.config = config or self._load_default_config()
-        self.config_manager = ConfigManager()
+        # Dependency inversion: accept injected config or manager; fall back gently to defaults
+        self.config_manager = config_manager or ConfigManager()
+        self.config = config or getattr(self.config_manager, 'config', self._load_default_config())
+        self.skip_runpod_validation = skip_runpod_validation
         
         # Initialize dependencies with defaults if not provided
         self.endpoint_factory = endpoint_factory or DefaultRunPodEndpointFactory()
@@ -97,13 +102,14 @@ class AudioTranscriptionClient:
     
     def _validate_configuration(self) -> None:
         """Validate configuration and setup RunPod endpoint"""
-        if not self.config_manager.validate():
-            raise ValueError("Configuration validation failed! Please set up your environment variables first.")
-        
-        if not self.config.runpod:
-            raise ValueError("RunPod configuration not found!")
-        
-        # Configure RunPod
+        # Allow skipping strict validation (primarily for unit tests and local runs without RunPod)
+        if not self.skip_runpod_validation:
+            if not self.config_manager.validate():
+                raise ValueError("Configuration validation failed! Please set up your environment variables first.")
+            if not getattr(self.config, 'runpod', None):
+                raise ValueError("RunPod configuration not found!")
+
+        # Configure RunPod if available and not explicitly skipped
         if hasattr(self.config, 'runpod') and self.config.runpod:
             # Optional import for RunPod; do not fail tests if unavailable
             try:
@@ -113,11 +119,22 @@ class AudioTranscriptionClient:
                 pass
             endpoint_id = getattr(self.config.runpod, 'endpoint_id', None)
             if endpoint_id is None:
+                if self.skip_runpod_validation:
+                    # In tests, silently continue without endpoint
+                    self.endpoint = None
+                    return
                 raise ValueError("RunPod endpoint ID not configured!")
             # Create endpoint via factory, tolerate mocks
             try:
                 self.endpoint = self.endpoint_factory.create_endpoint(endpoint_id)
             except Exception:
+                self.endpoint = None
+        else:
+            # No runpod config present
+            if self.skip_runpod_validation:
+                self.endpoint = None
+            else:
+                # Strict path already handled above by raising ValueError
                 self.endpoint = None
     
     def transcribe_audio(self, audio_file_path: str, model: Optional[str] = None, 

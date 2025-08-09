@@ -9,6 +9,13 @@ from pathlib import Path
 import logging
 from datetime import datetime
 from dataclasses import dataclass, field
+from enum import Enum
+class ProcessingStatus(Enum):
+    """Enumeration of processing statuses"""
+    SUCCESS = "success"
+    PARTIAL = "partial"
+    ERROR = "error"
+
 
 from src.core.logic.error_handler import ErrorHandler
 from src.core.logic.result_builder import ResultBuilder
@@ -43,8 +50,8 @@ class ProcessingResult:
     success: bool
     context: ProcessingContext
     # New field to distinguish full success, partial success, and error
-    # Defaults to "success" for backward compatibility when directly instantiated in tests
-    status: str = field(default="success")
+    # Defaults to SUCCESS; serialization will expose a string for compatibility
+    status: ProcessingStatus = field(default=ProcessingStatus.SUCCESS)
     data: Dict[str, Any] = field(default_factory=dict)
     errors: List[Dict[str, Any]] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
@@ -166,7 +173,7 @@ class ProcessingPipeline(ABC):
         return ProcessingResult(
             success=False,
             context=context,
-            status="error",
+            status=ProcessingStatus.ERROR,
             errors=[error_obj],
             performance_metrics={'processing_time_seconds': processing_time},
             timestamp=datetime.now()
@@ -180,7 +187,7 @@ class ProcessingPipeline(ABC):
         return ProcessingResult(
             success=True,
             context=context,
-            status="success",
+            status=ProcessingStatus.SUCCESS,
             data=data,
             warnings=warnings or [],
             performance_metrics={'processing_time_seconds': processing_time},
@@ -203,7 +210,7 @@ class ProcessingPipeline(ABC):
         return ProcessingResult(
             success=True,  # Partial success is still success
             context=context,
-            status="partial",
+            status=ProcessingStatus.PARTIAL,
             data=combined_data,
             warnings=warnings,
             performance_metrics={'processing_time_seconds': processing_time},
