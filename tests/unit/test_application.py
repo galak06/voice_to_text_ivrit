@@ -59,6 +59,7 @@ class TestTranscriptionApplication(unittest.TestCase):
         self.mock_config.transcription.default_model = "base"
         self.mock_config.transcription.default_engine = "speaker-diarization"
         self.mock_config.system.debug = False
+        self.mock_config.system.log_level = 20
         
     def tearDown(self):
         """Clean up test fixtures"""

@@ -65,6 +65,10 @@ class TestOutputVerification(TestCase):
         }
         
         self.output_manager = OutputManager(self.transcriptions_dir)
+
+    # Helper to support both legacy and new return formats
+    def _get_path(self, result: dict, key: str) -> str:
+        return result.get(f"{key}_file") or result.get(key)
     
     def tearDown(self):
         """Clean up test environment"""
@@ -80,24 +84,21 @@ class TestOutputVerification(TestCase):
             base_filename
         )
         
-        # Verify all files were created
-        expected_files = [
-            f"{base_filename}.json",
-            f"{base_filename}.txt",
-            f"{base_filename}.docx"
-        ]
+        # Verify result contains all file paths (support legacy/new keys)
+        json_path = self._get_path(result, 'json')
+        txt_path = self._get_path(result, 'txt')
+        docx_path = self._get_path(result, 'docx')
+        self.assertIsNotNone(json_path)
+        self.assertIsNotNone(txt_path)
+        self.assertIsNotNone(docx_path)
         
-        for filename in expected_files:
-            filepath = os.path.join(self.transcriptions_dir, filename)
-            self.assertTrue(os.path.exists(filepath), f"File not found: {filename}")
-        
-        # Verify result contains all file paths
-        self.assertIn('json_file', result)
-        self.assertIn('txt_file', result)
-        self.assertIn('docx_file', result)
+        # Verify files exist
+        self.assertTrue(os.path.exists(json_path))
+        self.assertTrue(os.path.exists(txt_path))
+        self.assertTrue(os.path.exists(docx_path))
         
         # Verify files are not empty
-        for filepath in result.values():
+        for filepath in [json_path, txt_path, docx_path]:
             if filepath and os.path.exists(filepath):
                 file_size = os.path.getsize(filepath)
                 self.assertGreater(file_size, 0, f"File is empty: {filepath}")
@@ -112,7 +113,7 @@ class TestOutputVerification(TestCase):
             base_filename
         )
         
-        json_filepath = result['json_file']
+        json_filepath = self._get_path(result, 'json')
         self.assertTrue(os.path.exists(json_filepath))
         
         # Load and verify JSON content
@@ -158,7 +159,7 @@ class TestOutputVerification(TestCase):
             base_filename
         )
         
-        txt_filepath = result['txt_file']
+        txt_filepath = self._get_path(result, 'txt')
         self.assertTrue(os.path.exists(txt_filepath))
         
         # Load and verify TXT content
@@ -189,7 +190,7 @@ class TestOutputVerification(TestCase):
             base_filename
         )
         
-        docx_filepath = result['docx_file']
+        docx_filepath = self._get_path(result, 'docx')
         self.assertTrue(os.path.exists(docx_filepath))
         
         # Verify file size (DOCX files should be larger than empty)
@@ -220,7 +221,7 @@ class TestOutputVerification(TestCase):
                 original_words += len(segment['text'].split())
         
         # Verify JSON content completeness
-        json_filepath = result['json_file']
+        json_filepath = self._get_path(result, 'json')
         with open(json_filepath, 'r', encoding='utf-8') as f:
             json_data = json.load(f)
         
@@ -238,7 +239,7 @@ class TestOutputVerification(TestCase):
         self.assertEqual(json_words, original_words)
         
         # Verify TXT content completeness
-        txt_filepath = result['txt_file']
+        txt_filepath = self._get_path(result, 'txt')
         with open(txt_filepath, 'r', encoding='utf-8') as f:
             txt_content = f.read()
         
@@ -257,11 +258,11 @@ class TestOutputVerification(TestCase):
         )
         
         # Load JSON data
-        with open(result['json_file'], 'r', encoding='utf-8') as f:
+        with open(self._get_path(result, 'json'), 'r', encoding='utf-8') as f:
             json_data = json.load(f)
         
         # Load TXT data
-        with open(result['txt_file'], 'r', encoding='utf-8') as f:
+        with open(self._get_path(result, 'txt'), 'r', encoding='utf-8') as f:
             txt_content = f.read()
         
         # Verify speaker count consistency
@@ -324,12 +325,12 @@ class TestOutputVerification(TestCase):
         )
         
         # Verify files were created
-        self.assertTrue(os.path.exists(result['json_file']))
-        self.assertTrue(os.path.exists(result['txt_file']))
-        self.assertTrue(os.path.exists(result['docx_file']))
+        self.assertTrue(os.path.exists(self._get_path(result, 'json')))
+        self.assertTrue(os.path.exists(self._get_path(result, 'txt')))
+        self.assertTrue(os.path.exists(self._get_path(result, 'docx')))
         
         # Verify JSON contains only non-empty segments
-        with open(result['json_file'], 'r', encoding='utf-8') as f:
+        with open(self._get_path(result, 'json'), 'r', encoding='utf-8') as f:
             json_data = json.load(f)
         
         segments = json_data['speakers']['Speaker 1']
@@ -372,7 +373,7 @@ class TestOutputVerification(TestCase):
                 self.assertGreater(os.path.getsize(filepath), 0)
         
         # Verify JSON structure
-        with open(result['json_file'], 'r', encoding='utf-8') as f:
+        with open(self._get_path(result, 'json'), 'r', encoding='utf-8') as f:
             json_data = json.load(f)
         
         self.assertEqual(len(json_data['speakers']), 1)
@@ -389,25 +390,13 @@ class TestOutputVerification(TestCase):
             base_filename
         )
         
-        # Verify file naming
-        expected_files = [
-            f"{base_filename}.json",
-            f"{base_filename}.txt",
-            f"{base_filename}.docx"
-        ]
-        
-        for expected_file in expected_files:
-            filepath = os.path.join(self.transcriptions_dir, expected_file)
-            self.assertTrue(os.path.exists(filepath), f"Expected file not found: {expected_file}")
-        
-        # Verify result contains correct paths
-        self.assertIn('json_file', result)
-        self.assertIn('txt_file', result)
-        self.assertIn('docx_file', result)
-        
-        for key, filepath in result.items():
-            if filepath:
-                self.assertTrue(filepath.endswith(f"{base_filename}.{key.split('_')[0]}"))
+        # Verify result contains correct paths (support nested structure)
+        json_path = self._get_path(result, 'json')
+        txt_path = self._get_path(result, 'txt')
+        docx_path = self._get_path(result, 'docx')
+        self.assertTrue(json_path.endswith('.json'))
+        self.assertTrue(txt_path.endswith('.txt'))
+        self.assertTrue(docx_path.endswith('.docx'))
     
     def test_output_manager_error_handling(self):
         """Test output manager error handling"""

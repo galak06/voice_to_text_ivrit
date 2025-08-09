@@ -1,0 +1,86 @@
+{
+  "name": "stable_whisper_config",
+  "description": "Configuration for stable-whisper engine with standard Whisper models",
+  "transcription": {
+    "engine": "stable-whisper",
+    "default_model": "large-v3",
+    "fallback_model": "medium",
+    "language": "he",
+    "beam_size": 5,
+    "word_timestamps": true,
+    "vad_enabled": true,
+    "vad_min_silence_duration_ms": 500,
+    "available_models": [
+      "tiny.en",
+      "tiny",
+      "base.en", 
+      "base",
+      "small.en",
+      "small",
+      "medium.en",
+      "medium",
+      "large-v1",
+      "large-v2",
+      "large-v3",
+      "large",
+      "large-v3-turbo",
+      "turbo"
+    ],
+    "model_descriptions": {
+      "tiny.en": "Fastest, English only, lowest accuracy",
+      "tiny": "Fastest, multilingual, lowest accuracy",
+      "base.en": "Fast, English only, low accuracy",
+      "base": "Fast, multilingual, low accuracy",
+      "small.en": "Medium speed, English only, medium accuracy",
+      "small": "Medium speed, multilingual, medium accuracy",
+      "medium.en": "Slower, English only, good accuracy",
+      "medium": "Slower, multilingual, good accuracy",
+      "large-v1": "Slow, multilingual, high accuracy",
+      "large-v2": "Slow, multilingual, high accuracy",
+      "large-v3": "Slow, multilingual, highest accuracy",
+      "large": "Slow, multilingual, highest accuracy",
+      "large-v3-turbo": "Fast, multilingual, high accuracy",
+      "turbo": "Fastest large model, multilingual, high accuracy"
+    },
+    "performance_settings": {
+      "fast": {
+        "model": "medium",
+        "beam_size": 3,
+        "description": "Fast processing with good accuracy"
+      },
+      "balanced": {
+        "model": "large-v3",
+        "beam_size": 5,
+        "description": "Balanced speed and accuracy"
+      },
+      "accurate": {
+        "model": "large-v3",
+        "beam_size": 10,
+        "description": "Highest accuracy, slower processing"
+      }
+    }
+  },
+  "speaker": {
+    "min_speakers": 2,
+    "max_speakers": 2,
+    "silence_threshold": 1.5,
+    "vad_enabled": true,
+    "word_timestamps": true,
+    "language": "he",
+    "beam_size": 5,
+    "vad_min_silence_duration_ms": 300
+  },
+  "output": {
+    "formats": ["json", "txt", "docx"],
+    "include_metadata": true,
+    "include_word_timestamps": true,
+    "output_directory": "output/transcriptions/stable_whisper"
+  },
+  "processing": {
+    "batch_size": 1,
+    "max_audio_duration": 3600,
+    "supported_formats": ["wav", "mp3", "m4a", "flac", "ogg"],
+    "chunk_duration": 120,
+    "memory_optimization": true
+  }
+}

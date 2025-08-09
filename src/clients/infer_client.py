@@ -4,18 +4,13 @@ import os
 import requests
 import time
 
-# Optional import for RunPod
-try:
-    import runpod
-    RUNPOD_AVAILABLE = True
-except ImportError:
-    runpod = None
-    RUNPOD_AVAILABLE = False
+# Import centralized dependency management
+from src.utils.dependency_manager import dependency_manager
 
 from src.models import AppConfig
 
 def transcribe(model, payload_type, path_or_url, config: AppConfig = None):  
-    if not RUNPOD_AVAILABLE:
+    if not dependency_manager.is_available('runpod'):
         raise ImportError("RunPod module not available. Please install it with: pip install runpod")
     
     if not payload_type in ["blob", "url"]:
@@ -28,7 +23,9 @@ def transcribe(model, payload_type, path_or_url, config: AppConfig = None):
         runpod_max_payload_len = config.runpod.max_payload_size
     else:
         # Default values if no config provided
-        in_queue_timeout = 300
+        # Get constants from configuration
+        constants = self.config.system.constants if self.config.system else None
+        in_queue_timeout = constants.queue_wait_timeout if constants else 300
         max_stream_timeouts = 5
         runpod_max_payload_len = 200 * 1024 * 1024  # 200MB
 
@@ -50,6 +47,7 @@ def transcribe(model, payload_type, path_or_url, config: AppConfig = None):
         return {"error": f"Payload length is {len(str(payload))}, exceeding max payload length of {runpod_max_payload_len}."}
 
     # Configure runpod endpoint, and execute
+    runpod = dependency_manager.get_module('runpod')
     runpod.api_key = os.environ["RUNPOD_API_KEY"]
     ep = runpod.Endpoint(os.environ["RUNPOD_ENDPOINT_ID"])
     run_request = ep.run(payload)

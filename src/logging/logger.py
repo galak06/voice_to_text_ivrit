@@ -6,28 +6,34 @@ Centralized logging configuration for the entire application
 
 import logging
 import sys
+import threading
 from typing import Optional
 from pathlib import Path
 
 
 class Logger:
-    """Global logging manager for the entire application (Singleton)"""
+    """Global logging manager for the entire application (Thread-Safe Singleton)"""
     
     _instance = None
+    _lock = threading.Lock()
     _initialized = False
     _loggers = {}
     
     def __new__(cls):
-        """Ensure only one instance of Logger exists (Singleton pattern)"""
+        """Ensure only one instance of Logger exists (Thread-Safe Singleton pattern)"""
         if cls._instance is None:
-            cls._instance = super(Logger, cls).__new__(cls)
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super(Logger, cls).__new__(cls)
         return cls._instance
     
     def __init__(self):
         """Initialize the singleton instance only once"""
         if not self._initialized:
-            self._initialized = True
-            self._loggers = {}
+            with self._lock:
+                if not self._initialized:
+                    self._initialized = True
+                    self._loggers = {}
     
     @classmethod
     def get_instance(cls) -> 'Logger':

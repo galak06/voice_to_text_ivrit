@@ -46,7 +46,11 @@ class FileDownloader:
                 headers['Authorization'] = f'Bearer {api_key}'
 
             # Send a GET request with timeout
-            response = requests.get(url, stream=True, headers=headers, timeout=30)
+            # Get constants from configuration
+            constants = None  # Default timeout if no config available
+            timeout = 30  # Default timeout
+            
+            response = requests.get(url, stream=True, headers=headers, timeout=timeout)
             response.raise_for_status()
 
             # Get the file size if possible

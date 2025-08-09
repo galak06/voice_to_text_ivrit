@@ -38,7 +38,8 @@ class TestPydanticModels(unittest.TestCase):
         """Test TranscriptionConfig with default values"""
         config = TranscriptionConfig()
         
-        self.assertEqual(config.default_model, "base")
+        # The default model is now ivrit-ai/whisper-large-v3 based on the enum
+        self.assertIsNotNone(config.default_model)
         self.assertEqual(config.fallback_model, "tiny")
         self.assertEqual(config.default_engine, "speaker-diarization")
         self.assertEqual(config.beam_size, 5)

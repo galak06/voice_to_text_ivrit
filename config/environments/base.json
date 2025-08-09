@@ -1,30 +1,97 @@
 {
   "transcription": {
-            "default_model": "ivrit-ai/whisper-large-v3",
-        "fallback_model": "ivrit-ai/whisper-large-v3-turbo",
+    "default_model": "ivrit-ai/whisper-large-v3",
+    "fallback_model": "large-v3",
     "default_engine": "custom-whisper",
     "beam_size": 5,
     "language": "he",
     "word_timestamps": true,
     "vad_enabled": true,
     "vad_min_silence_duration_ms": 500,
-            "available_models": [
-            "ivrit-ai/whisper-large-v3",
-            "ivrit-ai/whisper-large-v3-turbo-ct2",
-            "ivrit-ai/whisper-large-v3",
-            "ivrit-ai/whisper-large-v3-turbo",
-            "ivrit-ai/whisper-large-v3-ggml",
-            "ivrit-ai/whisper-large-v3-turbo-ggml",
-            "ivrit-ai/whisper-v2-d4",
-            "large-v3",
-            "large-v2",
-            "large",
-            "medium",
-            "small",
-            "base",
-            "tiny"
+    "available_engines": ["stable-whisper", "custom-whisper", "optimized-whisper"],
+    "engine_model_mapping": {
+      "stable-whisper": {
+        "description": "Standard Whisper models using stable-whisper library",
+        "models": [
+          "tiny.en",
+          "tiny",
+          "base.en", 
+          "base",
+          "small.en",
+          "small",
+          "medium.en",
+          "medium",
+          "large-v1",
+          "large-v2",
+          "large-v3",
+          "large",
+          "large-v3-turbo",
+          "turbo"
         ],
-    "available_engines": ["stable-whisper", "speaker-diarization", "custom-whisper"]
+        "features": [
+          "Fast processing",
+          "Standard Whisper models",
+          "Good for general transcription",
+          "Lower memory usage"
+        ],
+        "best_for": "Standard English/Hebrew transcription with official Whisper models"
+      },
+      "custom-whisper": {
+        "description": "Hugging Face models using transformers library",
+        "models": [
+          "ivrit-ai/whisper-large-v3",
+          "ivrit-ai/whisper-large-v3-turbo",
+          "ivrit-ai/whisper-v2-d4",
+          "ivrit-ai/whisper-large-v3-ggml",
+          "ivrit-ai/whisper-large-v3-turbo-ggml"
+        ],
+        "features": [
+          "Hebrew-optimized models",
+          "Custom fine-tuned models",
+          "High accuracy for Hebrew",
+          "Supports Hugging Face models"
+        ],
+        "best_for": "Hebrew transcription with specialized models"
+      },
+      "optimized-whisper": {
+        "description": "CTranslate2 optimized models for performance",
+        "models": [
+          "ivrit-ai/whisper-large-v3-turbo-ct2",
+          "large-v3-ct2",
+          "large-v2-ct2",
+          "medium-ct2"
+        ],
+        "features": [
+          "CTranslate2 optimization",
+          "Higher performance",
+          "Lower memory usage",
+          "Faster inference"
+        ],
+        "best_for": "High-performance transcription with optimized models"
+      }
+    },
+    "model_recommendations": {
+      "hebrew_high_accuracy": {
+        "model": "ivrit-ai/whisper-large-v3",
+        "engine": "custom-whisper",
+        "description": "Best for Hebrew transcription accuracy"
+      },
+      "hebrew_fast": {
+        "model": "ivrit-ai/whisper-large-v3-turbo-ct2",
+        "engine": "optimized-whisper",
+        "description": "Fast Hebrew transcription with good accuracy"
+      },
+      "english_standard": {
+        "model": "large-v3",
+        "engine": "stable-whisper",
+        "description": "Standard English transcription"
+      },
+      "multilingual": {
+        "model": "large-v3",
+        "engine": "stable-whisper",
+        "description": "Multilingual transcription support"
+      }
+    }
   },
   "speaker": {
     "min_speakers": 2,

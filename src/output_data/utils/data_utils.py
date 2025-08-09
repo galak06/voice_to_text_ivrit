@@ -10,8 +10,8 @@ import json
 import ast
 from abc import ABC, abstractmethod
 
-# Import interfaces from the new interfaces package
-from .interfaces import (
+# Import interfaces from the unified interfaces package
+from src.core.interfaces import (
     TranscriptionDataValidatorInterface,
     TranscriptionDataConverterInterface,
     SpeakersDataExtractorInterface,
@@ -292,6 +292,14 @@ class MetadataExtractorImpl:
             return data.get('model_name', data.get('model', 'unknown'))
         
         return 'unknown'
+
+    def get_engine_name(self, data: Any) -> str:
+        """Extract engine name from transcription data"""
+        if BaseDataValidator.is_transcription_result(data):
+            return getattr(data, 'engine', 'unknown')
+        if isinstance(data, dict):
+            return data.get('engine', 'unknown')
+        return 'unknown'
     
     def get_audio_file(self, data: Any) -> str:
         """Extract audio file path from transcription data"""
@@ -344,6 +352,10 @@ class DataUtils:
     def get_audio_file(self, data: Any) -> str:
         """Extract audio file path from transcription data"""
         return self.metadata_extractor.get_audio_file(data)
+
+    def get_engine_name(self, data: Any) -> str:
+        """Extract engine name from transcription data"""
+        return self.metadata_extractor.get_engine_name(data)
 
 
  

@@ -11,11 +11,12 @@ from pathlib import Path
 from unittest import TestCase, mock
 from datetime import datetime, timedelta
 
-# Import the cleaner (assuming it's in the root directory)
+# Import the cleaner from scripts directory
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
-from clean_output import OutputCleaner
+from scripts.clean_output import OutputCleaner
 
 
 class TestOutputCleaner(TestCase):

@@ -2,36 +2,44 @@
 Audio file validation implementations
 """
 
-from pathlib import Path
 from typing import Dict, Any
 from src.models import AppConfig
+from src.core.factories.file_validator_factory import FileValidatorFactory
 
 
 class DefaultAudioFileValidator:
-    """Default implementation of audio file validator"""
+    """
+    Default implementation of audio file validator using the unified FileValidator.
+    
+    This class now follows the Composition over Inheritance principle by using
+    the FileValidator as a component rather than duplicating validation logic.
+    """
     
     def __init__(self, config: AppConfig):
         self.config = config
+        # Use the factory to create an audio-specific validator
+        self._validator = FileValidatorFactory.create_audio_validator(config)
     
     def validate(self, file_path: str) -> Dict[str, Any]:
-        """Validate audio file and return file information"""
-        path = Path(file_path)
+        """
+        Validate audio file and return file information
         
-        if not path.exists():
-            raise FileNotFoundError(f"Audio file not found: {file_path}")
+        Args:
+            file_path: Path to the audio file
+            
+        Returns:
+            Dictionary containing validation results and file information
+        """
+        # Use the unified validator for audio-specific validation
+        result = self._validator.validate_audio_file(file_path)
         
-        file_size = path.stat().st_size
-        
-        if self.config.runpod and self.config.runpod.max_payload_size:
-            max_size = self.config.runpod.max_payload_size
-            if file_size > max_size:
-                raise ValueError(
-                    f"File too large! Max size: {max_size:,} bytes, "
-                    f"actual size: {file_size:,} bytes"
-                )
-        
-        return {
-            'path': str(path),
-            'size': file_size,
-            'size_mb': file_size / 1024 / 1024
-        } 
+        # Maintain backward compatibility with existing return format
+        if result['valid']:
+            return {
+                'path': result['file_path'],
+                'size': result['file_size'],
+                'size_mb': result['file_size_mb']
+            }
+        else:
+            # Raise exception for backward compatibility
+            raise FileNotFoundError(result['error']) if 'not found' in result['error'].lower() else ValueError(result['error']) 

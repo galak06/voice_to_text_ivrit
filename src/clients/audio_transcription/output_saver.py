@@ -3,7 +3,7 @@ Output saver implementations
 """
 
 from typing import Dict, Any, List, Optional
-from .interfaces import OutputSaverInterface
+from src.core.interfaces import OutputSaverInterface
 
 
 class DefaultOutputSaver(OutputSaverInterface):

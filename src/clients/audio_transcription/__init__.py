@@ -3,7 +3,7 @@ Audio transcription client package
 """
 
 from .models import TranscriptionRequest, TranscriptionResult
-from .interfaces import (
+from src.core.interfaces import (
     AudioFileValidatorInterface,
     TranscriptionPayloadBuilderInterface,
     TranscriptionResultCollectorInterface,

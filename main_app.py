@@ -8,6 +8,7 @@ import sys
 import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, Callable
+from functools import wraps
 
 # Add project root to path
 project_root = Path(__file__).parent
@@ -17,6 +18,35 @@ from src.core.application import TranscriptionApplication
 from src.utils.argument_parser import ArgumentParser
 from src.utils.config_manager import ConfigManager
 from src.utils.ui_manager import ApplicationUI
+
+
+def require_component(component_name: str) -> Callable:
+    """
+    Decorator to handle null checks for required components.
+    
+    This follows the Single Responsibility Principle by separating null checking logic
+    from business logic, and the Open/Closed Principle by making error handling extensible.
+    
+    Args:
+        component_name: Name of the component being checked (for error messages)
+    
+    Returns:
+        Decorated function that handles null checks automatically
+    """
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(self, *args, **kwargs) -> int:
+            component = getattr(self, component_name, None)
+            if component is None:
+                if hasattr(self, 'ui') and self.ui:
+                    self.ui.print_error_message(f"{component_name} not available")
+                else:
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"{component_name} not available")
+                return ExitCodes.ERROR
+            return func(self, *args, **kwargs)
+        return wrapper
+    return decorator
 
 
 # Constants for clean code
@@ -149,30 +179,20 @@ class ApplicationOrchestrator:
                 
                 # Handle special commands first
                 if args.help_config:
-                    if self.command_handler:
-                        return self.command_handler.handle_config_info(args.config_file)
-                    return ExitCodes.ERROR
+                    return self._handle_config_info(args.config_file)
                 
                 if not args.command:
-                    if self.command_handler:
-                        return self.command_handler.handle_help()
-                    return ExitCodes.ERROR
+                    return self._handle_help()
                 
                 # Handle main commands
                 if args.command == 'status':
-                    if self.command_handler:
-                        return self.command_handler.handle_status()
-                    return ExitCodes.ERROR
+                    return self._handle_status()
                 
                 elif args.command == 'single':
-                    if self.command_handler:
-                        return self.command_handler.handle_single_file(args)
-                    return ExitCodes.ERROR
+                    return self._handle_single_file(args)
                 
                 elif args.command == 'batch':
-                    if self.command_handler:
-                        return self.command_handler.handle_batch(args)
-                    return ExitCodes.ERROR
+                    return self._handle_batch(args)
                 
                 # If we get here, command was not recognized
                 if self.ui:
@@ -183,6 +203,31 @@ class ApplicationOrchestrator:
             return self._handle_interrupt()
         except Exception as e:
             return self._handle_error(e, args.verbose)
+    
+    @require_component('command_handler')
+    def _handle_config_info(self, config_file: Optional[str]) -> int:
+        """Handle config info command with null check"""
+        return self.command_handler.handle_config_info(config_file)  # type: ignore
+    
+    @require_component('command_handler')
+    def _handle_help(self) -> int:
+        """Handle help command with null check"""
+        return self.command_handler.handle_help()  # type: ignore
+    
+    @require_component('command_handler')
+    def _handle_status(self) -> int:
+        """Handle status command with null check"""
+        return self.command_handler.handle_status()  # type: ignore
+    
+    @require_component('command_handler')
+    def _handle_single_file(self, args) -> int:
+        """Handle single file command with null check"""
+        return self.command_handler.handle_single_file(args)  # type: ignore
+    
+    @require_component('command_handler')
+    def _handle_batch(self, args) -> int:
+        """Handle batch command with null check"""
+        return self.command_handler.handle_batch(args)  # type: ignore
     
     def _handle_interrupt(self) -> int:
         """Handle keyboard interrupt with proper UI"""

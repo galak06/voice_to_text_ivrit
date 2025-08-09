@@ -5,7 +5,7 @@ Main entry point for RunPod serverless execution
 """
 
 import runpod
-from src.core.transcription_service import TranscriptionService
+from src.core.orchestrator.transcription_service import TranscriptionService
 
 # Create global transcription service instance
 transcription_service = TranscriptionService()

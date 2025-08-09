@@ -2,15 +2,10 @@
 RunPod endpoint factory implementations
 """
 
-# Optional import for RunPod
-try:
-    import runpod
-    RUNPOD_AVAILABLE = True
-except ImportError:
-    runpod = None
-    RUNPOD_AVAILABLE = False
+# Import centralized dependency management
+from ...utils.dependency_manager import dependency_manager
 
-from .interfaces import RunPodEndpointFactoryInterface, RunPodEndpointInterface
+from src.core.interfaces import RunPodEndpointFactoryInterface, RunPodEndpointInterface
 
 
 class DefaultRunPodEndpointFactory(RunPodEndpointFactoryInterface):
@@ -18,10 +13,8 @@ class DefaultRunPodEndpointFactory(RunPodEndpointFactoryInterface):
     
     def create_endpoint(self, endpoint_id: str) -> RunPodEndpointInterface:
         """Create a RunPod endpoint"""
-        if not RUNPOD_AVAILABLE:
+        if not dependency_manager.is_available('runpod'):
             raise ImportError("RunPod module not available. Please install it with: pip install runpod")
         
-        if runpod is None:
-            raise RuntimeError("RunPod module not properly imported")
-        
+        runpod = dependency_manager.get_module('runpod')
         return runpod.Endpoint(endpoint_id) 
