@@ -34,6 +34,31 @@ class PathUtils:
         return sanitized or "unknown_model"
     
     @staticmethod
+    def sanitize_filename(filename: str) -> str:
+        """Sanitize filename for use in file paths"""
+        if not filename:
+            return "unknown_file"
+        
+        # Remove file extension
+        filename = Path(filename).stem
+        
+        # Replace problematic characters
+        sanitized = filename.replace('/', '_').replace('\\', '_')
+        sanitized = re.sub(r'[<>:"|?*]', '_', sanitized)
+        
+        # Remove multiple underscores
+        sanitized = re.sub(r'_+', '_', sanitized)
+        
+        # Remove leading/trailing underscores
+        sanitized = sanitized.strip('_')
+        
+        # Limit length to avoid path issues
+        if len(sanitized) > 50:
+            sanitized = sanitized[:50]
+        
+        return sanitized or "unknown_file"
+    
+    @staticmethod
     def create_output_directory(base_path: str, model: str, engine: str) -> str:
         """Create output directory for transcription results"""
         model_safe = PathUtils.sanitize_model_name(model)

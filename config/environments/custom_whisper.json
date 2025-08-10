@@ -1,0 +1,116 @@
+{
+  "name": "custom_whisper_config",
+  "description": "Configuration for custom-whisper engine with Hebrew-optimized Hugging Face models",
+  "transcription": {
+    "engine": "custom-whisper",
+    "default_model": "ivrit-ai/whisper-large-v3",
+    "fallback_model": "ivrit-ai/whisper-large-v3-turbo",
+    "language": "he",
+    "beam_size": 5,
+    "word_timestamps": true,
+    "vad_enabled": true,
+    "vad_min_silence_duration_ms": 500,
+    "available_models": [
+      "ivrit-ai/whisper-large-v3",
+      "ivrit-ai/whisper-large-v3-turbo",
+      "ivrit-ai/whisper-v2-d4",
+      "ivrit-ai/whisper-large-v3-ggml",
+      "ivrit-ai/whisper-large-v3-turbo-ggml"
+    ],
+    "model_descriptions": {
+      "ivrit-ai/whisper-large-v3": "Best Hebrew accuracy, slower processing, high memory usage",
+      "ivrit-ai/whisper-large-v3-turbo": "Good Hebrew accuracy, faster processing, moderate memory usage",
+      "ivrit-ai/whisper-v2-d4": "Hebrew-optimized v2 model, balanced performance",
+      "ivrit-ai/whisper-large-v3-ggml": "GGML optimized version, lower memory usage",
+      "ivrit-ai/whisper-large-v3-turbo-ggml": "GGML optimized turbo version, fast and memory efficient"
+    },
+    "performance_settings": {
+      "hebrew_accurate": {
+        "model": "ivrit-ai/whisper-large-v3",
+        "beam_size": 10,
+        "temperature": 0.0,
+        "description": "Highest Hebrew accuracy, slower processing"
+      },
+      "hebrew_balanced": {
+        "model": "ivrit-ai/whisper-large-v3-turbo",
+        "beam_size": 5,
+        "temperature": 0.0,
+        "description": "Good Hebrew accuracy, balanced speed"
+      },
+      "hebrew_fast": {
+        "model": "ivrit-ai/whisper-large-v3-turbo-ggml",
+        "beam_size": 3,
+        "temperature": 0.0,
+        "description": "Fast Hebrew processing, lower memory usage"
+      }
+    },
+    "hebrew_optimization": {
+      "language": "he",
+      "task": "transcribe",
+      "num_beams": 5,
+      "temperature": 0.0,
+      "do_sample": false,
+      "length_penalty": 1.0,
+      "repetition_penalty": 1.2,
+      "no_speech_threshold": 0.6,
+      "logprob_threshold": -1.0,
+      "compression_ratio_threshold": 2.4,
+      "condition_on_previous_text": true,
+      "prompt_reset_on_timestamp": true,
+      "return_timestamps": true,
+      "return_segments": true,
+      "return_language": true,
+      "suppress_tokens": [-1],
+      "suppress_blank": true,
+      "without_timestamps": false,
+      "max_initial_timestamp": 1.0,
+      "max_new_tokens": 400
+    }
+  },
+  "speaker": {
+    "min_speakers": 2,
+    "max_speakers": 4,
+    "silence_threshold": 1.5,
+    "vad_enabled": true,
+    "word_timestamps": true,
+    "language": "he",
+    "beam_size": 5,
+    "vad_min_silence_duration_ms": 300,
+    "presets": {
+      "conversation": {
+        "min_speakers": 2,
+        "max_speakers": 4,
+        "silence_threshold": 1.0
+      },
+      "interview": {
+        "min_speakers": 2,
+        "max_speakers": 3,
+        "silence_threshold": 2.5
+      }
+    }
+  },
+  "output": {
+    "formats": ["json", "txt", "docx"],
+    "include_metadata": true,
+    "include_word_timestamps": true,
+    "output_directory": "output/transcriptions/custom_whisper",
+    "hebrew_rtl": true,
+    "include_confidence_scores": true
+  },
+  "processing": {
+    "batch_size": 1,
+    "max_audio_duration": 3600,
+    "supported_formats": ["wav", "mp3", "m4a", "flac", "ogg"],
+    "chunk_duration": 120,
+    "memory_optimization": true,
+    "model_caching": true,
+    "retry_mechanism": true,
+    "max_retries": 3
+  },
+  "memory_management": {
+    "cleanup_frequency": 5,
+    "gpu_cache_clearing": true,
+    "cpu_memory_optimization": true,
+    "model_unloading": true
+  }
+}

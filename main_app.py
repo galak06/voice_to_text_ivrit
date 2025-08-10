@@ -1,26 +1,63 @@
 #!/usr/bin/env python3
 """
 Main Application Entry Point
-Uses the new software architecture with proper dependency injection
-All functionality is controlled through configuration files
+Voice-to-Text Transcription Application
 """
 
 import sys
-import argparse
 import logging
 from pathlib import Path
-from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any, Callable
+from functools import wraps
 
 # Add project root to path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from src.core.application import TranscriptionApplication
+from src.utils.argument_parser import ArgumentParser
+from src.utils.config_manager import ConfigManager
 from src.utils.ui_manager import ApplicationUI
 
 
-def setup_logging(verbose: bool = False):
+def require_component(component_name: str) -> Callable:
+    """
+    Decorator to handle null checks for required components.
+    
+    This follows the Single Responsibility Principle by separating null checking logic
+    from business logic, and the Open/Closed Principle by making error handling extensible.
+    
+    Args:
+        component_name: Name of the component being checked (for error messages)
+    
+    Returns:
+        Decorated function that handles null checks automatically
+    """
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(self, *args, **kwargs) -> int:
+            component = getattr(self, component_name, None)
+            if component is None:
+                if hasattr(self, 'ui') and self.ui:
+                    self.ui.print_error_message(f"{component_name} not available")
+                else:
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"{component_name} not available")
+                return ExitCodes.ERROR
+            return func(self, *args, **kwargs)
+        return wrapper
+    return decorator
+
+
+# Constants for clean code
+class ExitCodes:
+    """Exit codes for the application"""
+    SUCCESS = 0
+    ERROR = 1
+    INTERRUPT = 130
+
+
+def setup_logging(verbose: bool = False) -> None:
     """Setup application logging"""
     log_level = logging.DEBUG if verbose else logging.INFO
     
@@ -34,133 +71,201 @@ def setup_logging(verbose: bool = False):
     )
 
 
-def main():
-    """Main application entry point"""
-    parser = argparse.ArgumentParser(
-        description="Voice-to-Text Transcription Application",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python main_app.py single examples/audio/voice/rachel_1.wav --model base
-  python main_app.py batch --model base --engine faster-whisper
-  python main_app.py batch --config-file config/environments/voice_task.json
-  python main_app.py batch --config-file config/environments/docker_batch.json
-  python main_app.py status
-  python main_app.py --help
-        """
-    )
+class CommandHandler:
+    """Handles different application commands following Single Responsibility Principle"""
     
-    # Global options
-    parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output')
-    parser.add_argument('--config-file', help='Configuration file path')
-    parser.add_argument('--help-config', action='store_true', help='Show configuration information')
+    def __init__(self, app: TranscriptionApplication, ui: ApplicationUI):
+        self.app = app
+        self.ui = ui
     
-    # Subcommands
-    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    def handle_status(self) -> int:
+        """Handle status command"""
+        self.ui.print_status(self.app)
+        return ExitCodes.SUCCESS
     
-    # Single file processing
-    single_parser = subparsers.add_parser('single', help='Process a single audio file')
-    single_parser.add_argument('file', help='Audio file to process')
-    single_parser.add_argument('--model', help='Model to use for transcription')
-    single_parser.add_argument('--engine', help='Engine to use for transcription')
-    single_parser.add_argument('--speaker-preset', choices=['default', 'conversation', 'interview'], 
-                              help='Speaker diarization preset')
+    def handle_help(self) -> int:
+        """Handle help command"""
+        self.ui.print_help()
+        return ExitCodes.SUCCESS
     
-    # Batch processing
-    batch_parser = subparsers.add_parser('batch', help='Process multiple audio files')
-    batch_parser.add_argument('--model', help='Model to use for transcription')
-    batch_parser.add_argument('--engine', help='Engine to use for transcription')
-    batch_parser.add_argument('--input-dir', help='Input directory (overrides config)')
-    batch_parser.add_argument('--speaker-preset', choices=['default', 'conversation', 'interview'], 
-                             help='Speaker diarization preset')
+    def handle_config_info(self, config_file: Optional[str]) -> int:
+        """Handle config info command"""
+        self.ui.print_config_info(config_file)
+        return ExitCodes.SUCCESS
     
-    # Status
-    status_parser = subparsers.add_parser('status', help='Show application status')
+    def handle_single_file(self, args) -> int:
+        """Handle single file processing command"""
+        # Print processing information
+        self.ui.print_processing_info(
+            "single",
+            file=args.file,
+            model=args.model,
+            engine=args.engine,
+            speaker_preset=args.speaker_preset
+        )
+        
+        # Process single file
+        result = self.app.process_single_file(
+            args.file,
+            model=args.model,
+            engine=args.engine,
+            speaker_preset=args.speaker_preset
+        )
+        
+        # Print results
+        self.ui.print_processing_result(result, "single")
+        
+        return ExitCodes.SUCCESS if result['success'] else ExitCodes.ERROR
     
-    args = parser.parse_args()
+    def handle_batch(self, args) -> int:
+        """Handle batch processing command"""
+        # Print processing information
+        self.ui.print_processing_info(
+            "batch",
+            model=args.model,
+            engine=args.engine,
+            input_dir=args.input_dir,
+            speaker_preset=args.speaker_preset
+        )
+        
+        # Process batch
+        result = self.app.process_batch(
+            input_directory=args.input_dir,
+            model=args.model,
+            engine=args.engine,
+            speaker_preset=args.speaker_preset
+        )
+        
+        # Print results
+        self.ui.print_processing_result(result, "batch")
+        
+        return ExitCodes.SUCCESS if result['success'] else ExitCodes.ERROR
+
+
+class ApplicationOrchestrator:
+    """Orchestrates the application lifecycle following Single Responsibility Principle"""
+    
+    def __init__(self):
+        self.config_manager: Optional[ConfigManager] = None
+        self.app: Optional[TranscriptionApplication] = None
+        self.ui: Optional[ApplicationUI] = None
+        self.command_handler: Optional[CommandHandler] = None
+    
+    def initialize(self, config_file: Optional[str] = None) -> None:
+        """Initialize application components with dependency injection"""
+        # Initialize configuration manager
+        if config_file:
+            # Extract directory from config file path
+            config_dir = str(Path(config_file).parent)
+            self.config_manager = ConfigManager(config_dir)
+        else:
+            self.config_manager = ConfigManager()
+        
+        # Initialize application with dependency injection
+        self.app = TranscriptionApplication(config_manager=self.config_manager)
+        self.ui = self.app.ui_manager
+        self.command_handler = CommandHandler(self.app, self.ui)
+    
+    def run(self, args) -> int:
+        """Run the application with proper error handling"""
+        try:
+            if self.app is None:
+                raise RuntimeError("Application not initialized")
+            
+            with self.app:
+                # Print banner
+                if self.ui:
+                    self.ui.print_banner()
+                
+                # Handle special commands first
+                if args.help_config:
+                    return self._handle_config_info(args.config_file)
+                
+                if not args.command:
+                    return self._handle_help()
+                
+                # Handle main commands
+                if args.command == 'status':
+                    return self._handle_status()
+                
+                elif args.command == 'single':
+                    return self._handle_single_file(args)
+                
+                elif args.command == 'batch':
+                    return self._handle_batch(args)
+                
+                # If we get here, command was not recognized
+                if self.ui:
+                    self.ui.print_error_message(f"Unknown command: {args.command}")
+                return ExitCodes.ERROR
+            
+        except KeyboardInterrupt:
+            return self._handle_interrupt()
+        except Exception as e:
+            return self._handle_error(e, args.verbose)
+    
+    @require_component('command_handler')
+    def _handle_config_info(self, config_file: Optional[str]) -> int:
+        """Handle config info command with null check"""
+        return self.command_handler.handle_config_info(config_file)  # type: ignore
+    
+    @require_component('command_handler')
+    def _handle_help(self) -> int:
+        """Handle help command with null check"""
+        return self.command_handler.handle_help()  # type: ignore
+    
+    @require_component('command_handler')
+    def _handle_status(self) -> int:
+        """Handle status command with null check"""
+        return self.command_handler.handle_status()  # type: ignore
+    
+    @require_component('command_handler')
+    def _handle_single_file(self, args) -> int:
+        """Handle single file command with null check"""
+        return self.command_handler.handle_single_file(args)  # type: ignore
+    
+    @require_component('command_handler')
+    def _handle_batch(self, args) -> int:
+        """Handle batch command with null check"""
+        return self.command_handler.handle_batch(args)  # type: ignore
+    
+    def _handle_interrupt(self) -> int:
+        """Handle keyboard interrupt with proper UI"""
+        logger = logging.getLogger(__name__)
+        if self.ui:
+            self.ui.print_interrupt_message()
+        else:
+            # Fallback if UI not available
+            logger.warning("Application interrupted by user")
+        return ExitCodes.INTERRUPT
+    
+    def _handle_error(self, error: Exception, verbose: bool) -> int:
+        """Handle application errors with proper UI"""
+        logger = logging.getLogger(__name__)
+        if self.ui:
+            self.ui.print_error_message(str(error), verbose)
+        else:
+            # Fallback if UI not available
+            logger.error(f"Application Error: {error}")
+            if verbose:
+                import traceback
+                logger.debug(f"Traceback: {traceback.format_exc()}")
+        return ExitCodes.ERROR
+
+
+def main() -> int:
+    """Main application entry point - now follows Single Responsibility Principle"""
+    # Parse command-line arguments
+    args = ArgumentParser.parse_args()
     
     # Setup logging
     setup_logging(args.verbose)
     
-    # Print banner
-    ApplicationUI.print_banner()
+    # Create and run application orchestrator
+    orchestrator = ApplicationOrchestrator()
+    orchestrator.initialize(args.config_file)
     
-    # Handle help-config
-    if args.help_config:
-        ApplicationUI.print_config_info(args.config_file)
-        return
-    
-    # Handle no command
-    if not args.command:
-        ApplicationUI.print_help()
-        return
-    
-    try:
-        # Initialize application with configuration
-        config_file: Optional[str] = args.config_file if args.config_file else None
-        with TranscriptionApplication(config_file) as app:
-            
-            if args.command == 'status':
-                ApplicationUI.print_status(app)
-                return
-            
-            elif args.command == 'single':
-                # Print processing information
-                ApplicationUI.print_processing_info(
-                    "single",
-                    file=args.file,
-                    model=args.model,
-                    engine=args.engine,
-                    speaker_preset=args.speaker_preset
-                )
-                
-                # Process single file
-                result = app.process_single_file(
-                    args.file,
-                    model=args.model,
-                    engine=args.engine,
-                    speaker_preset=args.speaker_preset
-                )
-                
-                # Print results
-                ApplicationUI.print_processing_result(result, "single")
-                
-                if not result['success']:
-                    return 1
-            
-            elif args.command == 'batch':
-                # Print processing information
-                ApplicationUI.print_processing_info(
-                    "batch",
-                    model=args.model,
-                    engine=args.engine,
-                    input_dir=args.input_dir,
-                    speaker_preset=args.speaker_preset
-                )
-                
-                # Process batch
-                result = app.process_batch(
-                    input_directory=args.input_dir,
-                    model=args.model,
-                    engine=args.engine,
-                    speaker_preset=args.speaker_preset
-                )
-                
-                # Print results
-                ApplicationUI.print_processing_result(result, "batch")
-                
-                if not result['success']:
-                    return 1
-        
-        ApplicationUI.print_success_message()
-        return 0
-        
-    except KeyboardInterrupt:
-        ApplicationUI.print_interrupt_message()
-        return 130
-    except Exception as e:
-        ApplicationUI.print_error_message(str(e), args.verbose)
-        return 1
+    return orchestrator.run(args)
 
 
 if __name__ == "__main__":

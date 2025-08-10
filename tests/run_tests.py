@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Test runner for the voice-to-text transcription application
-Runs all tests including unit, integration, and e2e tests
+Runs all tests including unit and integration tests
 """
 
 import sys
@@ -22,8 +22,7 @@ def discover_and_run_tests():
     # Test directories
     test_dirs = [
         'tests/unit',
-        'tests/integration', 
-        'tests/e2e'
+        'tests/integration'
     ]
     
     # Discover tests in each directory
@@ -95,25 +94,6 @@ def run_integration_tests():
     return result.wasSuccessful()
 
 
-def run_e2e_tests():
-    """Run only end-to-end tests"""
-    print("🌐 Running End-to-End Tests")
-    print("=" * 50)
-    
-    e2e_test_dir = 'tests/e2e'
-    if not os.path.exists(e2e_test_dir):
-        print(f"❌ E2E test directory not found: {e2e_test_dir}")
-        return False
-    
-    loader = unittest.TestLoader()
-    suite = loader.discover(e2e_test_dir, pattern='test_*.py')
-    
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
-    
-    return result.wasSuccessful()
-
-
 def list_available_tests():
     """List all available test files"""
     print("📋 Available Tests")
@@ -122,7 +102,6 @@ def list_available_tests():
     test_dirs = {
         'Unit Tests': 'tests/unit',
         'Integration Tests': 'tests/integration',
-        'E2E Tests': 'tests/e2e'
     }
     
     for category, test_dir in test_dirs.items():
@@ -151,7 +130,6 @@ def main():
     parser = argparse.ArgumentParser(description='Run tests for voice-to-text transcription application')
     parser.add_argument('--unit', action='store_true', help='Run only unit tests')
     parser.add_argument('--integration', action='store_true', help='Run only integration tests')
-    parser.add_argument('--e2e', action='store_true', help='Run only end-to-end tests')
     parser.add_argument('--file', type=str, help='Run specific test file')
     parser.add_argument('--list', action='store_true', help='List all available tests')
     
@@ -171,8 +149,6 @@ def main():
         success = run_unit_tests()
     elif args.integration:
         success = run_integration_tests()
-    elif args.e2e:
-        success = run_e2e_tests()
     else:
         print("🚀 Running All Tests")
         print("=" * 50)

@@ -1,16 +1,14 @@
-name: ivrit-ai-runpod-macos
+name: voice-to-text-macos
 channels:
-  - pytorch
   - conda-forge
   - defaults
 dependencies:
   - python=3.11
-  - pytorch
-  - torchvision
-  - torchaudio
   - pip
-  - requests
   - pip:
     - runpod
-    - faster-whisper==1.1.1
-    - stable-ts==2.18.3 
+    - stable-ts==2.18.3
+    - requests
+    - torch>=2.4.1
+    - torchvision
+    - torchaudio 

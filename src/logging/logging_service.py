@@ -7,14 +7,36 @@ Handles application-specific logging utilities and events
 import logging
 from typing import Optional
 from .logger import Logger
+from src.utils.config_manager import ConfigManager
 
 
 class LoggingService:
     """Service for application-specific logging utilities"""
     
-    def __init__(self):
-        """Initialize logging service with singleton logger"""
+    def __init__(self, config_manager: Optional[ConfigManager] = None):
+        """
+        Initialize logging service with singleton logger
+        
+        Args:
+            config_manager: Configuration manager for logging settings
+        """
+        self.config_manager = config_manager
         self._logger = Logger()
+        
+        # Configure logging based on config if available
+        if config_manager and config_manager.config.system:
+            self._configure_logging()
+    
+    def _configure_logging(self):
+        """Configure logging based on system configuration"""
+        if self.config_manager and self.config_manager.config.system:
+            debug_mode = getattr(self.config_manager.config.system, 'debug', False)
+            if debug_mode:
+                # Set debug level logging
+                logging.getLogger().setLevel(logging.DEBUG)
+            else:
+                # Set info level logging
+                logging.getLogger().setLevel(logging.INFO)
     
     def log_transcription_start(self, audio_file: str, model: str, engine: str):
         """Log transcription start event"""

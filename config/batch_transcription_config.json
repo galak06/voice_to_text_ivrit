@@ -1,6 +1,6 @@
 {
   "model": "large-v3-turbo",
-  "engine": "faster-whisper",
+  "engine": "speaker-diarization",
   "speaker_config": "conversation",
   "timeout": 3600,
   "delay_between_files": 10,

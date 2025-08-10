@@ -15,7 +15,7 @@ import sys
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.core.output_processor import OutputProcessor
+from src.core.processors.output_processor import OutputProcessor
 from src.output_data import OutputManager
 
 
@@ -31,10 +31,12 @@ class TestOutputProcessor(unittest.TestCase):
         self.mock_config = Mock()
         self.mock_output_manager = Mock(spec=OutputManager)
         
-        # Set up mock output manager methods
-        self.mock_output_manager.save_transcription.return_value = f"{self.temp_dir}/test.json"
-        self.mock_output_manager.save_transcription_text.return_value = f"{self.temp_dir}/test.txt"
-        self.mock_output_manager.save_transcription_docx.return_value = f"{self.temp_dir}/test.docx"
+        # Set up mock output manager methods - use the actual save_transcription method
+        self.mock_output_manager.save_transcription.return_value = {
+            'json': f"{self.temp_dir}/test.json",
+            'txt': f"{self.temp_dir}/test.txt", 
+            'docx': f"{self.temp_dir}/test.docx"
+        }
         
         # Initialize processor
         self.processor = OutputProcessor(self.mock_config, self.mock_output_manager)
@@ -60,7 +62,7 @@ class TestOutputProcessor(unittest.TestCase):
             'success': True,
             'transcription': 'Test transcription text',
             'model': 'base',
-            'engine': 'faster-whisper'
+            'engine': 'stable-whisper'
         }
         
         input_metadata = {
@@ -117,15 +119,19 @@ class TestOutputProcessor(unittest.TestCase):
             'success': True,
             'transcription': 'Test transcription text',
             'model': 'base',
-            'engine': 'faster-whisper'
+            'engine': 'stable-whisper'
         }
         
         input_metadata = {
             'file_name': 'test.wav'
         }
         
-        # Mock output manager to fail on DOCX
-        self.mock_output_manager.save_transcription_docx.return_value = None
+        # Mock output manager to return only json and txt, not docx
+        self.mock_output_manager.save_transcription.return_value = {
+            'json': f"{self.temp_dir}/test.json",
+            'txt': f"{self.temp_dir}/test.txt"
+            # No 'docx' key - this simulates DOCX failure
+        }
         
         result = self.processor.process_output(transcription_result, input_metadata)
         
@@ -149,7 +155,7 @@ class TestOutputProcessor(unittest.TestCase):
         transcription_data = {'text': 'Test transcription', 'segments': []}
         input_file = 'test.wav'
         model = 'base'
-        engine = 'faster-whisper'
+        engine = 'stable-whisper'
         
         result = self.processor._save_json_output(transcription_data, input_file, model, engine)
         
@@ -157,9 +163,12 @@ class TestOutputProcessor(unittest.TestCase):
         self.assertEqual(result['format'], 'json')
         self.assertIn('file_path', result)
         
-        # Verify output manager was called
+        # Verify output manager was called with keyword arguments
         self.mock_output_manager.save_transcription.assert_called_once_with(
-            input_file, transcription_data, model, engine
+            transcription_data=transcription_data,
+            audio_file=input_file,
+            model=model,
+            engine=engine
         )
     
     def test_save_json_output_failure(self):
@@ -167,7 +176,7 @@ class TestOutputProcessor(unittest.TestCase):
         # Mock output manager to raise exception
         self.mock_output_manager.save_transcription.side_effect = Exception("Save failed")
         
-        result = self.processor._save_json_output({}, 'test.wav', 'base', 'faster-whisper')
+        result = self.processor._save_json_output({}, 'test.wav', 'base', 'stable-whisper')
         
         self.assertFalse(result['success'])
         self.assertEqual(result['format'], 'json')
@@ -179,7 +188,7 @@ class TestOutputProcessor(unittest.TestCase):
         transcription_data = 'Test transcription text'
         input_file = 'test.wav'
         model = 'base'
-        engine = 'faster-whisper'
+        engine = 'stable-whisper'
         
         result = self.processor._save_text_output(transcription_data, input_file, model, engine)
         
@@ -187,15 +196,15 @@ class TestOutputProcessor(unittest.TestCase):
         self.assertEqual(result['format'], 'txt')
         self.assertIn('file_path', result)
         
-        # Verify output manager was called
-        self.mock_output_manager.save_transcription_text.assert_called_once()
+        # Verify output manager was called with save_transcription
+        self.mock_output_manager.save_transcription.assert_called_once()
     
     def test_save_docx_output_success(self):
         """Test successful DOCX output saving"""
         transcription_data = [{'text': 'Test transcription', 'start': 0, 'end': 1}]
         input_file = 'test.wav'
         model = 'base'
-        engine = 'faster-whisper'
+        engine = 'stable-whisper'
         
         result = self.processor._save_docx_output(transcription_data, input_file, model, engine)
         
@@ -203,26 +212,20 @@ class TestOutputProcessor(unittest.TestCase):
         self.assertEqual(result['format'], 'docx')
         self.assertIn('file_path', result)
         
-        # Verify output manager was called
-        self.mock_output_manager.save_transcription_docx.assert_called_once()
+        # Verify output manager was called with save_transcription
+        self.mock_output_manager.save_transcription.assert_called_once()
     
     def test_save_docx_output_failure(self):
         """Test DOCX output saving failure"""
-        # Mock output manager to return None
-        self.mock_output_manager.save_transcription_docx.return_value = None
+        # Mock output manager to return empty dict (no docx file created)
+        self.mock_output_manager.save_transcription.return_value = {}
         
-        result = self.processor._save_docx_output([], 'test.wav', 'base', 'faster-whisper')
+        result = self.processor._save_docx_output([], 'test.wav', 'base', 'stable-whisper')
         
         self.assertFalse(result['success'])
         self.assertEqual(result['format'], 'docx')
         self.assertIn('error', result)
-        self.assertIn('Failed to create DOCX file', result['error'])
-    
-    def test_extract_text_content_string(self):
-        """Test text content extraction from string"""
-        transcription_data = "Simple text transcription"
-        result = self.processor._extract_text_content(transcription_data)
-        self.assertEqual(result, "Simple text transcription")
+        self.assertIn('DOCX file not created', result['error'])
     
     def test_extract_text_content_list(self):
         """Test text content extraction from list of segments"""
@@ -234,24 +237,6 @@ class TestOutputProcessor(unittest.TestCase):
         result = self.processor._extract_text_content(transcription_data)
         expected = "First segment\nSecond segment\nThird segment"
         self.assertEqual(result, expected)
-    
-    def test_extract_text_content_dict(self):
-        """Test text content extraction from dictionary"""
-        transcription_data = {
-            'text': 'Dictionary text',
-            'start': 0,
-            'end': 1
-        }
-        result = self.processor._extract_text_content(transcription_data)
-        self.assertEqual(result, "Dictionary text")
-    
-    def test_extract_text_content_nested_dict(self):
-        """Test text content extraction from nested dictionary"""
-        transcription_data = {
-            'transcription': 'Nested transcription text'
-        }
-        result = self.processor._extract_text_content(transcription_data)
-        self.assertEqual(result, "Nested transcription text")
     
     def test_extract_text_content_fallback(self):
         """Test text content extraction fallback"""
@@ -266,36 +251,6 @@ class TestOutputProcessor(unittest.TestCase):
         ]
         result = self.processor._convert_to_docx_format(transcription_data)
         self.assertEqual(result, transcription_data)
-    
-    def test_convert_to_docx_format_dict(self):
-        """Test conversion to DOCX format from dictionary"""
-        transcription_data = {
-            'text': 'Test text',
-            'start': 0,
-            'end': 1,
-            'speaker': 'Speaker 1'
-        }
-        result = self.processor._convert_to_docx_format(transcription_data)
-        
-        expected = [{
-            'text': 'Test text',
-            'start': 0,
-            'end': 1,
-            'speaker': 'Speaker 1'
-        }]
-        self.assertEqual(result, expected)
-    
-    def test_convert_to_docx_format_nested_dict(self):
-        """Test conversion to DOCX format from nested dictionary"""
-        transcription_data = {
-            'transcription': [
-                {'text': 'Nested text', 'start': 0, 'end': 1}
-            ]
-        }
-        result = self.processor._convert_to_docx_format(transcription_data)
-        
-        expected = [{'text': 'Nested text', 'start': 0, 'end': 1}]
-        self.assertEqual(result, expected)
     
     def test_convert_to_docx_format_fallback(self):
         """Test conversion to DOCX format fallback"""

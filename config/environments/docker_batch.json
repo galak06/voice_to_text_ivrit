@@ -1,22 +1,21 @@
 {
   "transcription": {
-            "default_model": "ivrit-ai/whisper-large-v3-ct2",
+            "default_model": "ivrit-ai/whisper-large-v3",
         "fallback_model": "ivrit-ai/whisper-large-v3-turbo-ct2",
-    "default_engine": "faster-whisper",
+    "default_engine": "speaker-diarization",
     "beam_size": 5,
     "language": "he",
     "word_timestamps": true,
     "vad_enabled": true,
     "vad_min_silence_duration_ms": 500,
             "available_models": [
-            "ivrit-ai/whisper-large-v3-ct2",
+            "ivrit-ai/whisper-large-v3",
             "ivrit-ai/whisper-large-v3-turbo-ct2",
             "ivrit-ai/whisper-large-v3",
             "ivrit-ai/whisper-large-v3-turbo",
             "ivrit-ai/whisper-large-v3-ggml",
             "ivrit-ai/whisper-large-v3-turbo-ggml",
             "ivrit-ai/whisper-v2-d4",
-            "ivrit-ai/faster-whisper-v2-d4",
             "large-v3",
             "large-v2",
             "large",
@@ -25,7 +24,7 @@
             "base",
             "tiny"
         ],
-    "available_engines": ["faster-whisper", "stable-whisper", "speaker-diarization"]
+    "available_engines": ["stable-whisper", "speaker-diarization"]
   },
   "speaker": {
     "min_speakers": 2,

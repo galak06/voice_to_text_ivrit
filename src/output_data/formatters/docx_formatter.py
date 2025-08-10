@@ -169,14 +169,40 @@ class DocxFormatter:
         heading = doc.add_heading('תמלול שיחה', level=1)
         DocxFormatter._set_paragraph_rtl(heading)
         
+        # Validate input data
+        if not transcription_data:
+            para = doc.add_paragraph("אין נתוני תמלול זמינים")
+            DocxFormatter._set_paragraph_rtl(para)
+            return
+        
         # Group segments by speaker for better conversation flow
         speakers_data = {}
+        total_segments = 0
+        total_words = 0
+        
         for segment in transcription_data:
             if isinstance(segment, dict):
                 speaker = segment.get('speaker', 'Unknown')
-                if speaker not in speakers_data:
-                    speakers_data[speaker] = []
-                speakers_data[speaker].append(segment)
+                text = segment.get('text', '').strip()
+                
+                # Only add segments with actual text content
+                if text:
+                    if speaker not in speakers_data:
+                        speakers_data[speaker] = []
+                    speakers_data[speaker].append(segment)
+                    total_segments += 1
+                    total_words += len(text.split())
+        
+        # Log content statistics
+        logger.info(f"📄 DOCX Content Statistics:")
+        logger.info(f"   - Total segments: {total_segments}")
+        logger.info(f"   - Total words: {total_words}")
+        logger.info(f"   - Speakers: {list(speakers_data.keys())}")
+        
+        if not speakers_data:
+            para = doc.add_paragraph("אין תוכן תמלול זמין")
+            DocxFormatter._set_paragraph_rtl(para)
+            return
         
         # Add content by speaker
         for speaker_name, segments in speakers_data.items():
@@ -184,9 +210,13 @@ class DocxFormatter:
             speaker_heading = doc.add_heading(f'🎤 {speaker_name}', level=2)
             DocxFormatter._set_paragraph_rtl(speaker_heading)
             
+            # Sort segments by start time for chronological order
+            segments.sort(key=lambda x: x.get('start', 0))
+            
             # Add segments for this speaker
+            speaker_words = 0
             for segment in segments:
-                text = segment.get('text', '')
+                text = segment.get('text', '').strip()
                 start_time = segment.get('start', 0)
                 
                 if text:
@@ -203,9 +233,22 @@ class DocxFormatter:
                     # Add text content
                     text_run = para.add_run(text)
                     text_run.font.size = Pt(12)
+                    
+                    speaker_words += len(text.split())
+            
+            # Log speaker statistics
+            logger.info(f"   - {speaker_name}: {len(segments)} segments, {speaker_words} words")
             
             # Add spacing between speakers
             doc.add_paragraph()
+        
+        # Add summary at the end
+        summary_heading = doc.add_heading('סיכום', level=2)
+        DocxFormatter._set_paragraph_rtl(summary_heading)
+        
+        summary_para = doc.add_paragraph()
+        DocxFormatter._set_paragraph_rtl(summary_para)
+        summary_para.add_run(f"סה״כ קטעים: {total_segments}, סה״כ מילים: {total_words}")
     
     @staticmethod
     def _format_timestamp(seconds: float) -> str:
