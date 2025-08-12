@@ -1,69 +1,31 @@
 #!/usr/bin/env python3
 """
-Transcription engines for speaker diarization
-Implements Strategy Pattern for different transcription engines
+Speaker diarization and transcription engines
 """
 
-import logging
-import time
-import os
 import json
-import gc
+import logging
+import os
+import subprocess
 import tempfile
-import numpy as np
-from typing import Dict, List, Any, Optional
+import time
+from pathlib import Path
 from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional, Tuple
 
-# Try to import optional dependencies
-try:
-    import torch
-    TORCH_AVAILABLE = True
-except ImportError:
-    TORCH_AVAILABLE = False
-
-try:
-    import librosa
-    LIBROSA_AVAILABLE = True
-except ImportError:
-    LIBROSA_AVAILABLE = False
-
-try:
-    import transformers
-    TRANSFORMERS_AVAILABLE = True
-except ImportError:
-    TRANSFORMERS_AVAILABLE = False
-
-try:
-    import stable_whisper
-    STABLE_WHISPER_AVAILABLE = True
-except ImportError:
-    STABLE_WHISPER_AVAILABLE = False
-
-try:
-    import ctranslate2
-    from ctranslate2.models import Whisper
-    CTRANSLATE2_AVAILABLE = True
-except ImportError:
-    CTRANSLATE2_AVAILABLE = False
-
-try:
-    import soundfile as sf
-    SOUNDFILE_AVAILABLE = True
-except ImportError:
-    SOUNDFILE_AVAILABLE = False
-
-try:
-    import psutil
-    PSUTIL_AVAILABLE = True
-except ImportError:
-    PSUTIL_AVAILABLE = False
-
-from src.models.speaker_models import SpeakerConfig, TranscriptionResult, TranscriptionSegment
+from src.core.interfaces.transcription_engine_interface import ITranscriptionEngine
+from src.models import (
+    SpeakerConfig,
+    TranscriptionConfig,
+)
+from src.models.speaker_models import TranscriptionResult, TranscriptionSegment
+from src.utils.config_manager import ConfigManager
+from src.utils.dependency_manager import LIBROSA_AVAILABLE
 
 logger = logging.getLogger(__name__)
 
 
-class TranscriptionEngine(ABC):
+class TranscriptionEngine(ITranscriptionEngine):
     """Abstract base class for transcription engines"""
     
     def __init__(self, config: SpeakerConfig, app_config=None):
@@ -75,23 +37,32 @@ class TranscriptionEngine(ABC):
     @abstractmethod
     def transcribe(self, audio_file_path: str, model_name: str) -> TranscriptionResult:
         """Transcribe audio file with speaker diarization"""
-        raise NotImplementedError("Subclasses must implement transcribe method")
+        pass
     
     @abstractmethod
     def is_available(self) -> bool:
         """Check if the engine is available"""
-        raise NotImplementedError("Subclasses must implement is_available method")
+        pass
     
     @abstractmethod
     def _transcribe_chunk(self, audio_chunk, chunk_count: int, chunk_start: float, chunk_end: float, model_name: str) -> str:
         """Transcribe a single audio chunk - to be implemented by each engine"""
-        raise NotImplementedError("Subclasses must implement _transcribe_chunk method")
+        pass
     
     def _cleanup_model_memory(self):
         """Clean up model memory - to be overridden by engines that need it"""
-        if TORCH_AVAILABLE and torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        logger.info("🧹 Base memory cleanup completed")
+        # This method is now a placeholder and will be overridden by specific engines
+        pass
+    
+    @abstractmethod
+    def cleanup_models(self):
+        """Clean up loaded models and free memory - to be overridden by specific engines"""
+        pass
+    
+    @abstractmethod
+    def get_engine_info(self) -> Dict[str, Any]:
+        """Get information about the engine - to be overridden by specific engines"""
+        pass
     
     def _transcribe_in_chunks(self, audio_file_path: str, model_name: str, chunk_duration_seconds: int = 120) -> TranscriptionResult:
         """Unified chunked transcription flow used by all engines.
@@ -461,6 +432,9 @@ class TranscriptionEngine(ABC):
             }
         
         # Get actual audio duration
+        if not LIBROSA_AVAILABLE:
+            raise ImportError("librosa is required for audio verification")
+        import librosa
         actual_duration = librosa.get_duration(path=audio_file_path)
         logger.info(f"🔍 VERIFICATION: Audio duration = {actual_duration:.2f}s ({actual_duration/60:.1f} minutes)")
         
@@ -582,6 +556,11 @@ class TranscriptionEngine(ABC):
         short_chunks = []
         processing_chunks = []
         
+        # Get constants from configuration
+        constants = self.app_config.system.constants if self.app_config and self.app_config.system else None
+        min_segment_duration = constants.min_segment_duration_seconds if constants else 30
+        min_text_length = constants.min_text_length_for_segment if constants else 10
+        
         for chunk in chunks_data:
             chunk_number = chunk['chunk_number']
             text = chunk['text'].strip()
@@ -594,20 +573,14 @@ class TranscriptionEngine(ABC):
                 issues.append(f"Chunk {chunk_number}: Empty or processing")
             
             # Check for long chunks with very little text (potential issues)
-            # Get constants from configuration
-        constants = self.app_config.system.constants if self.app_config and self.app_config.system else None
-        min_segment_duration = constants.min_segment_duration_seconds if constants else 30
-        min_text_length = constants.min_text_length_for_segment if constants else 10
-        
-        # Check for long chunks with very little text (potential issues)
-        if duration > min_segment_duration and len(text) < min_text_length:
-            short_chunks.append(chunk)
-            issues.append(f"Chunk {chunk_number}: Long duration ({duration:.1f}s) but very little text ({len(text)} chars)")
-        
-        # Check for still processing chunks
-        elif status == 'processing':
-            processing_chunks.append(chunk)
-            issues.append(f"Chunk {chunk_number}: Still processing")
+            elif duration > min_segment_duration and len(text) < min_text_length:
+                short_chunks.append(chunk)
+                issues.append(f"Chunk {chunk_number}: Long duration ({duration:.1f}s) but very little text ({len(text)} chars)")
+            
+            # Check for still processing chunks
+            elif status == 'processing':
+                processing_chunks.append(chunk)
+                issues.append(f"Chunk {chunk_number}: Still processing")
         
         quality_verified = len(issues) == 0
         
@@ -841,6 +814,16 @@ class CustomWhisperEngine(TranscriptionEngine):
             torch.cuda.empty_cache()
         
         logger.info("Model cleanup completed")
+    
+    def get_engine_info(self) -> Dict[str, Any]:
+        """Get information about the CustomWhisperEngine"""
+        return {
+            "engine_type": "CustomWhisperEngine",
+            "config": str(self.config),
+            "temp_chunks_dir": self.temp_chunks_dir,
+            "loaded_models_count": len(self._model_cache),
+            "processor_cache_size": len(self._processor_cache)
+        }
     
     def _cleanup_model_memory(self):
         """Enhanced memory cleanup for custom whisper engine"""
@@ -1316,6 +1299,21 @@ class StableWhisperEngine(TranscriptionEngine):
     def transcribe(self, audio_file_path: str, model_name: str) -> TranscriptionResult:
         """Transcribe using a unified chunking flow for stable-whisper."""
         return self._transcribe_in_chunks(audio_file_path=audio_file_path, model_name=model_name, chunk_duration_seconds=120)
+    
+    def cleanup_models(self):
+        """Clean up loaded models and free memory"""
+        logger.info("🧹 Cleaning up StableWhisperEngine models...")
+        # Stable-whisper doesn't keep models in memory, so just log cleanup
+        logger.info("✅ StableWhisperEngine models cleaned up")
+    
+    def get_engine_info(self) -> Dict[str, Any]:
+        """Get information about the StableWhisperEngine"""
+        return {
+            "engine_type": "StableWhisperEngine",
+            "config": str(self.config),
+            "temp_chunks_dir": self.temp_chunks_dir,
+            "model_loading_strategy": "on-demand"
+        }
 
 
 class OptimizedWhisperEngine(TranscriptionEngine):
@@ -1377,7 +1375,7 @@ class OptimizedWhisperEngine(TranscriptionEngine):
                 logger.warning(f"CTranslate2 loading failed for {model_name}: {e}")
 
                 if is_ct2_model:
-                    # Do not attempt transformers fallback for ct2-only repos
+                    # Do not attempt transformers fallback for ct2 models without pytorch weights
                     logger.error("❌ Transformers fallback disabled for ct2 models without pytorch weights")
                     raise
 
@@ -1434,6 +1432,16 @@ class OptimizedWhisperEngine(TranscriptionEngine):
         # Force garbage collection
         gc.collect()
         logger.info("✅ CTranslate2 memory cleanup completed")
+    
+    def get_engine_info(self) -> Dict[str, Any]:
+        """Get information about the OptimizedWhisperEngine"""
+        return {
+            "engine_type": "OptimizedWhisperEngine",
+            "config": str(self.config),
+            "temp_chunks_dir": self.temp_chunks_dir,
+            "loaded_models_count": len(self._model_cache),
+            "processor_cache_size": len(self._processor_cache)
+        }
     
     def _transcribe_chunk(self, audio_chunk, chunk_count: int, chunk_start: float, chunk_end: float, model_name: str) -> str:
         """Transcribe a single audio chunk using CTranslate2 optimized settings"""

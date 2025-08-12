@@ -88,6 +88,12 @@ class TestLogicFixesCore(unittest.TestCase):
             
             def _transcribe_chunk(self, audio_chunk, chunk_count, chunk_start, chunk_end, model_name):
                 return "test transcription"
+            
+            def cleanup_models(self):
+                pass
+            
+            def get_engine_info(self):
+                return {"engine_type": "CompleteMockEngine"}
         
         try:
             engine = CompleteMockEngine()

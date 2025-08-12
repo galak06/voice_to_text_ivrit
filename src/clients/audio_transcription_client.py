@@ -2,36 +2,37 @@
 Main audio transcription client
 """
 
+import logging
 import time
-from typing import Optional, Dict, Any, List
-from src.utils.config_manager import ConfigManager
-from src.models import AppConfig
+from typing import Any, Dict, List, Optional, Union
 
-from .models import TranscriptionRequest, TranscriptionResult
+from src.core.factories.runpod_endpoint_factory import RunPodEndpointFactory
 from src.core.interfaces import (
     AudioFileValidatorInterface,
-    TranscriptionPayloadBuilderInterface,
-    TranscriptionResultCollectorInterface,
     OutputSaverInterface,
     ResultDisplayInterface,
-    RunPodEndpointFactoryInterface
+    RunPodEndpointFactoryInterface,
+    TranscriptionPayloadBuilderInterface,
+    TranscriptionResultCollectorInterface,
 )
-from .audio_file_validator import DefaultAudioFileValidator
-from .transcription_payload_builder import DefaultTranscriptionPayloadBuilder
-from .transcription_result_collector import DefaultTranscriptionResultCollector
-from .output_saver import DefaultOutputSaver
-from .result_display import DefaultResultDisplay
-from .transcription_parameter_provider import TranscriptionParameterProvider
-from .queue_waiter import QueueWaiter
-from .runpod_endpoint_factory import DefaultRunPodEndpointFactory
+from src.core.logic.file_validator import FileValidator
+from src.core.logic.queue_waiter import QueueWaiter
+from src.core.logic.transcription_parameter_provider import TranscriptionParameterProvider
+from src.core.logic.transcription_payload_builder import TranscriptionPayloadBuilder
+from src.core.logic.transcription_result_collector import TranscriptionResultCollector
+from src.core.processors.output_saver import OutputSaver
+from src.core.processors.result_display import ResultDisplay
+from src.models import AppConfig, TranscriptionRequest, TranscriptionResult
+from src.utils.config_manager import ConfigManager
 
-import logging
 logger = logging.getLogger(__name__)
 
-# Type hint for DataUtils   
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
+# Type hint for DataUtils
+try:
     from src.output_data.utils.data_utils import DataUtils
+    DataUtilsType = DataUtils
+except ImportError:
+    DataUtilsType = Any
 
 
 class AudioTranscriptionClient:
@@ -57,7 +58,7 @@ class AudioTranscriptionClient:
         result_display: Optional[ResultDisplayInterface] = None,
         parameter_provider: Optional[TranscriptionParameterProvider] = None,
         queue_waiter: Optional[QueueWaiter] = None,
-        data_utils: Optional['DataUtils'] = None,
+        data_utils: Optional[DataUtilsType] = None,
         # New: allow injecting a ConfigManager or bypassing RunPod validation entirely (useful for tests)
         config_manager: Optional[ConfigManager] = None,
         skip_runpod_validation: bool = False,
@@ -83,12 +84,12 @@ class AudioTranscriptionClient:
         self.skip_runpod_validation = skip_runpod_validation
         
         # Initialize dependencies with defaults if not provided
-        self.endpoint_factory = endpoint_factory or DefaultRunPodEndpointFactory()
-        self.file_validator = file_validator or DefaultAudioFileValidator(self.config)
-        self.payload_builder = payload_builder or DefaultTranscriptionPayloadBuilder()
-        self.result_collector = result_collector or DefaultTranscriptionResultCollector()
-        self.output_saver = output_saver or DefaultOutputSaver(data_utils=data_utils)
-        self.result_display = result_display or DefaultResultDisplay()
+        self.endpoint_factory = endpoint_factory or RunPodEndpointFactory()
+        self.file_validator = file_validator or FileValidator(self.config)
+        self.payload_builder = payload_builder or TranscriptionPayloadBuilder()
+        self.result_collector = result_collector or TranscriptionResultCollector()
+        self.output_saver = output_saver or OutputSaver(data_utils=data_utils)
+        self.result_display = result_display or ResultDisplay()
         self.parameter_provider = parameter_provider or TranscriptionParameterProvider(self.config)
         self.queue_waiter = queue_waiter or QueueWaiter()
         
@@ -353,4 +354,4 @@ class AudioTranscriptionClient:
         """Log saved files information"""
         logger.info("All formats saved:")
         for format_type, file_path in saved_files.items():
-            logger.info(f"  {format_type.upper()}: {file_path}") 
+            logger.info(f"  {format_type.upper()}: {file_path}")

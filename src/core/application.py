@@ -1,27 +1,39 @@
 """
-Main Application Class
-Orchestrates the entire transcription process using dependency injection
+Main application entry point
 """
 
-from typing import Optional, Dict, Any, List
-from pathlib import Path
 import logging
-from datetime import datetime
+import os
+import sys
 import time
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, Optional, Any
 
+from src.core.logic.error_handler import ErrorHandler
+from src.core.logic.file_validator import FileValidator
+from src.core.logic.performance_monitor import PerformanceMonitor
+from src.core.logic.performance_tracker import PerformanceTracker
+from src.core.logic.result_builder import ResultBuilder
+
+from src.core.orchestrator.speaker_transcription_service import SpeakerTranscriptionService
+from src.core.orchestrator.transcription_orchestrator import TranscriptionOrchestrator
+from src.core.orchestrator.transcription_service import TranscriptionService
+from src.core.processors.audio_file_processor import AudioFileProcessor
+from src.core.processors.batch_processor import BatchProcessor
 from src.core.processors.input_processor import InputProcessor
 from src.core.processors.output_processor import OutputProcessor
-from src.core.orchestrator.transcription_orchestrator import TranscriptionOrchestrator
-from src.core.logic.error_handler import ErrorHandler
-from src.core.processors.batch_processor import BatchProcessor
-from src.core.logic.performance_tracker import PerformanceTracker
-from src.core.factories.pipeline_factory import PipelineFactory
-from src.core.processors.processing_pipeline import ProcessingContext, ProcessingResult
+from src.core.processors.processing_pipeline import ProcessingPipeline
+from src.core.processors.result_display import ResultDisplay
+from src.models import AppConfig, TranscriptionRequest, TranscriptionResult
 from src.utils.config_manager import ConfigManager
-from src.output_data import OutputManager
-from src.logging import LoggingService
-from src.clients.audio_transcription.audio_transcription_client import AudioTranscriptionClient
+from src.utils.dependency_manager import DependencyManager
 from src.utils.ui_manager import ApplicationUI
+from src.output_data.managers.output_manager import OutputManager
+from src.clients.audio_transcription_client import AudioTranscriptionClient
+from src.logging.logging_service import LoggingService
+from src.core.processors.processing_pipeline import ProcessingContext
+from src.core.factories.pipeline_factory import PipelineFactory
 
 logger = logging.getLogger(__name__)
 

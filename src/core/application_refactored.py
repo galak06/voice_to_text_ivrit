@@ -16,7 +16,7 @@ from src.core.orchestrator.transcription_orchestrator import TranscriptionOrches
 from src.utils.config_manager import ConfigManager
 from src.output_data import OutputManager
 from src.logging import LoggingService
-from src.clients.audio_transcription.audio_transcription_client import AudioTranscriptionClient
+from src.clients.audio_transcription_client import AudioTranscriptionClient
 from src.utils.ui_manager import ApplicationUI
 from src.core.logic.performance_monitor import PerformanceMonitor
 from src.models.base_models import SessionInfo, ProcessingResult, ErrorInfo, PerformanceMetrics

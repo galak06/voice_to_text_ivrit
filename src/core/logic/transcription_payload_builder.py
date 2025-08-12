@@ -4,10 +4,10 @@ Transcription payload builder implementations
 
 import base64
 from typing import Dict, Any
-from .models import TranscriptionRequest
+from src.models import TranscriptionRequest
 
 
-class DefaultTranscriptionPayloadBuilder:
+class TranscriptionPayloadBuilder:
     """Default implementation of transcription payload builder"""
     
     def build(self, request: TranscriptionRequest) -> Dict[str, Any]:
@@ -25,4 +25,4 @@ class DefaultTranscriptionPayloadBuilder:
                 "engine": request.engine,
                 "streaming": request.streaming_enabled
             }
-        } 
+        }

@@ -5,7 +5,7 @@ Result display implementations
 from typing import List, Dict, Any
 
 
-class DefaultResultDisplay:
+class ResultDisplay:
     """Default implementation of result display"""
     
     def display(self, segments: List[Dict[str, Any]]) -> None:
@@ -21,4 +21,4 @@ class DefaultResultDisplay:
                     print(f"   Time: {segment['start']:.2f}s - {segment['end']:.2f}s")
                 print()
         else:
-            print("No transcription segments received") 
+            print("No transcription segments received")

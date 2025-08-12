@@ -15,9 +15,8 @@ import sys
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.clients.audio_transcription.audio_transcription_client import AudioTranscriptionClient
-from src.clients.audio_transcription.models import TranscriptionRequest, TranscriptionResult
-from src.models import AppConfig
+from src.clients.audio_transcription_client import AudioTranscriptionClient
+from src.models import TranscriptionRequest, TranscriptionResult, AppConfig
 
 
 class TestAudioTranscriptionClient(unittest.TestCase):
@@ -26,7 +25,7 @@ class TestAudioTranscriptionClient(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         # Patch ConfigManager used inside the client to provide a mock with .config
-        self.config_manager_patcher = patch('src.clients.audio_transcription.audio_transcription_client.ConfigManager')
+        self.config_manager_patcher = patch('src.clients.audio_transcription_client.ConfigManager')
         MockConfigManager = self.config_manager_patcher.start()
         # Create temporary directory for test outputs
         self.temp_dir = tempfile.mkdtemp()
@@ -91,7 +90,7 @@ class TestAudioTranscriptionClient(unittest.TestCase):
     def test_initialization_with_defaults(self):
         """Test client initialization with default dependencies"""
         # Test initialization without providing dependencies
-        with patch('src.clients.audio_transcription.audio_transcription_client.ConfigManager') as mock_config_manager:
+        with patch('src.clients.audio_transcription_client.ConfigManager') as mock_config_manager:
             mock_config_manager_instance = Mock()
             mock_config_manager_instance.config = self.mock_config
             mock_config_manager_instance.validate.return_value = True

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-Client implementations
-Contains client code for different services
+Clients package
 """
 
+from .audio_transcription_client import AudioTranscriptionClient
 from .infer_client import transcribe
 
-__all__ = ['transcribe'] 
+__all__ = [
+    'AudioTranscriptionClient',
+    'transcribe'
+] 

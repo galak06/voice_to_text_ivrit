@@ -117,7 +117,7 @@ class TestFileValidator:
             result = validator.validate_audio_file(text_file)
             
             assert result['valid'] is False
-            assert 'Unsupported audio format' in result['error']
+            assert 'Unsupported file format' in result['error']
         finally:
             if os.path.exists(text_file):
                 os.unlink(text_file)

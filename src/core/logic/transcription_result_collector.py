@@ -6,7 +6,7 @@ import time
 from typing import List, Dict, Any
 
 
-class DefaultTranscriptionResultCollector:
+class TranscriptionResultCollector:
     """Default implementation of transcription result collector"""
     
     def collect(self, run_request, max_timeouts: int = 5) -> List[Dict[str, Any]]:
@@ -31,4 +31,4 @@ class DefaultTranscriptionResultCollector:
                 
                 time.sleep(1)
         
-        return segments 
+        return segments
