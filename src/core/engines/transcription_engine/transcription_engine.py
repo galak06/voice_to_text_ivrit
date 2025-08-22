@@ -627,97 +627,32 @@ class TranscriptionEngine(ABC):
                 chunk_text = self._transcribe_chunk(audio, i, chunk_start, chunk_end, model_name)
                 
                 if chunk_text and chunk_text.strip():
-                    # Perform speaker diarization on this chunk
-                    try:
-                        logger.info(f"🔊 CHUNK {i}: Starting speaker diarization...")
-                        speaker_start_time = time.time()
-                        
-                        # Import and initialize speaker diarization service
-                        from src.core.orchestrator.speaker_transcription_service import SpeakerTranscriptionService
-                        speaker_service = SpeakerTranscriptionService(self.config, self.app_config)
-                        
-                        # Perform speaker diarization on the audio chunk
-                        speaker_result = speaker_service.speaker_diarization(
-                            audio_file_path=chunk_file, 
-                            model_name=model_name,
-                            save_output=False  # Don't save individual chunk outputs
-                        )
-                        
-                        speaker_time = time.time() - speaker_start_time
-                        logger.info(f"✅ CHUNK {i}: Speaker diarization completed in {speaker_time:.2f}s")
-                        
-                        # Add each speaker segment with proper timing
-                        speaker_count = 0
-                        for speaker_id, speaker_segments in speaker_result.speakers.items():
-                            for seg in speaker_segments:
-                                # Adjust segment timing to be relative to the full audio
-                                adjusted_segment = TranscriptionSegment(
-                                    start=chunk_start + seg.start,
-                                    end=chunk_start + seg.end,
-                                    text=seg.text,
-                                    speaker=speaker_id,
-                                    chunk_file=chunk_name,
-                                    chunk_number=i
-                                )
-                                all_segments.append(adjusted_segment)
-                                speaker_count += 1
-                        
-                        logger.info(f"✅ CHUNK {i}: Created {speaker_count} speaker segments")
-                        
-                        # Update JSON file with completed status, text, and speaker info
-                        chunk_data.update({
-                            "status": "completed",
-                            "text": chunk_text.strip(),
-                            "processing_completed": time.time(),
-                            "transcription_length": len(chunk_text),
-                            "words_estimated": len(chunk_text.split()),
-                            "speaker_count": speaker_count,
-                            "speaker_segments": [
-                                {
-                                    "speaker": seg.speaker,
-                                    "start": seg.start - chunk_start,
-                                    "end": seg.end - chunk_start,
-                                    "text": seg.text
-                                } for seg in all_segments[-speaker_count:]  # Get the segments we just added
-                            ]
-                        })
-                        
-                        with open(chunk_filepath, 'w', encoding='utf-8') as f:
-                            json.dump(chunk_data, f, indent=2, ensure_ascii=False)
-                        
-                        logger.info(f"✅ Chunk {i} completed with speaker diarization and saved to: {chunk_filename}")
-                        
-                    except Exception as e:
-                        logger.warning(f"⚠️ CHUNK {i}: Speaker diarization failed: {e}")
-                        logger.info(f"🔧 CHUNK {i}: Falling back to single speaker mode")
-                        
-                        # Fallback to single speaker if diarization fails
-                        segment = TranscriptionSegment(
-                            start=chunk_start,
-                            end=chunk_end,
-                            text=chunk_text.strip(),
-                            speaker="0",
-                            chunk_file=chunk_name,
-                            chunk_number=i
-                        )
-                        all_segments.append(segment)
-                        
-                        # Update JSON file with completed status and text (fallback mode)
-                        chunk_data.update({
-                            "status": "completed",
-                            "text": chunk_text.strip(),
-                            "processing_completed": time.time(),
-                            "transcription_length": len(chunk_text),
-                            "words_estimated": len(chunk_text.split()),
-                            "speaker_count": 1,
-                            "diarization_failed": True,
-                            "error": str(e)
-                        })
-                        
-                        with open(chunk_filepath, 'w', encoding='utf-8') as f:
-                            json.dump(chunk_data, f, indent=2, ensure_ascii=False)
-                        
-                        logger.info(f"✅ Chunk {i} completed in fallback mode and saved to: {chunk_filename}")
+                    # Create a simple segment for this chunk (no speaker diarization per chunk)
+                    segment = TranscriptionSegment(
+                        start=chunk_start,
+                        end=chunk_end,
+                        text=chunk_text.strip(),
+                        speaker="0",  # Default speaker, will be processed later
+                        chunk_file=chunk_name,
+                        chunk_number=i
+                    )
+                    all_segments.append(segment)
+                    
+                    # Update JSON file with completed status and text
+                    chunk_data.update({
+                        "status": "completed",
+                        "text": chunk_text.strip(),
+                        "processing_completed": time.time(),
+                        "transcription_length": len(chunk_text),
+                        "words_estimated": len(chunk_text.split()),
+                        "speaker_count": 1,
+                        "note": "Speaker diarization will be applied to full result"
+                    })
+                    
+                    with open(chunk_filepath, 'w', encoding='utf-8') as f:
+                        json.dump(chunk_data, f, indent=2, ensure_ascii=False)
+                    
+                    logger.info(f"✅ Chunk {i} completed: {chunk_duration:.1f}s, text length: {len(chunk_text)}")
                     
                     total_duration += chunk_duration
                 else:
