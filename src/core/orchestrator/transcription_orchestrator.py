@@ -11,8 +11,9 @@ from .transcription_service import TranscriptionService
 from .speaker_transcription_service import SpeakerTranscriptionService
 from src.utils.config_manager import ConfigManager
 from src.models.speaker_models import SpeakerConfig
-from src.core.factories.engine_factory import TranscriptionEngineFactory
+from src.core.factories.engine_factory import create_engine
 from src.core.factories.speaker_config_factory import SpeakerConfigFactory
+from src.core.factories.speaker_enhancement_factory import create_speaker_enhancement_orchestrator
 
 if TYPE_CHECKING:
     from src.output_data import OutputManager
@@ -45,23 +46,50 @@ class TranscriptionOrchestrator:
         
         # Convert SpeakerConfig to the expected type
         speaker_config = None
-        if self.config.speaker:
-            # Get constants from system configuration
-            constants = self.config.system.constants if self.config.system else None
-            default_silence_duration = constants.min_silence_duration_ms if constants else 300
-            
-            speaker_config = SpeakerConfig(
-                min_speakers=self.config.speaker.min_speakers,
-                max_speakers=self.config.speaker.max_speakers,
-                silence_threshold=getattr(self.config.speaker, 'silence_threshold', 1.5),
-                vad_enabled=getattr(self.config.speaker, 'vad_enabled', True),
-                word_timestamps=getattr(self.config.speaker, 'word_timestamps', True),
-                language=getattr(self.config.speaker, 'language', 'he'),
-                beam_size=getattr(self.config.speaker, 'beam_size', 5),
-                vad_min_silence_duration_ms=getattr(self.config.speaker, 'vad_min_silence_duration_ms', default_silence_duration)
-            )
+        if isinstance(self.config, dict):
+            if 'speaker' in self.config:
+                # Check if speaker diarization is enabled
+                speaker_diarization_enabled = self.config.get('speaker_diarization', {}).get('enabled', True)
+                if speaker_diarization_enabled:
+                    # Get constants from system configuration
+                    system_config = self.config.get('system', {})
+                    constants = system_config.get('constants', {})
+                    default_silence_duration = constants.get('min_silence_duration_ms', 300)
+                    
+                    speaker_config = SpeakerConfig(
+                        min_speakers=self.config['speaker'].get('min_speakers', 2),
+                        max_speakers=self.config['speaker'].get('max_speakers', 4),
+                        silence_threshold=self.config['speaker'].get('silence_threshold', 1.5),
+                        vad_enabled=self.config['speaker'].get('vad_enabled', True),
+                        word_timestamps=self.config['speaker'].get('word_timestamps', True),
+                        language=self.config['speaker'].get('language', 'he'),
+                        beam_size=self.config['speaker'].get('beam_size', 5),
+                        vad_min_silence_duration_ms=self.config['speaker'].get('vad_min_silence_duration_ms', default_silence_duration)
+                    )
+        else:
+            if hasattr(self.config, 'speaker') and self.config.speaker:
+                # Check if speaker diarization is enabled
+                speaker_diarization_enabled = getattr(self.config, 'speaker_diarization', {}).get('enabled', True)
+                if speaker_diarization_enabled:
+                    # Get constants from system configuration
+                    constants = self.config.system.constants if hasattr(self.config, 'system') and self.config.system else None
+                    default_silence_duration = constants.min_silence_duration_ms if constants else 300
+                    
+                    speaker_config = SpeakerConfig(
+                        min_speakers=self.config.speaker.min_speakers,
+                        max_speakers=self.config.speaker.max_speakers,
+                        silence_threshold=getattr(self.config.speaker, 'silence_threshold', 1.5),
+                        vad_enabled=getattr(self.config.speaker, 'vad_enabled', True),
+                        word_timestamps=getattr(self.config.speaker, 'word_timestamps', True),
+                        language=getattr(self.config.speaker, 'language', 'he'),
+                        beam_size=getattr(self.config.speaker, 'beam_size', 5),
+                        vad_min_silence_duration_ms=getattr(self.config.speaker, 'vad_min_silence_duration_ms', default_silence_duration)
+                    )
         
         self.speaker_service = SpeakerTranscriptionService(speaker_config, self.config, self.output_manager)
+        
+        # Initialize speaker enhancement orchestrator with dependency injection
+        self.speaker_enhancement_orchestrator = create_speaker_enhancement_orchestrator(self.speaker_service)
         
         # Current processing state
         self.current_job: Optional[Dict[str, Any]] = None
@@ -115,17 +143,18 @@ class TranscriptionOrchestrator:
         file_path = input_data.get('file_path', '')
         file_name = input_data.get('file_name', '')
         
-        # Get engine and model from input or use defaults
-        engine = input_data.get('engine', 'speaker-diarization')
-        model = input_data.get('model', 'ivrit-ai/whisper-large-v3')
+        # Get engine and model from kwargs first, then input_data, then defaults
+        engine = kwargs.get('engine') or input_data.get('engine', 'speaker-diarization')
+        model = kwargs.get('model') or input_data.get('model', 'ivrit-ai/whisper-large-v3-ct2')
         
         # Validate engine-model combination
         validation_result = self.validate_engine_model_combination(engine, model)
         if not validation_result.get('valid', False):
             logger.warning(f"Invalid engine-model combination: {validation_result.get('error', 'Unknown error')}")
-            # Use default combination
-            engine = 'speaker-diarization'
-            model = 'ivrit-ai/whisper-large-v3'
+            logger.info(f"🎯 Proceeding with user-specified combination: engine={engine}, model={model}")
+            # Note: Commenting out fallback to allow user-specified combinations
+            # engine = 'speaker-diarization'
+            # model = 'ivrit-ai/whisper-large-v3'
         
         # Prepare job parameters
         job_params = {
@@ -154,25 +183,50 @@ class TranscriptionOrchestrator:
         Returns:
             Dictionary containing transcription results
         """
+        # Initialize variables for error handling
+        audio_file = job_params['input']['data']
+        engine_type = job_params['engine']
+        model_name = job_params['model']
+        save_output = job_params['save_output']
+        
         try:
-            # Extract parameters
-            audio_file = job_params['input']['data']
-            engine_type = job_params['engine']
-            model_name = job_params['model']
-            save_output = job_params['save_output']
             
             logger.info(f"Using {engine_type} engine with model {model_name}")
             
             # Create engine using factory
             speaker_config = SpeakerConfigFactory.get_config('default')
-            engine = TranscriptionEngineFactory.create_engine(engine_type, speaker_config, self.config)
+            engine = create_engine(engine_type, speaker_config, self.config)
             
             # Check if engine is available
             if not engine.is_available():
                 raise Exception(f"{engine_type} engine is not available. Please install required dependencies.")
             
             # Perform transcription using unified interface
+            logger.info(f"🎯 About to call engine.transcribe() on {type(engine).__name__}")
+            logger.info(f"🎯 Engine method type: {type(engine.transcribe)}")
             result = engine.transcribe(audio_file, model_name)
+            logger.info(f"🎯 Transcription completed, result type: {type(result)}")
+            
+            # Apply speaker enhancement if using speaker-diarization engine AND it's enabled in config
+            if (engine_type == 'speaker-diarization' and 
+                result.success and 
+                self._is_speaker_diarization_enabled()):
+                
+                logger.info("🎯 Applying speaker diarization enhancement")
+                try:
+                    enhanced_result = self.speaker_enhancement_orchestrator.enhance_transcription(
+                        result, audio_file, strategy='chunked'
+                    )
+                    if enhanced_result.success:
+                        logger.info(f"✅ Speaker enhancement successful: {len(enhanced_result.speakers)} speakers detected")
+                        result = enhanced_result
+                    else:
+                        logger.warning("⚠️ Speaker enhancement failed, using original result")
+                except Exception as e:
+                    logger.error(f"❌ Error in speaker enhancement: {e}")
+                    logger.warning("⚠️ Continuing with original transcription result")
+            elif engine_type == 'speaker-diarization' and not self._is_speaker_diarization_enabled():
+                logger.info("ℹ️ Speaker diarization engine selected but disabled in configuration")
             
             # Convert result to output format
             transcription_data = None
@@ -246,7 +300,7 @@ class TranscriptionOrchestrator:
             'audio_file': getattr(result, 'audio_file', 'unknown'),
             'transcription_time': getattr(result, 'processing_time', 0.0),
             'speaker_count': len(result.speakers),
-            'full_text': result.transcription
+            'full_text': result.full_text
         }
         
         self._log_conversion_details(result, transcription_data)
@@ -259,7 +313,7 @@ class TranscriptionOrchestrator:
         logger.info(f"   - Input segments: {sum(len(segments) for segments in result.speakers.values())}")
         logger.info(f"   - Output speakers: {list(transcription_data['speakers'].keys())}")
         logger.info(f"   - Output segments: {len(transcription_data['segments'])}")
-        logger.info(f"   - Total text length: {len(result.transcription)} characters")
+        logger.info(f"   - Total text length: {len(result.full_text)} characters")
         logger.info(f"   - Total word count: {total_words} words")
         
         if transcription_data['segments']:
@@ -288,7 +342,7 @@ class TranscriptionOrchestrator:
         """Create unified response for transcription"""
         return {
             'success': result.success,
-            'transcription': transcription_data if save_output and result.success else result.transcription,
+            'transcription': transcription_data if save_output and result.success else result.full_text,
             'speakers': result.speakers,
             'model': model_name,
             'engine': engine_type,
@@ -361,11 +415,11 @@ class TranscriptionOrchestrator:
             Dictionary mapping engine types to available models
         """
         return {
-            'speaker-diarization': ['tiny', 'base', 'small', 'medium', 'large', 'large-v2', 'large-v3', 'ivrit-ai/whisper-large-v3'],
-            'custom-whisper': ['tiny', 'base', 'small', 'medium', 'large', 'large-v2', 'large-v3'],
-            'stable-whisper': ['tiny', 'base', 'small', 'medium', 'large', 'large-v2', 'large-v3'],
-            'optimized-whisper': ['tiny', 'base', 'small', 'medium', 'large', 'large-v2', 'large-v3'],
-            'ctranslate2': ['tiny', 'base', 'small', 'medium', 'large', 'large-v2', 'large-v3']
+            'speaker-diarization': ['ivrit-ai/whisper-large-v3-ct2'],
+            'custom-whisper': ['ivrit-ai/whisper-large-v3-ct2'],
+            'stable-whisper': ['ivrit-ai/whisper-large-v3-ct2'],
+            'optimized-whisper': ['ivrit-ai/whisper-large-v3-ct2'],
+            'ctranslate2': ['ivrit-ai/whisper-large-v3-ct2']
         }
     
     def validate_engine_model_combination(self, engine: str, model: str) -> Dict[str, Any]:
@@ -410,4 +464,42 @@ class TranscriptionOrchestrator:
         # Reset statistics
         self.reset_stats()
         # Clear current job
-        self.current_job = None 
+        self.current_job = None
+    
+    def _is_speaker_diarization_enabled(self) -> bool:
+        """
+        Check if speaker diarization is enabled in configuration and environment
+        
+        Returns:
+            True if enabled, False otherwise
+        """
+        try:
+            # First check environment variable (highest priority)
+            import os
+            env_enabled = os.getenv('SPEAKER_DIARIZATION_ENABLED', 'true').lower()
+            if env_enabled == 'false':
+                logger.info("ℹ️ Speaker diarization disabled via environment variable")
+                return False
+            
+            # Then check configuration object attributes
+            if hasattr(self.config, 'speaker'):
+                # Check if speaker config has the diarization enabled flag
+                if hasattr(self.config.speaker, '_diarization_enabled'):
+                    return self.config.speaker._diarization_enabled
+                
+                # Check speaker config object properties
+                if hasattr(self.config.speaker, 'min_speakers') and hasattr(self.config.speaker, 'max_speakers'):
+                    # If speaker config exists and has speaker settings, assume enabled
+                    return True
+            
+            # Then check legacy configuration (dict format)
+            if isinstance(self.config, dict):
+                if 'speaker_diarization' in self.config:
+                    return self.config['speaker_diarization'].get('enabled', True)
+            elif hasattr(self.config, 'speaker_diarization'):
+                return getattr(self.config.speaker_diarization, 'enabled', True)
+            
+            return True  # Default to enabled if not specified
+        except Exception as e:
+            logger.debug(f"Error checking speaker diarization enabled: {e}")
+            return True  # Default to enabled on error 
