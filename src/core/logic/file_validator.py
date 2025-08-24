@@ -204,26 +204,30 @@ class FileValidator(AudioFileValidatorInterface):
                 f"Unsupported file format: {path.suffix}. Supported formats: {supported_list}"
             )
         
-        # Check file size limits for RunPod if configured
+        # Check file size limits for RunPod if configured and enabled
         try:
             runpod_cfg = getattr(self.config, 'runpod', None)
+            runpod_enabled = getattr(runpod_cfg, 'enabled', True) if runpod_cfg else True
             max_size = getattr(runpod_cfg, 'max_payload_size', None) if runpod_cfg else None
         except Exception:
+            runpod_enabled = True
             max_size = None
 
-        # Ensure max_size is numeric; ignore mocks/invalids
-        if isinstance(max_size, str):
-            max_size = int(max_size) if max_size.isdigit() else None
-        elif not isinstance(max_size, (int, float)):
-            max_size = None
+        # Only check size limits if RunPod is enabled
+        if runpod_enabled:
+            # Ensure max_size is numeric; ignore mocks/invalids
+            if isinstance(max_size, str):
+                max_size = int(max_size) if max_size.isdigit() else None
+            elif not isinstance(max_size, (int, float)):
+                max_size = None
 
-        if max_size:
-            file_size = path.stat().st_size
-            if file_size > max_size:
-                return self._create_validation_error(
-                    f"File too large for RunPod! Max size: {max_size:,} bytes, "
-                    f"actual size: {file_size:,} bytes"
-                )
+            if max_size:
+                file_size = path.stat().st_size
+                if file_size > max_size:
+                    return self._create_validation_error(
+                        f"File too large for RunPod! Max size: {max_size:,} bytes, "
+                        f"actual size: {file_size:,} bytes"
+                    )
         
         return {'valid': True}
     

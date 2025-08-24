@@ -55,12 +55,24 @@ class AudioFileProcessor(ProcessingPipeline):
             speaker_preset = context.parameters.get('speaker_preset')
             
             # Execute transcription
-            transcription_result = self.transcription_orchestrator.transcribe_audio_file(
-                audio_file_path=context.file_path,
-                model=model,
-                engine=engine,
-                speaker_preset=speaker_preset
-            )
+            from pathlib import Path
+            file_path = Path(context.file_path) if isinstance(context.file_path, str) else context.file_path
+            
+            input_data = {
+                'file_path': str(file_path),
+                'file_name': file_path.name,
+                'engine': engine,
+                'model': model,
+                'save_output': True,
+                'session_id': getattr(context, 'session_id', None)
+            }
+            
+            # Add speaker preset as additional parameter
+            kwargs = {}
+            if speaker_preset:
+                kwargs['speaker_preset'] = speaker_preset
+            
+            transcription_result = self.transcription_orchestrator.transcribe(input_data, **kwargs)
             
             if not transcription_result['success']:
                 return transcription_result
@@ -111,7 +123,7 @@ class AudioFileProcessor(ProcessingPipeline):
                 return {'success': False, 'error': 'File is empty'}
             
             # Validate file format
-            supported_formats = self.config.audio.supported_formats if self.config.audio else ['.wav', '.mp3', '.m4a']
+            supported_formats = self.config.input.supported_formats if self.config.input else ['.wav', '.mp3', '.m4a']
             if file_path.suffix.lower() not in supported_formats:
                 return {'success': False, 'error': f'Unsupported file format: {file_path.suffix}'}
             

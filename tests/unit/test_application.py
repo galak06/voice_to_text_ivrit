@@ -56,7 +56,7 @@ class TestTranscriptionApplication(unittest.TestCase):
         self.mock_config.runpod.streaming_enabled = False
         
         # Set up other config attributes
-        self.mock_config.transcription.default_model = "base"
+        self.mock_config.transcription.default_model = "ivrit-ai/whisper-large-v3-ct2"
         self.mock_config.transcription.default_engine = "speaker-diarization"
         self.mock_config.system.debug = False
         self.mock_config.system.log_level = 20
@@ -150,14 +150,14 @@ class TestTranscriptionApplication(unittest.TestCase):
         mock_orchestrator_instance.transcribe.return_value = {
             'success': True,
             'transcription': 'Test transcription',
-            'model': 'base',
+            'model': 'ivrit-ai/whisper-large-v3-ct2',
             'engine': 'speaker-diarization'
         }
         mock_orchestrator.return_value = mock_orchestrator_instance
         
         # Test single file processing
         with TranscriptionApplication() as app:
-            result = app.process_single_file('test.wav', model='base', engine='speaker-diarization')
+            result = app.process_single_file('test.wav', model='ivrit-ai/whisper-large-v3-ct2', engine='speaker-diarization')
             
             # Verify result
             self.assertTrue(result['success'])

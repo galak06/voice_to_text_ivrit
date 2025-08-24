@@ -113,15 +113,15 @@ class TranscriptionServiceFactory:
         """Register optional transcription services"""
         try:
             # Custom Whisper service
-            from src.core.engines.speaker_engines import CustomWhisperEngine
+            from src.core.engines import CustomWhisperEngine
             self.register_service('custom-whisper', CustomWhisperEngine)
         except ImportError:
             logger.debug("Custom Whisper service not available")
         
         try:
             # CTranslate2 Whisper service
-            from src.core.engines.speaker_engines import OptimizedWhisperEngine
-            self.register_service('ctranslate2-whisper', CTranslate2WhisperEngine)
+            from src.core.engines import ConsolidatedTranscriptionEngine
+            self.register_service('ctranslate2-whisper', ConsolidatedTranscriptionEngine)
         except ImportError:
             logger.debug("CTranslate2 Whisper service not available")
 

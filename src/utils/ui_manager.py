@@ -106,14 +106,9 @@ class ApplicationUI:
             {
                 "title": "Configuration Files",
                 "description": "All functionality controlled through config/environments/:",
-                "items": [
-                    "base.json - Default configuration",
-                    "voice_task.json - Voice folder processing",
-                    "docker_batch.json - Docker-enabled batch processing",
-                    "runpod.json - RunPod cloud processing",
-                    "development.json - Development settings",
-                    "production.json - Production settings"
-                ],
+                                    "items": [
+                        "ivrit_whisper_large_v3_ct2.json - Optimized Hebrew transcription with ivrit-ai/whisper-large-v3-ct2 (ONLY MODEL)"
+                    ],
                 "icon": "⚙️"
             },
             {
@@ -121,8 +116,7 @@ class ApplicationUI:
                 "items": [
                     "Single File: python main_app.py single file.wav --model base",
                     "Batch: python main_app.py batch --model base --engine speaker-diarization",
-                    "Voice Folder: python main_app.py --config-file config/environments/voice_task.json batch",
-                    "Docker Batch: python main_app.py --config-file config/environments/docker_batch.json batch",
+                            "Hebrew Transcription: python main_app.py --config-file config/environments/ivrit_whisper_large_v3_ct2.json batch",
                     "Status: python main_app.py status"
                 ],
                 "icon": "🚀"
@@ -195,7 +189,7 @@ class ApplicationUI:
         elif self.config_manager and self.config_manager.config_path:
             print(f"  Current Config: {self.config_manager.config_path}")
         else:
-            print("  Current Config: Using default (config/environments/base.json)")
+            print("  Current Config: Using ivrit_whisper_large_v3_ct2.json")
         
         print()
         

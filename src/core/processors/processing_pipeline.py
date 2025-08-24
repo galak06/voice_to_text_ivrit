@@ -442,9 +442,10 @@ class AudioFileProcessingPipeline(ProcessingPipeline):
         params = context.parameters.copy()
         
         # Set defaults from configuration
-        if self.config.audio:
-            params.setdefault('sample_rate', self.config.audio.sample_rate)
-            params.setdefault('channels', self.config.audio.channels)
+        if self.config.input:
+            # Set default audio parameters (these would normally come from audio preprocessing config)
+            params.setdefault('sample_rate', 16000)  # Standard sample rate for whisper
+            params.setdefault('channels', 1)  # Mono audio
         
         return params
     

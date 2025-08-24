@@ -1,48 +1,29 @@
 #!/usr/bin/env python3
 """
 Transcription Engines Package
-
-This package contains all transcription engine implementations and related components.
-It provides a modular architecture for different transcription engines with a common interface.
+Refactored architecture following SOLID principles
 """
 
-# Import from the main speaker_engines.py file which contains all implementations
-from .speaker_engines import (
-    TranscriptionEngine,
-    CustomWhisperEngine,
-    StableWhisperEngine,
-    OptimizedWhisperEngine,
-    TranscriptionEngineFactory
-)
-
-# Import interfaces from the interfaces module
-from ..interfaces.transcription_engine_interface import (
-    ITranscriptionEngine,
-    IChunkableTranscriptionEngine,
-    IMemoryManagedTranscriptionEngine,
-    IConfigurableTranscriptionEngine
-)
+from .base_interface import TranscriptionEngine
+from .consolidated_transcription_engine import ConsolidatedTranscriptionEngine
+from .strategies.transcription_strategy_factory import TranscriptionStrategyFactory
+from .strategies.base_strategy import BaseTranscriptionStrategy
+from .strategies.direct_transcription_strategy import DirectTranscriptionStrategy
+from .strategies.chunked_transcription_strategy import ChunkedTranscriptionStrategy
+from .strategies.existing_chunks_strategy import ExistingChunksStrategy
+from .utilities.cleanup_manager import CleanupManager
+from .utilities.model_manager import ModelManager
+from .utilities.text_processor import TextProcessor
 
 __all__ = [
-    # Base class
     'TranscriptionEngine',
-    
-    # Engine implementations
-    'CustomWhisperEngine',
-    'StableWhisperEngine', 
-    'OptimizedWhisperEngine',
-    
-    # Factory
-    'TranscriptionEngineFactory',
-    
-    # Interfaces (for type hints and contracts)
-    'ITranscriptionEngine',
-    'IChunkableTranscriptionEngine',
-    'IMemoryManagedTranscriptionEngine',
-    'IConfigurableTranscriptionEngine'
+    'ConsolidatedTranscriptionEngine',
+    'TranscriptionStrategyFactory',
+    'BaseTranscriptionStrategy',
+    'DirectTranscriptionStrategy',
+    'ChunkedTranscriptionStrategy',
+    'ExistingChunksStrategy',
+    'CleanupManager',
+    'ModelManager',
+    'TextProcessor'
 ]
-
-# Version information
-__version__ = "1.0.0"
-__author__ = "Voice to Text Team"
-__description__ = "Modular transcription engines with common interface"

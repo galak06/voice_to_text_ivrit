@@ -16,7 +16,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.core.factories.pipeline_factory import PipelineFactory, PipelineType
-from src.core.engines.speaker_engines import TranscriptionEngine
+from src.core.engines import TranscriptionEngine
 from src.core.logic.error_handler import ErrorHandler, FileSystemRecoveryStrategy, ErrorContext, ErrorCategory, ErrorSeverity
 from src.core.logic.performance_tracker import PerformanceTracker
 from datetime import datetime

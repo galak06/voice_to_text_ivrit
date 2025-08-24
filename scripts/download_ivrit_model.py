@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to download the ivrit-ai/whisper-large-v3 model
+Script to download the ivrit-ai/whisper-large-v3-ct2 model
 This will cache the model locally for faster subsequent use
 """
 
@@ -14,9 +14,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 def download_ivrit_model():
-    """Download and cache the ivrit-ai/whisper-large-v3 model"""
+    """Download and cache the ivrit-ai/whisper-large-v3-ct2 model"""
     
-    model_name = "ivrit-ai/whisper-large-v3"
+    model_name = "ivrit-ai/whisper-large-v3-ct2"
     
     try:
         logger.info(f"🔄 Starting download of {model_name}...")
@@ -63,9 +63,9 @@ def main():
     if success:
         print("\n✅ Download completed successfully!")
         print("\n🚀 You can now use the model with:")
-        print("python main_app.py single audio.wav --model ivrit-ai/whisper-large-v3 --engine custom-whisper")
+        print("python main_app.py single audio.wav --model ivrit-ai/whisper-large-v3-ct2 --engine custom-whisper")
         print("\nOr using the configuration file:")
-        print("python main_app.py --config-file config/environments/ivrit.json single audio.wav")
+        print("python main_app.py --config-file config/environments/ivrit_whisper_large_v3_ct2.json single audio.wav")
     else:
         print("\n❌ Download failed. Please check the error messages above.")
         sys.exit(1)

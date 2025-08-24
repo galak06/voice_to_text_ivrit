@@ -4,7 +4,6 @@ Logger
 Centralized logging configuration for the entire application
 """
 
-import logging
 import sys
 import threading
 from typing import Optional
@@ -43,12 +42,19 @@ class Logger:
         return cls._instance
     
     def initialize(self, 
-                   log_level: int = logging.INFO,
+                   log_level: int = None,
                    log_file: Optional[str] = None,
                    log_format: str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'):
         """Initialize global logging configuration"""
         if hasattr(self, '_logging_initialized') and self._logging_initialized:
             return
+        
+        # Import logging here to avoid circular import
+        import logging
+        
+        # Set default log level if not provided
+        if log_level is None:
+            log_level = logging.INFO
         
         # Create formatter
         formatter = logging.Formatter(log_format)
@@ -84,12 +90,13 @@ class Logger:
         
         self._logging_initialized = True
     
-    def get_logger(self, name: str) -> logging.Logger:
+    def get_logger(self, name: str):
         """Get a logger instance for the given name"""
         if not hasattr(self, '_logging_initialized') or not self._logging_initialized:
             self.initialize()
         
         if name not in self._loggers:
+            import logging
             self._loggers[name] = logging.getLogger(name)
         
         return self._loggers[name]
@@ -99,6 +106,6 @@ class Logger:
         if not hasattr(self, '_logging_initialized') or not self._logging_initialized:
             self.initialize()
         
-        logging.getLogger().setLevel(level)
+        import logging
         for logger in self._loggers.values():
             logger.setLevel(level) 

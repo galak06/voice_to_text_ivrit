@@ -16,8 +16,6 @@ from src.core.logic.performance_monitor import PerformanceMonitor
 from src.core.logic.performance_tracker import PerformanceTracker
 from src.core.logic.result_builder import ResultBuilder
 
-from src.core.orchestrator.speaker_transcription_service import SpeakerTranscriptionService
-from src.core.orchestrator.transcription_orchestrator import TranscriptionOrchestrator
 from src.core.orchestrator.transcription_service import TranscriptionService
 from src.core.processors.audio_file_processor import AudioFileProcessor
 from src.core.processors.batch_processor import BatchProcessor
@@ -100,7 +98,7 @@ class TranscriptionApplication:
         # Initialize specialized processors with ConfigManager injection
         self.input_processor = InputProcessor(self.config_manager, self.output_manager)
         self.output_processor = OutputProcessor(self.config_manager, self.output_manager)
-        self.transcription_orchestrator = TranscriptionOrchestrator(
+        self.transcription_service = TranscriptionService(
             self.config_manager, 
             self.output_manager
         )
@@ -184,13 +182,13 @@ class TranscriptionApplication:
                 model = kwargs.get('model') or (self.config.transcription.default_model if self.config and self.config.transcription else None)
                 engine = kwargs.get('engine') or (self.config.transcription.default_engine if self.config and self.config.transcription else None)
                 input_data = {'file_path': audio_file_path, 'file_name': Path(audio_file_path).name}
-                transcribe_result = self.transcription_orchestrator.transcribe(
+                transcribe_result = self.transcription_service.transcribe(
                     input_data,
                     model=model,
                     engine=engine
                 )
                 output_result = self.output_processor.process_output(
-                    input_data=input_result,
+                    input_result=input_result,
                     transcription_result=transcribe_result
                 )
                 processing_time = time.time() - start_time
@@ -343,7 +341,7 @@ class TranscriptionApplication:
                     input_result = self.input_processor.process_input(f)
                     if not input_result.get('success'):
                         continue
-                    transcribe_result = self.transcription_orchestrator.transcribe(
+                    transcribe_result = self.transcription_service.transcribe(
                         file_path=f,
                         model=self.config.transcription.default_model if self.config and self.config.transcription else None,
                         engine=self.config.transcription.default_engine if self.config and self.config.transcription else None
@@ -529,7 +527,7 @@ class TranscriptionApplication:
             'error_handler_ready': self.error_handler is not None,
             'input_processor_ready': self.input_processor is not None,
             'output_processor_ready': self.output_processor is not None,
-            'transcription_orchestrator_ready': self.transcription_orchestrator is not None,
+            'transcription_orchestrator_ready': self.transcription_service is not None,
             'audio_client_ready': getattr(self, '_audio_client', None) is not None,
             'timestamp': datetime.now().isoformat()
         }
@@ -596,7 +594,7 @@ class TranscriptionApplication:
         components = [
             ('input_processor', self.input_processor),
             ('output_processor', self.output_processor),
-            ('transcription_orchestrator', self.transcription_orchestrator),
+            ('transcription_service', self.transcription_service),
             ('error_handler', self.error_handler),
             ('performance_tracker', self.performance_tracker),
             ('logging_service', self.logging_service),

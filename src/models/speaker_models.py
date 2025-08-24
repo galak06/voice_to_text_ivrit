@@ -52,6 +52,7 @@ class TranscriptionSegment(BaseModel):
     confidence: Optional[float] = Field(default=None, ge=0, le=1, description="Confidence score")
     chunk_file: Optional[str] = Field(default=None, description="Source audio chunk file name")
     chunk_number: Optional[int] = Field(default=None, description="Chunk number in sequence")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata for the segment")
     
     @field_validator('end')
     @classmethod

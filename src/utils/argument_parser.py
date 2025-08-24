@@ -22,7 +22,7 @@ class ArgumentParser:
 Examples:
   python main_app.py single file.wav --model base
   python main_app.py batch --model base --engine speaker-diarization
-  python main_app.py --config-file config/environments/voice_task.json batch
+  python main_app.py --config-file config/environments/ivrit_whisper_large_v3_ct2.json batch
   python main_app.py status
             """
         )
@@ -43,7 +43,7 @@ Examples:
             print("Single file: python main_app.py single examples/audio/voice/audio.wav --model base --engine speaker-diarization")
             print("Batch: python main_app.py batch --model base --engine speaker-diarization")
             print("Stable-whisper: python main_app.py single examples/audio/voice/audio.wav --engine stable-whisper")
-            print("Ivrit model: python main_app.py single examples/audio/voice/audio.wav --model ivrit-ai/whisper-large-v3 --engine custom-whisper")
+            print("Ivrit model: python main_app.py single examples/audio/voice/audio.wav --model ivrit-ai/whisper-large-v3-ct2 --engine custom-whisper")
             sys.exit(0)
         
         # Subparsers for different commands

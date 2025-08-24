@@ -8,7 +8,7 @@ from pathlib import Path
 from src.core.orchestrator.speaker_transcription_service import SpeakerTranscriptionService
 from src.core.factories.speaker_config_factory import SpeakerConfigFactory
 
-def speaker_diarization(audio_file_path: str, model_name: str = None, save_output: bool = True, speaker_config_preset: str = "default", run_session_id: str = None):
+def speaker_diarization(audio_file_path: str, model_name: str = None, save_output: bool = True, speaker_config_preset: str = "default", run_session_id: str = None, engine_type: str = None):
     """
     Transcribe an audio file with speaker diarization
     
@@ -26,7 +26,7 @@ def speaker_diarization(audio_file_path: str, model_name: str = None, save_outpu
     service = SpeakerTranscriptionService(config)
     
     # Perform transcription
-    result = service.speaker_diarization(audio_file_path, model_name, save_output, run_session_id)
+    result = service.speaker_diarization(audio_file_path, model_name, save_output, run_session_id, engine_type)
     
     # Display results
     service.display_results(result)

@@ -5,14 +5,16 @@ Verifies availability and optionally runs a small smoke transcription
 if TEST_ENGINE_SMOKE=1 and EXAMPLE_AUDIO exists.
 """
 
-import os
 import unittest
+import os
+import tempfile
+from unittest.mock import Mock, patch
 
-from src.core.engines.speaker_engines import TranscriptionEngineFactory
+from src.core.engines import ConsolidatedTranscriptionEngine
 from src.models.speaker_models import SpeakerConfig
 
 
-class TestOptimizedWhisperEngineIntegration(unittest.TestCase):
+class TestConsolidatedTranscriptionEngineIntegration(unittest.TestCase):
     def setUp(self):
         self.config = SpeakerConfig(
             min_speakers=1,
@@ -23,7 +25,7 @@ class TestOptimizedWhisperEngineIntegration(unittest.TestCase):
             overlap_duration=2.0,
             language="he",
         )
-        self.engine = TranscriptionEngineFactory.create_engine("optimized-whisper", self.config)
+        self.engine = ConsolidatedTranscriptionEngine(self.config)
 
     def test_engine_available(self):
         if not self.engine.is_available():
@@ -39,7 +41,7 @@ class TestOptimizedWhisperEngineIntegration(unittest.TestCase):
             self.skipTest(f"Example audio not found: {audio_path}")
 
         # Use ct2 model id for optimized-whisper
-        result = self.engine.transcribe(audio_path, "ivrit-ai/whisper-large-v3-turbo-ct2")
+        result = self.engine.transcribe(audio_path, "ivrit-ai/whisper-large-v3-ct2")
         self.assertIsNotNone(result)
         self.assertTrue(result.transcription_time >= 0)
 
