@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Configuration Manager for ivrit-ai voice transcription service
-Simplified and focused on core configuration management
+Follows SOLID principles with clean, focused classes
 """
 
 import os
@@ -9,6 +9,7 @@ import json
 import logging
 from typing import Dict, Any, Optional, List
 from pathlib import Path
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +27,31 @@ from src.models import (
 )
 
 
-class ConfigLoader:
-    """Handles loading and merging configuration files"""
+class EnvironmentLoader:
+    """Single responsibility: Load and determine environment"""
+    
+    @staticmethod
+    def determine_environment(override: Optional[Environment] = None) -> Environment:
+        """Determine current environment"""
+        if override:
+            return override
+        
+        env_var = os.getenv('ENVIRONMENT', '').lower()
+        if env_var == 'production':
+            return Environment.PRODUCTION
+        elif env_var == 'development':
+            return Environment.DEVELOPMENT
+        else:
+            return Environment.BASE
+
+
+class JsonConfigLoader:
+    """Single responsibility: Load and merge JSON configuration files"""
     
     def __init__(self, config_dir: Path):
         self.config_dir = config_dir
     
-    def load_config(self, environment: Environment) -> AppConfig:
+    def load_config(self, environment: Environment) -> Dict[str, Any]:
         """Load and merge configuration for given environment"""
         # Load base config
         base_config = self._load_json_file("environments/base.json")
@@ -41,13 +60,7 @@ class ConfigLoader:
         env_config = self._load_json_file(f"environments/{environment.value}.json")
         
         # Merge configurations
-        merged = self._merge_configs(base_config, env_config)
-        
-        # Apply environment variable overrides
-        merged = self._apply_env_overrides(merged)
-        
-        # Convert to AppConfig
-        return self._create_app_config(merged, environment)
+        return self._merge_configs(base_config, env_config)
     
     def _load_json_file(self, filename: str) -> Dict[str, Any]:
         """Load JSON file safely"""
@@ -73,83 +86,35 @@ class ConfigLoader:
                 result[key] = value
         
         return result
-    
-    def _apply_env_overrides(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Apply environment variable overrides"""
-        # Transcription overrides
-        if 'transcription' in config:
-            config['transcription']['default_model'] = os.getenv('DEFAULT_MODEL', 
-                config['transcription'].get('default_model', 'ivrit-ai/whisper-large-v3'))
-            config['transcription']['fallback_model'] = os.getenv('FALLBACK_MODEL', 
-                config['transcription'].get('fallback_model', 'ivrit-ai/whisper-large-v3'))
-            # Set default values for transcription
-            config['transcription']['default_model'] = (
-                config['transcription'].get('default_model', 'ivrit-ai/whisper-large-v3'))
-            config['transcription']['default_engine'] = (
-                config['transcription'].get('default_engine', 'custom-whisper'))
 
-            # Sanitize unsupported fallback_model values (map *-turbo variants to allowed enum)
-            fb = config['transcription'].get('fallback_model')
-            if isinstance(fb, str):
-                if fb.endswith('-turbo') or fb.endswith('large-v3-turbo'):
-                    # Map to allowed closest value
-                    if 'ivrit-ai/whisper-large-v3' in fb:
-                        config['transcription']['fallback_model'] = 'ivrit-ai/whisper-large-v3'
-                    else:
-                        config['transcription']['fallback_model'] = 'large-v3'
-        
-        # RunPod overrides
-        if 'runpod' in config:
-            config['runpod']['api_key'] = os.getenv('RUNPOD_API_KEY', config['runpod'].get('api_key'))
-            config['runpod']['endpoint_id'] = os.getenv('RUNPOD_ENDPOINT_ID', config['runpod'].get('endpoint_id'))
-        
-        # System overrides
-        if 'system' in config:
-            debug_env = os.getenv('DEBUG')
-            if debug_env is not None:
-                config['system']['debug'] = debug_env.lower() in ('true', '1', 'yes', 'on')
-            dev_mode_env = os.getenv('DEV_MODE')
-            if dev_mode_env is not None:
-                config['system']['dev_mode'] = dev_mode_env.lower() in ('true', '1', 'yes', 'on')
-            config['system']['hugging_face_token'] = os.getenv('HUGGING_FACE_TOKEN', 
-                config['system'].get('hugging_face_token'))
-        
-        return config
+
+class AppConfigFactory:
+    """Single responsibility: Create AppConfig from dictionary"""
     
-    def _create_app_config(self, config_dict: Dict[str, Any], environment: Environment) -> AppConfig:
+    @staticmethod
+    def create_config(config_dict: Dict[str, Any], environment: Environment) -> AppConfig:
         """Create AppConfig from dictionary with proper default initialization"""
         try:
             # Initialize with defaults if not provided
             config_dict = config_dict.copy()
             
             # Ensure all sections exist with defaults
-            if 'transcription' not in config_dict or not config_dict['transcription']:
-                config_dict['transcription'] = {}
-            if 'speaker' not in config_dict or not config_dict['speaker']:
-                config_dict['speaker'] = {}
-            if 'batch' not in config_dict or not config_dict['batch']:
-                config_dict['batch'] = {}
-            if 'docker' not in config_dict or not config_dict['docker']:
-                config_dict['docker'] = {}
-            if 'runpod' not in config_dict or not config_dict['runpod']:
-                config_dict['runpod'] = {}
-            if 'output' not in config_dict or not config_dict['output']:
-                config_dict['output'] = {}
-            if 'system' not in config_dict or not config_dict['system']:
-                config_dict['system'] = {}
-            if 'input' not in config_dict or not config_dict['input']:
-                config_dict['input'] = {}
+            sections = ['transcription', 'speaker', 'batch', 'docker', 'runpod', 'output', 'system', 'input']
+            for section in sections:
+                if section not in config_dict or not config_dict[section]:
+                    config_dict[section] = {}
             
             # Sanitize unsupported fields for Pydantic models
             trans_dict = dict(config_dict['transcription'])
             trans_dict.pop('available_models', None)
             trans_dict.pop('available_engines', None)
-            # Ensure sanitized fallback_model again at creation time
+            
+            # Ensure sanitized fallback_model
             fb = trans_dict.get('fallback_model')
             if isinstance(fb, str):
                 if fb.endswith('-turbo') or fb.endswith('large-v3-turbo'):
                     if 'ivrit-ai/whisper-large-v3' in fb:
-                        trans_dict['fallback_model'] = 'ivrit-ai/whisper-large-v3'
+                        trans_dict['fallback_model'] = 'ivrit-ai/whisper-large-v3-ct2'
                     else:
                         trans_dict['fallback_model'] = 'large-v3'
 
@@ -166,7 +131,7 @@ class ConfigLoader:
             )
         except Exception as e:
             logger.error(f"Error creating configuration: {e}")
-            # Return config with default-initialized sections to satisfy tests
+            # Return config with default-initialized sections
             try:
                 return AppConfig(
                     environment=environment,
@@ -180,12 +145,117 @@ class ConfigLoader:
                     input=InputConfig()
                 )
             except Exception:
-                # Final fallback
                 return AppConfig(environment=environment)
 
 
+class EnvFileLoader:
+    """Single responsibility: Load .env file using python-dotenv"""
+    
+    @staticmethod
+    def load_env_file(env_file_path: Path = None) -> bool:
+        """Load .env file into environment variables"""
+        if env_file_path is None:
+            env_file_path = Path(".env")
+        
+        if not env_file_path.exists():
+            logger.debug("No .env file found")
+            return False
+        
+        try:
+            load_dotenv(env_file_path, override=True)
+            logger.info("✅ .env file loaded into environment")
+            return True
+        except Exception as e:
+            logger.error(f"Error loading .env file: {e}")
+            return False
+
+
+class ConfigOverrideApplier:
+    """Single responsibility: Apply environment variable overrides to config object"""
+    
+    @staticmethod
+    def apply_overrides(config: AppConfig) -> None:
+        """Apply all environment variable overrides to config object"""
+        # Get all relevant environment variables
+        env_vars = {
+            'SPEAKER_DIARIZATION_ENABLED': os.getenv('SPEAKER_DIARIZATION_ENABLED'),
+            'DEFAULT_MODEL': os.getenv('DEFAULT_MODEL'),
+            'DEFAULT_ENGINE': os.getenv('DEFAULT_ENGINE'),
+            'RUNPOD_API_KEY': os.getenv('RUNPOD_API_KEY'),
+            'RUNPOD_ENDPOINT_ID': os.getenv('RUNPOD_ENDPOINT_ID'),
+            'DEBUG': os.getenv('DEBUG'),
+            'DEV_MODE': os.getenv('DEV_MODE'),
+            'LOG_LEVEL': os.getenv('LOG_LEVEL'),
+            'HUGGING_FACE_TOKEN': os.getenv('HUGGING_FACE_TOKEN'),
+        }
+        
+        # Apply each environment variable override
+        for key, value in env_vars.items():
+            if value is not None:
+                ConfigOverrideApplier._apply_single_override(config, key, value)
+    
+    @staticmethod
+    def _apply_single_override(config: AppConfig, key: str, value: str) -> None:
+        """Apply a single environment variable override"""
+        try:
+            if key == 'SPEAKER_DIARIZATION_ENABLED':
+                ConfigOverrideApplier._apply_speaker_override(config, value)
+            elif key == 'DEFAULT_MODEL':
+                ConfigOverrideApplier._apply_transcription_override(config, 'default_model', value)
+            elif key == 'DEFAULT_ENGINE':
+                ConfigOverrideApplier._apply_transcription_override(config, 'default_engine', value)
+            elif key == 'RUNPOD_API_KEY':
+                ConfigOverrideApplier._apply_runpod_override(config, 'api_key', value)
+            elif key == 'RUNPOD_ENDPOINT_ID':
+                ConfigOverrideApplier._apply_runpod_override(config, 'endpoint_id', value)
+            elif key == 'DEBUG':
+                ConfigOverrideApplier._apply_system_override(config, 'debug', value)
+            elif key == 'DEV_MODE':
+                ConfigOverrideApplier._apply_system_override(config, 'dev_mode', value)
+            elif key == 'LOG_LEVEL':
+                ConfigOverrideApplier._apply_system_override(config, 'log_level', value.upper())
+            elif key == 'HUGGING_FACE_TOKEN':
+                ConfigOverrideApplier._apply_system_override(config, 'hugging_face_token', value)
+            else:
+                logger.debug(f"Environment variable {key} not mapped to config override")
+                
+        except Exception as e:
+            logger.warning(f"Could not apply {key}={value} to config: {e}")
+    
+    @staticmethod
+    def _apply_speaker_override(config: AppConfig, value: str) -> None:
+        """Apply speaker diarization override"""
+        if hasattr(config, 'speaker'):
+            setattr(config.speaker, '_diarization_enabled', value.lower() == 'true')
+            logger.info(f"🔧 Applied SPEAKER_DIARIZATION_ENABLED={value} to speaker config")
+    
+    @staticmethod
+    def _apply_transcription_override(config: AppConfig, field: str, value: str) -> None:
+        """Apply transcription override"""
+        if hasattr(config, 'transcription'):
+            setattr(config.transcription, field, value)
+            logger.info(f"🔧 Applied {field}={value} to transcription config")
+    
+    @staticmethod
+    def _apply_runpod_override(config: AppConfig, field: str, value: str) -> None:
+        """Apply RunPod override"""
+        if hasattr(config, 'runpod'):
+            setattr(config.runpod, field, value)
+            mask = '***' if field == 'api_key' else value
+            logger.info(f"🔧 Applied {field}={mask} to RunPod config")
+    
+    @staticmethod
+    def _apply_system_override(config: AppConfig, field: str, value: Any) -> None:
+        """Apply system override"""
+        if hasattr(config, 'system'):
+            if field in ['debug', 'dev_mode']:
+                value = value.lower() in ('true', '1', 'yes', 'on')
+            setattr(config.system, field, value)
+            logger.info(f"🔧 Applied {field}={value} to system config")
+
+
 class ConfigValidator:
-    """Handles configuration validation"""
+    """Single responsibility: Validate configuration"""
     
     @staticmethod
     def validate(config: AppConfig) -> bool:
@@ -196,26 +266,10 @@ class ConfigValidator:
             
             # Business logic validation
             errors = []
-            
-            # Check required environment variables
-            missing_vars = ConfigValidator._check_required_env_vars(config)
-            if missing_vars:
-                errors.extend(missing_vars)
-            
-            # Check file paths and directories
-            path_errors = ConfigValidator._validate_paths(config)
-            if path_errors:
-                errors.extend(path_errors)
-            
-            # Check configuration consistency
-            consistency_errors = ConfigValidator._check_consistency(config)
-            if consistency_errors:
-                errors.extend(consistency_errors)
-            
-            # Check model and engine compatibility
-            compatibility_errors = ConfigValidator._check_model_engine_compatibility(config)
-            if compatibility_errors:
-                errors.extend(compatibility_errors)
+            errors.extend(ConfigValidator._check_required_env_vars(config))
+            errors.extend(ConfigValidator._validate_paths(config))
+            errors.extend(ConfigValidator._check_consistency(config))
+            errors.extend(ConfigValidator._check_model_engine_compatibility(config))
             
             if errors:
                 logger.error("Configuration validation failed:")
@@ -242,7 +296,6 @@ class ConfigValidator:
                 errors.append('RUNPOD_ENDPOINT_ID is required when RunPod is enabled')
         
         if config.system and config.system.hugging_face_token:
-            # Validate HF token format (basic check)
             if len(config.system.hugging_face_token) < 10:
                 errors.append('HUGGING_FACE_TOKEN appears to be invalid (too short)')
         
@@ -253,19 +306,16 @@ class ConfigValidator:
         """Validate file paths and directories"""
         errors = []
         
-        # Check output directory
         if config.output and config.output.output_dir:
             output_path = Path(config.output.output_dir)
             try:
                 output_path.mkdir(parents=True, exist_ok=True)
-                # Test write permissions
                 test_file = output_path / ".test_write"
                 test_file.write_text("test")
                 test_file.unlink()
             except Exception as e:
                 errors.append(f'Output directory {config.output.output_dir} is not writable: {e}')
         
-        # Check logs directory
         if config.output and config.output.logs_dir:
             logs_path = Path(config.output.logs_dir)
             try:
@@ -273,7 +323,6 @@ class ConfigValidator:
             except Exception as e:
                 errors.append(f'Logs directory {config.output.logs_dir} cannot be created: {e}')
         
-        # Check input directory if specified
         if config.input and config.input.directory:
             input_path = Path(config.input.directory)
             if not input_path.exists():
@@ -285,88 +334,22 @@ class ConfigValidator:
     
     @staticmethod
     def _check_consistency(config: AppConfig) -> List[str]:
-        """Check configuration consistency and cross-field dependencies"""
+        """Check configuration consistency"""
         errors = []
         
-        # Check speaker configuration
         if config.speaker:
             if config.speaker.min_speakers > config.speaker.max_speakers:
                 errors.append('min_speakers cannot be greater than max_speakers')
-            
             if config.speaker.min_speakers < 1:
                 errors.append('min_speakers must be at least 1')
-            
-            if config.speaker.max_speakers > 10:
-                errors.append('max_speakers should not exceed 10 for performance reasons')
+            if config.speaker.max_speakers > 20:
+                errors.append('max_speakers cannot exceed 20')
         
-        # Check batch configuration
-        if config.batch and config.batch.enabled:
-            if config.batch.max_workers < 1:
-                errors.append('max_workers must be at least 1')
-            elif config.batch.max_workers > 16:
-                errors.append('max_workers should not exceed 16 for memory management')
-            
-            # Get constants from configuration
-            constants = config.system.constants if config.system else None
-            min_timeout = constants.min_timeout_per_file if constants else 30
-            
-            if config.batch.timeout_per_file < min_timeout:
-                errors.append(f'timeout_per_file should be at least {min_timeout} seconds')
-        
-        # Check system configuration
-        if config.system:
-            if config.system.timeout_seconds < 10:
-                errors.append('timeout_seconds should be at least 10 seconds')
-            
-            if config.system.retry_attempts < 0:
-                errors.append('retry_attempts cannot be negative')
-            elif config.system.retry_attempts > 10:
-                errors.append('retry_attempts should not exceed 10')
-        
-        # Cross-field dependency checks
-        errors.extend(ConfigValidator._check_cross_field_dependencies(config))
-        
-        return errors
-    
-    @staticmethod
-    def _check_cross_field_dependencies(config: AppConfig) -> List[str]:
-        """Check dependencies between different configuration sections"""
-        errors = []
-        
-        # Check RunPod and transcription engine compatibility
-        if config.runpod and config.runpod.enabled:
-            if config.transcription and config.transcription.default_engine == 'stable-whisper':
-                # Stable whisper might not work well with RunPod
-                errors.append('stable-whisper engine may not be optimal for RunPod deployment')
-        
-        # Check output directory and batch processing compatibility
-        if config.batch and config.batch.enabled:
-            if config.output and config.output.output_dir:
-                output_path = Path(config.output.output_dir)
-                if not output_path.exists():
-                    try:
-                        output_path.mkdir(parents=True, exist_ok=True)
-                    except Exception:
-                        errors.append('Cannot create output directory for batch processing')
-        
-        # Check speaker diarization and transcription engine compatibility
-        if config.speaker and config.speaker.enabled:
-            if config.transcription and config.transcription.default_engine == 'stable-whisper':
-                # Stable whisper has limited speaker diarization support
-                errors.append('stable-whisper engine has limited speaker diarization support')
-        
-        # Check system resources and batch configuration
-        if config.system and config.batch and config.batch.enabled:
-            # Estimate memory usage based on batch configuration
-            estimated_memory_mb = config.batch.max_workers * 512  # 512MB per worker estimate
-            if estimated_memory_mb > 8192:  # 8GB limit
-                errors.append(f'Batch configuration may exceed memory limits (estimated {estimated_memory_mb}MB)')
-        
-        # Check timeout consistency
-        if config.system and config.batch and config.batch.enabled:
-            batch_timeout = config.batch.timeout_per_file * config.batch.max_workers
-            if batch_timeout > config.system.timeout_seconds:
-                errors.append('Batch timeout may exceed system timeout')
+        if config.transcription:
+            if config.transcription.beam_size < 1 or config.transcription.beam_size > 10:
+                errors.append('beam_size must be between 1 and 10')
+            if config.transcription.vad_min_silence_duration_ms < 0:
+                errors.append('vad_min_silence_duration_ms cannot be negative')
         
         return errors
     
@@ -375,31 +358,25 @@ class ConfigValidator:
         """Check model and engine compatibility"""
         errors = []
         
-        if config.transcription:
-            # Define compatible model-engine combinations
-            stable_whisper_models = {
-                'tiny.en', 'tiny', 'base.en', 'base', 'small.en', 'small',
-                'medium.en', 'medium', 'large-v1', 'large-v2', 'large-v3', 'large',
-                'large-v3-turbo', 'turbo'
-            }
-            
-            custom_whisper_models = {
-                'ivrit-ai/whisper-large-v3', 'ivrit-ai/whisper-large-v3-turbo'
-            }
-            
-            model = config.transcription.default_model
-            engine = config.transcription.default_engine
-            
-            if engine == 'stable-whisper' and model in custom_whisper_models:
-                errors.append(f'Model {model} requires custom-whisper engine, not stable-whisper')
-            elif engine == 'custom-whisper' and model in stable_whisper_models:
-                errors.append(f'Model {model} should use stable-whisper engine for better performance')
+        if not config.transcription:
+            return errors
+        
+        custom_whisper_models = {'ivrit-ai/whisper-large-v3-ct2'}
+        stable_whisper_models = {'ivrit-ai/whisper-large-v3-ct2'}
+        
+        model = config.transcription.default_model
+        engine = config.transcription.default_engine
+        
+        if engine == 'stable-whisper' and model in custom_whisper_models:
+            errors.append(f'Model {model} requires custom-whisper engine, not stable-whisper')
+        elif engine == 'custom-whisper' and model in stable_whisper_models:
+            errors.append(f'Model {model} should use stable-whisper engine for better performance')
         
         return errors
 
 
 class ConfigPrinter:
-    """Handles configuration display"""
+    """Single responsibility: Display configuration information"""
     
     @staticmethod
     def print_config(config: AppConfig, show_sensitive: bool = False):
@@ -440,7 +417,7 @@ class ConfigPrinter:
                 ('Timeout', 'timeout_seconds', lambda x: f"{x}s"),
                 ('Retry Attempts', 'retry_attempts')
             ]),
-            ('📂 Input', config.input, [
+            ('Input', config.input, [
                 ('Directory', 'directory'),
                 ('Recursive Search', 'recursive_search'),
                 ('Max File Size', 'max_file_size_mb', lambda x: f"{x}MB"),
@@ -477,7 +454,7 @@ class ConfigPrinter:
 
 
 class ConfigManager:
-    """Configuration manager supporting dependency injection"""
+    """Main configuration manager - orchestrates other components"""
     
     def __init__(self, config_dir: str = "config", environment: Optional[Environment] = None):
         """
@@ -485,43 +462,39 @@ class ConfigManager:
         
         Args:
             config_dir: Directory containing configuration files
-            environment: Optional environment override (defaults to ENVIRONMENT env var)
+            environment: Optional environment override
         """
         self.config_dir = Path(config_dir)
-        self.config_path = str(self.config_dir)
         self.config_dir.mkdir(exist_ok=True)
         
-        # Load environment variables
-        self._load_env_file()
-        
         # Determine environment
-        self.environment = environment or self._determine_environment()
+        self.environment = EnvironmentLoader.determine_environment(environment)
         
-        # Load configuration
-        loader = ConfigLoader(self.config_dir)
-        self.config = loader.load_config(self.environment)
+        # Load configuration using the pipeline
+        self.config = self._load_configuration()
     
-    def _load_env_file(self):
-        """Load .env file if it exists"""
-        env_file = Path(".env")
-        if env_file.exists():
-            with open(env_file, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
-                        key, value = line.split('=', 1)
-                        value = value.split('#')[0].strip()
-                        os.environ[key.strip()] = value
-    
-    def _determine_environment(self) -> Environment:
-        """Determine current environment"""
-        env_var = os.getenv('ENVIRONMENT', '').lower()
-        if env_var == 'production':
-            return Environment.PRODUCTION
-        elif env_var == 'development':
-            return Environment.DEVELOPMENT
-        else:
-            return Environment.BASE
+    def _load_configuration(self) -> AppConfig:
+        """Load configuration using the clean pipeline approach"""
+        # 1. Load JSON configurations first
+        logger.info("📁 Loading configuration from JSON files...")
+        json_loader = JsonConfigLoader(self.config_dir)
+        json_config = json_loader.load_config(self.environment)
+        logger.info("✅ JSON configuration loaded")
+        
+        # 2. Create AppConfig from JSON
+        config_factory = AppConfigFactory()
+        app_config = config_factory.create_config(json_config, self.environment)
+        
+        # 3. Load .env file last (highest priority)
+        logger.info("🔧 Loading .env file and applying final overrides...")
+        env_loader = EnvFileLoader()
+        env_loader.load_env_file()
+        
+        # 4. Apply environment variable overrides to config object
+        override_applier = ConfigOverrideApplier()
+        override_applier.apply_overrides(app_config)
+        
+        return app_config
     
     def validate(self) -> bool:
         """Validate configuration"""
@@ -549,4 +522,4 @@ class ConfigManager:
     def get_speaker_config(self, preset: str = "default"):
         """Get speaker configuration for specific preset"""
         from src.core.factories.speaker_config_factory import SpeakerConfigFactory
-        return SpeakerConfigFactory.get_config(preset) 
+        return SpeakerConfigFactory.get_config(preset)

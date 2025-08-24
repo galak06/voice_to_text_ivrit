@@ -62,13 +62,10 @@ python main_app.py single examples/audio/voice/audio.wav --speaker-preset conver
 python main_app.py batch
 
 # With specific model
-python main_app.py batch --model base --engine speaker-diarization
+python main_app.py batch --model ivrit-ai/whisper-large-v3-ct2 --engine speaker-diarization
 
-# Using voice folder optimized configuration
-python main_app.py --config-file config/environments/voice_task.json batch
-
-# Using Docker-enabled batch processing
-python main_app.py --config-file config/environments/docker_batch.json batch
+# Using optimized Hebrew transcription configuration
+python main_app.py --config-file config/environments/ivrit_whisper_large_v3_ct2.json batch
 ```
 
 **Application Status:**
@@ -82,41 +79,82 @@ python main_app.py --help-config
 
 ## 📋 Configuration-Driven Architecture
 
-All functionality is controlled through configuration files in `config/environments/`:
+All functionality is controlled through configuration files in `config/environments/` and environment variables:
+
+**Configuration Loading Order:**
+1. **JSON Configuration Files** - Loaded first from `config/environments/`
+2. **`.env` File** - Loaded last and overrides all previous settings
+3. **Runtime Environment Variables** - Can be set before running the application
+
+**Clean Architecture Principles:**
+The configuration system follows **SOLID principles** with focused, single-responsibility classes:
+- **`EnvironmentLoader`** - Determines application environment
+- **`JsonConfigLoader`** - Loads and merges JSON configuration files
+- **`AppConfigFactory`** - Creates Pydantic configuration models
+- **`EnvFileLoader`** - Handles `.env` file loading using python-dotenv
+- **`ConfigOverrideApplier`** - Applies environment variable overrides
+- **`ConfigValidator`** - Validates configuration integrity
+- **`ConfigPrinter`** - Displays configuration information
+- **`ConfigManager`** - Orchestrates the configuration pipeline
 
 ### Available Configurations
 
 | Configuration | Purpose | Use Case |
 |---------------|---------|----------|
-| `base.json` | Default settings | General use |
-| `voice_task.json` | Voice folder processing | Quick voice transcription |
-| `docker_batch.json` | Docker-enabled batch | Advanced batch processing |
-| `runpod.json` | RunPod cloud processing | Cloud transcription |
-| `ivrit.json` | Hebrew-optimized transcription | Hebrew audio with ivrit-ai/whisper-large-v3 |
-| `ivrit_high_accuracy.json` | High-accuracy Hebrew transcription | Hebrew audio with ivrit-ai/whisper-large-v3-ct2 (CTranslate2 optimized) |
-| `development.json` | Development settings | Development environment |
-| `production.json` | Production settings | Production environment |
+| `ivrit_whisper_large_v3_ct2.json` | Optimized Hebrew transcription | Hebrew audio with ivrit-ai/whisper-large-v3-ct2 (CTranslate2 optimized, 2 speakers, beam_size 10) |
+
+### Environment Variables
+
+The application supports environment variables for runtime configuration. Copy `config/templates/env_template.txt` to `.env` and modify as needed:
+
+**Configuration Loading Priority (highest to lowest):**
+1. **`.env` file** - Environment variables loaded last, override all other settings
+2. **JSON configuration files** - Base and environment-specific configurations
+3. **Default values** - Built-in application defaults
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SPEAKER_DIARIZATION_ENABLED` | `true` | Enable/disable speaker diarization (`true`/`false`) |
+| `DEFAULT_MODEL` | `ivrit-ai/whisper-large-v3-ct2` | Default transcription model |
+| `DEFAULT_ENGINE` | `speaker-diarization` | Default transcription engine |
+| `RUNPOD_API_KEY` | - | RunPod API key for cloud deployment |
+| `RUNPOD_ENDPOINT_ID` | - | RunPod endpoint ID |
 
 ### Configuration Examples
 
-**Voice Folder Processing:**
+**Optimized Hebrew Transcription:**
 ```bash
-python main_app.py --config-file config/environments/voice_task.json batch
+python main_app.py --config-file config/environments/ivrit_whisper_large_v3_ct2.json batch
 ```
 
-**Docker Batch Processing:**
+**Single File Hebrew Transcription:**
 ```bash
-python main_app.py --config-file config/environments/docker_batch.json batch
+python main_app.py --config-file config/environments/ivrit_whisper_large_v3_ct2.json single examples/audio/voice/audio.wav
 ```
 
-**RunPod Cloud Processing:**
+**Disabling Speaker Diarization:**
 ```bash
-python main_app.py --config-file config/environments/runpod.json batch
+# Set environment variable to disable speaker diarization
+export SPEAKER_DIARIZATION_ENABLED=false
+
+# Or add to .env file
+echo "SPEAKER_DIARIZATION_ENABLED=false" >> .env
+
+# Then run transcription (speaker diarization will be disabled)
+python main_app.py single examples/audio/voice/audio.wav
 ```
 
-**Hebrew Transcription with Ivrit Model:**
+**Configuration Loading Process:**
 ```bash
-python main_app.py --config-file config/environments/ivrit.json single examples/audio/voice/audio.wav
+# 1. JSON configs are loaded first (base.json + environment-specific)
+# 2. .env file is loaded last and overrides config object
+# 3. Environment variables take highest priority
+
+# Example .env file:
+SPEAKER_DIARIZATION_ENABLED=false
+DEFAULT_MODEL=ivrit-ai/whisper-large-v3-ct2
+DEFAULT_ENGINE=speaker-diarization
+RUNPOD_API_KEY=your_api_key_here
 ```
 
 ## 🛠️ Helper Scripts
@@ -186,12 +224,7 @@ voice_to_text_ivrit/
 │       └── test_setup.py             # Setup tests
 ├── config/                           # ⚙️ Configuration directory
 │   ├── environments/                 # Environment configurations
-│   │   ├── base.json                # Base configuration
-│   │   ├── voice_task.json          # Voice folder processing
-│   │   ├── docker_batch.json        # Docker-enabled batch
-│   │   ├── runpod.json              # RunPod cloud processing
-│   │   ├── development.json         # Development overrides
-│   │   └── production.json          # Production overrides
+│   │   └── ivrit_whisper_large_v3_ct2.json  # Optimized Hebrew transcription
 │   └── templates/                    # Configuration templates
 │       └── env_template.txt         # Environment variables template
 ├── examples/                         # 📁 Example files
@@ -224,17 +257,17 @@ python main_app.py single examples/audio/voice/audio.wav
 python main_app.py single examples/audio/voice/audio.wav --speaker-preset conversation
 
 # With specific model and engine
-python main_app.py single examples/audio/voice/audio.wav --model base --engine faster-whisper
+python main_app.py single examples/audio/voice/audio.wav --model ivrit-ai/whisper-large-v3-ct2 --engine optimized-whisper
 
 # With Hebrew-optimized ivrit model
-python main_app.py single examples/audio/voice/audio.wav --model ivrit-ai/whisper-large-v3 --engine speaker-diarization
+python main_app.py single examples/audio/voice/audio.wav --model ivrit-ai/whisper-large-v3-ct2 --engine speaker-diarization
 ```
 
 ### Cloud Transcription (RunPod)
 Run transcription via RunPod endpoint:
 ```bash
 # Basic RunPod transcription
-python main_app.py --config-file config/environments/runpod.json batch
+python main_app.py --config-file config/environments/ivrit_whisper_large_v3_ct2.json batch
 ```
 
 ### Batch Processing
@@ -244,13 +277,13 @@ Process all voice files in a directory:
 python main_app.py batch
 
 # Process all files via RunPod
-python main_app.py --config-file config/environments/docker_batch.json batch
+python main_app.py --config-file config/environments/ivrit_whisper_large_v3_ct2.json batch
 
 # With custom settings
-python main_app.py --config-file config/environments/voice_task.json batch --speaker-preset conversation
+python main_app.py --config-file config/environments/ivrit_whisper_large_v3_ct2.json batch --speaker-preset conversation
 
 # Custom voice directory
-python main_app.py --config-file config/environments/voice_task.json batch --voice-dir /path/to/voice/files
+python main_app.py --config-file config/environments/ivrit_whisper_large_v3_ct2.json batch --voice-dir /path/to/voice/files
 ```
 
 ### Serverless Handler
@@ -289,19 +322,9 @@ output/transcriptions/
 
 ## 🤖 Available Models
 
-The system supports multiple Whisper models for different use cases:
+The system is optimized for Hebrew transcription with the following model:
 
-### Standard Whisper Models
-- **`tiny`** - Fastest, lowest accuracy (39M parameters)
-- **`base`** - Good balance of speed and accuracy (74M parameters)
-- **`small`** - Better accuracy, moderate speed (244M parameters)
-- **`medium`** - High accuracy, slower (769M parameters)
-- **`large-v1`** - Very high accuracy (1550M parameters)
-- **`large-v2`** - Improved accuracy over v1 (1550M parameters)
-- **`large-v3`** - Latest and most accurate (1550M parameters)
-- **`large-v3-turbo`** - Fast version of large-v3
-
-### Specialized Models
+### Hebrew-Optimized Model
 - **`ivrit-ai/whisper-large-v3-ct2`** - **HIGHEST ACCURACY** - CTranslate2 optimized Hebrew model (recommended)
   - Based on Whisper Large v3 with CTranslate2 optimization
   - 2-3x faster processing with 30-50% less memory usage
@@ -309,39 +332,25 @@ The system supports multiple Whisper models for different use cases:
   - CPU-optimized for maximum performance
   - **Best choice for Hebrew transcription**
 
-- **`ivrit-ai/whisper-large-v3`** - Hebrew-optimized model for superior Hebrew transcription
-  - Based on Whisper Large v3
-  - Fine-tuned specifically for Hebrew language
-  - Better accuracy for Hebrew accents and dialects
-  - Good alternative for Hebrew audio content
-
 ### Model Selection Guide
 ```bash
 # For Hebrew content - HIGHEST ACCURACY (recommended)
 python main_app.py single audio.wav --model ivrit-ai/whisper-large-v3-ct2
 
-# For Hebrew content - High accuracy configuration
-python main_app.py --config-file config/environments/ivrit_high_accuracy.json single audio.wav
+# Using optimized configuration file
+python main_app.py --config-file config/environments/ivrit_whisper_large_v3_ct2.json single audio.wav
 
-# For Hebrew content (standard)
-python main_app.py single audio.wav --model ivrit-ai/whisper-large-v3
-
-# For general use with good accuracy
-python main_app.py single audio.wav --model large-v3
-
-# For fast processing
-python main_app.py single audio.wav --model base
-
-# Using configuration file
-python main_app.py --config-file config/environments/ivrit.json single audio.wav
+# Batch processing with optimized configuration
+python main_app.py --config-file config/environments/ivrit_whisper_large_v3_ct2.json batch
 ```
 
 ### 🎯 High-Accuracy Features
 
-The `ivrit_high_accuracy.json` configuration includes:
+The `ivrit_whisper_large_v3_ct2.json` configuration includes:
 - **CTranslate2 Engine:** Optimized for CPU processing
-- **Enhanced Parameters:** Beam size 10, best-of-5 selection
-- **99.9% Coverage Verification:** Ensures no voice parts are missed
+- **Enhanced Parameters:** Beam size 10, optimized for ivrit-ai/whisper-large-v3-ct2
+- **Hebrew Language Optimization:** Specifically tuned for Hebrew transcription
+- **2 Speaker Configuration:** Fixed to 2 speakers for consistent results
 - **Memory Optimization:** Automatic cleanup every 5 chunks
 - **Better Hebrew Recognition:** Improved punctuation and character accuracy
 
@@ -369,9 +378,7 @@ python main_app.py single examples/audio/voice/audio.wav --speaker-preset interv
 The project uses a hierarchical configuration system:
 
 ### Environment Configuration
-- **Base Configuration**: `config/environments/base.json`
-- **Development**: `config/environments/development.json`
-- **Production**: `config/environments/production.json`
+- **Optimized Hebrew**: `config/environments/ivrit_whisper_large_v3_ct2.json`
 
 ### Environment Variables
 Set these in your `.env` file:
