@@ -57,7 +57,9 @@ class TranscriptionApplication:
         """
         # Initialize configuration first (dependency)
         if config_manager is not None:
-            # Use provided ConfigManager
+            # Use provided ConfigManager - validate it's properly initialized
+            if not hasattr(config_manager, 'config') or config_manager.config is None:
+                raise ValueError("Provided ConfigManager must be properly initialized with config")
             self.config_manager = config_manager
         elif config_path:
             # Create ConfigManager with custom path
@@ -70,7 +72,8 @@ class TranscriptionApplication:
                 config_dir = config_path
             self.config_manager = ConfigManager(config_dir)
         else:
-            # Create default ConfigManager
+            # Create default ConfigManager - this should be avoided in production
+            # Prefer to inject a properly configured ConfigManager
             self.config_manager = ConfigManager()
         
         self.config = self.config_manager.config
@@ -117,6 +120,9 @@ class TranscriptionApplication:
             self.ui_manager = ui_manager
         else:
             self.ui_manager = ApplicationUI(self.config_manager)
+        
+        # Verify config manager injection throughout the application
+        self._verify_config_injection()
     
     def _ensure_config_initialized(self):
         """Ensure all required configuration sections are initialized"""
@@ -171,13 +177,15 @@ class TranscriptionApplication:
         try:
             # Preferred path for unit tests: use injected processors and orchestrator
             try:
+                logger.info(f"🎯 DEBUG: Trying preferred path with engine={kwargs.get('engine')}, model={kwargs.get('model')}")
                 input_result = self.input_processor.process_input(audio_file_path)
                 if not input_result.get('success'):
                     return {'success': False, 'error': input_result.get('error', 'Input processing failed')}
                 model = kwargs.get('model') or (self.config.transcription.default_model if self.config and self.config.transcription else None)
                 engine = kwargs.get('engine') or (self.config.transcription.default_engine if self.config and self.config.transcription else None)
+                input_data = {'file_path': audio_file_path, 'file_name': Path(audio_file_path).name}
                 transcribe_result = self.transcription_orchestrator.transcribe(
-                    file_path=audio_file_path,
+                    input_data,
                     model=model,
                     engine=engine
                 )
@@ -194,8 +202,9 @@ class TranscriptionApplication:
                     'output': output_result,
                     'session_id': self.current_session_id
                 }
-            except Exception:
+            except Exception as e:
                 # Fallback to pipeline-based processing
+                logger.info(f"🎯 DEBUG: Falling back to pipeline processing due to: {e}")
                 context = ProcessingContext(
                     session_id=self.current_session_id,
                     file_path=audio_file_path,
@@ -381,7 +390,7 @@ class TranscriptionApplication:
             logger.error(f"Unexpected error in batch processing: {e}")
             return error_result
     
-    def _track_batch_performance(self, processing_time: float, success: bool, input_directory: str | None):
+    def _track_batch_performance(self, processing_time: float, success: bool, input_directory: Optional[str]):
         """Track performance metrics for batch processing"""
         if self.performance_tracker:
             self.performance_tracker.record_batch_processing(
@@ -390,7 +399,7 @@ class TranscriptionApplication:
                 success=success
             )
     
-    def _handle_batch_error(self, error: Exception, input_directory: str | None, processing_time: float) -> Dict[str, Any]:
+    def _handle_batch_error(self, error: Exception, input_directory: Optional[str], processing_time: float) -> Dict[str, Any]:
         """Handle batch processing errors with standardized format"""
         error_result = self.error_handler.handle_operation_error(
             operation="batch_processing",
@@ -580,3 +589,27 @@ class TranscriptionApplication:
         
         # Return False to re-raise the original exception if it exists
         return False 
+
+    def _verify_config_injection(self) -> None:
+        """Verify that config manager is properly injected throughout the application"""
+        # Verify all components use the same config manager
+        components = [
+            ('input_processor', self.input_processor),
+            ('output_processor', self.output_processor),
+            ('transcription_orchestrator', self.transcription_orchestrator),
+            ('error_handler', self.error_handler),
+            ('performance_tracker', self.performance_tracker),
+            ('logging_service', self.logging_service),
+            ('ui_manager', self.ui_manager)
+        ]
+        
+        for name, component in components:
+            if hasattr(component, 'config_manager'):
+                if component.config_manager is not self.config_manager:
+                    raise ValueError(f"Component {name} must use the same config manager instance")
+            else:
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Component {name} does not have config_manager attribute")
+        
+        logger = logging.getLogger(__name__)
+        logger.debug("✅ Config manager injection verified successfully throughout application") 

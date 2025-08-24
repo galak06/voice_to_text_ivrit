@@ -153,18 +153,36 @@ class ApplicationOrchestrator:
     
     def initialize(self, config_file: Optional[str] = None) -> None:
         """Initialize application components with dependency injection"""
-        # Initialize configuration manager
+        # Initialize configuration manager - only create one instance
         if config_file:
             # Extract directory from config file path
             config_dir = str(Path(config_file).parent)
             self.config_manager = ConfigManager(config_dir)
         else:
+            # Use default config directory
             self.config_manager = ConfigManager()
         
         # Initialize application with dependency injection
         self.app = TranscriptionApplication(config_manager=self.config_manager)
         self.ui = self.app.ui_manager
         self.command_handler = CommandHandler(self.app, self.ui)
+        
+        # Verify config manager injection chain
+        self._verify_config_injection()
+    
+    def _verify_config_injection(self) -> None:
+        """Verify that config manager is properly injected throughout the application"""
+        if not self.config_manager or not self.app:
+            return
+            
+        # Verify the injection chain
+        assert self.app.config_manager is self.config_manager, "App should use the same config manager"
+        assert self.app.config is self.config_manager.config, "App should use the same config object"
+        assert self.ui.config_manager is self.config_manager, "UI should use the same config manager"
+        
+        # Log successful injection
+        logger = logging.getLogger(__name__)
+        logger.debug("✅ Config manager injection verified successfully")
     
     def run(self, args) -> int:
         """Run the application with proper error handling"""

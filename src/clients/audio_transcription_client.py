@@ -47,27 +47,20 @@ class AudioTranscriptionClient:
     - Dependency Inversion: Depends on abstractions, not concretions
     """
     
-    def __init__(
-        self,
-        config: Optional[AppConfig] = None,
-        endpoint_factory: Optional[RunPodEndpointFactoryInterface] = None,
-        file_validator: Optional[AudioFileValidatorInterface] = None,
-        payload_builder: Optional[TranscriptionPayloadBuilderInterface] = None,
-        result_collector: Optional[TranscriptionResultCollectorInterface] = None,
-        output_saver: Optional[OutputSaverInterface] = None,
-        result_display: Optional[ResultDisplayInterface] = None,
-        parameter_provider: Optional[TranscriptionParameterProvider] = None,
-        queue_waiter: Optional[QueueWaiter] = None,
-        data_utils: Optional[DataUtilsType] = None,
-        # New: allow injecting a ConfigManager or bypassing RunPod validation entirely (useful for tests)
-        config_manager: Optional[ConfigManager] = None,
-        skip_runpod_validation: bool = False,
-    ):
+    def __init__(self, config_manager: Optional[ConfigManager] = None, config: Optional[AppConfig] = None,
+                 endpoint_factory: Optional[RunPodEndpointFactory] = None, file_validator: Optional[FileValidator] = None,
+                 payload_builder: Optional[TranscriptionPayloadBuilder] = None, 
+                 result_collector: Optional[TranscriptionResultCollector] = None,
+                 output_saver: Optional[OutputSaver] = None, result_display: Optional[ResultDisplay] = None,
+                 parameter_provider: Optional[TranscriptionParameterProvider] = None, 
+                 queue_waiter: Optional[QueueWaiter] = None,
+                 data_utils: Optional[DataUtils] = None, skip_runpod_validation: bool = False):
         """
         Initialize the audio transcription client with dependency injection
         
         Args:
-            config: Optional application configuration
+            config_manager: Configuration manager instance (required)
+            config: Application configuration (optional, will use config_manager.config if not provided)
             endpoint_factory: Factory for creating RunPod endpoints
             file_validator: Validator for audio files
             payload_builder: Builder for transcription payloads
@@ -77,10 +70,14 @@ class AudioTranscriptionClient:
             parameter_provider: Provider for transcription parameters
             queue_waiter: Waiter for queue processing
             data_utils: DataUtils instance for data processing
+            skip_runpod_validation: Whether to skip RunPod validation (for testing)
         """
-        # Dependency inversion: accept injected config or manager; fall back gently to defaults
-        self.config_manager = config_manager or ConfigManager()
-        self.config = config or getattr(self.config_manager, 'config', self._load_default_config())
+        # Dependency injection: config_manager is required
+        if config_manager is None:
+            raise ValueError("ConfigManager is required and must be injected")
+        
+        self.config_manager = config_manager
+        self.config = config or config_manager.config
         self.skip_runpod_validation = skip_runpod_validation
         
         # Initialize dependencies with defaults if not provided
@@ -97,9 +94,8 @@ class AudioTranscriptionClient:
         self._validate_configuration()
     
     def _load_default_config(self) -> AppConfig:
-        """Load default configuration"""
-        config_manager = ConfigManager()
-        return config_manager.config
+        """Load default configuration - DEPRECATED: Use injected config_manager instead"""
+        raise DeprecationWarning("_load_default_config is deprecated. Use injected config_manager instead.")
     
     def _validate_configuration(self) -> None:
         """Validate configuration and setup RunPod endpoint"""
