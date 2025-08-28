@@ -10,7 +10,12 @@ from pathlib import Path
 
 def monitor_chunks():
     """Monitor chunk progress in real-time"""
-    temp_chunks_dir = "output/temp_chunks"
+    # Use definition.py for temp chunks directory
+    try:
+        from definition import TEMP_DIR
+        temp_chunks_dir = TEMP_DIR
+    except ImportError:
+        temp_chunks_dir = "output/temp_chunks"
     
     if not os.path.exists(temp_chunks_dir):
         print("❌ No temp_chunks directory found")

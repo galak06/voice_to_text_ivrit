@@ -61,17 +61,25 @@ class OutputProcessor:
         try:
             self.logger.info("Processing transcription output")
             
+            # Debug logging to see what we're receiving
+            self.logger.info(f"🔍 Transcription result keys: {list(transcription_result.keys())}")
+            self.logger.info(f"🔍 Transcription result type: {type(transcription_result)}")
+            self.logger.info(f"🔍 Input metadata keys: {list(input_metadata.keys())}")
+            
             # Validate transcription result
             if not transcription_result.get('success', False):
+                self.logger.warning(f"🔍 Transcription failed, no output to process")
                 return ResultBuilder.create_failure_result('Transcription failed, no output to process', transcription_result)
             
             # Check if output already saved by transcription service
             if self._is_output_already_saved(transcription_result):
+                self.logger.info("🔍 Output already saved by transcription service")
                 return ResultBuilder.create_already_saved_result()
             
             # Process output formats
             output_results = self._process_output_formats(transcription_result, input_metadata)
             
+            self.logger.info(f"🔍 Output processing completed: {len(output_results)} formats")
             return ResultBuilder.create_success_result(output_results)
             
         except (ValueError, TypeError) as e:
@@ -95,9 +103,24 @@ class OutputProcessor:
     
     def _is_output_already_saved(self, transcription_result: Dict[str, Any]) -> bool:
         """Check if transcription service already saved the output"""
+        # The transcription_result should have a 'success' field at the top level
+        # The transcription_data inside should contain the actual transcription content
         transcription_data = transcription_result.get('transcription', {})
-        return ((hasattr(transcription_data, 'success') and transcription_data.success) or 
-                (isinstance(transcription_data, dict) and transcription_data.get('success', False)))
+        
+        # Check if the transcription data contains actual content that would indicate it was already saved
+        # This should not be checking for a 'success' field in the transcription data
+        if isinstance(transcription_data, dict):
+            # Check if it contains actual transcription content
+            has_text = bool(transcription_data.get('transcription', ''))
+            has_segments = bool(transcription_data.get('segments', []))
+            has_metadata = bool(transcription_data.get('metadata', {}))
+            
+            # If it has actual content, it might have been processed already
+            # But we should still process it to ensure proper output formatting
+            return False  # Always process the output to ensure proper formatting
+        
+        # If it's not a dict, it's probably raw text that needs processing
+        return False
     
     def _create_failure_result(self, error_message: str, transcription_result: Dict[str, Any]) -> Dict[str, Any]:
         """Create failure result"""

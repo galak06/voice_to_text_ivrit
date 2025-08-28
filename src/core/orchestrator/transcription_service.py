@@ -1,59 +1,32 @@
 #!/usr/bin/env python3
 """
-Unified Transcription Service
-Coordinates all transcription processes based on injected objects
-
-This service follows SOLID principles:
-- Single Responsibility: Orchestrates transcription based on injected services
-- Open/Closed: Extensible for new transcription types via injection
-- Liskov Substitution: All transcription services are interchangeable
-- Interface Segregation: Clean, focused interfaces
-- Dependency Inversion: Depends on injected service abstractions
+Main Transcription Service Orchestrator
+Coordinates all transcription processes using dependency injection
 """
 
 import logging
 import time
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, Any, Optional, List, Generator, Union, Protocol, TYPE_CHECKING
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from enum import Enum
 
 from src.utils.config_manager import ConfigManager
-from src.core.factories.engine_factory import create_engine, get_supported_engines
-from src.core.logic.job_validator import JobValidator
-from src.core.processors.audio_file_processor import AudioFileProcessor
-from src.models import AppConfig, SpeakerConfig, TranscriptionResult, TranscriptionRequest
-from src.core.logic.result_builder import ResultBuilder
+from src.core.interfaces.transcription_protocols import (
+    TranscriptionServiceProtocol,
+    SpeakerServiceProtocol,
+    ProgressMonitorProtocol
+)
+from src.core.factories import (
+    TranscriptionServiceFactory,
+    SpeakerServiceFactory,
+    ProgressMonitorFactory
+)
+from src.models import SpeakerConfig
 
 if TYPE_CHECKING:
     from src.output_data import OutputManager
 
 logger = logging.getLogger(__name__)
-
-
-class TranscriptionServiceProtocol(Protocol):
-    """Protocol for transcription services"""
-    def transcribe(self, input_data: Dict[str, Any], **kwargs) -> Generator[Dict[str, Any], None, None]:
-        """Process transcription request"""
-        ...
-
-
-class SpeakerServiceProtocol(Protocol):
-    """Protocol for speaker diarization services"""
-    def speaker_diarization(self, audio_file_path: str, **kwargs) -> TranscriptionResult:
-        """Perform speaker diarization"""
-        ...
-
-
-class ProgressMonitorProtocol(Protocol):
-    """Protocol for progress monitoring"""
-    def start_monitoring(self, file_path: str) -> None:
-        """Start monitoring a file"""
-        ...
-    
-    def stop(self) -> None:
-        """Stop monitoring"""
-        ...
 
 
 class TranscriptionMode(Enum):
@@ -62,142 +35,80 @@ class TranscriptionMode(Enum):
     SPEAKER_DIARIZATION = "speaker_diarization"
     ENHANCED = "enhanced"
     BATCH = "batch"
+    CHUNKED = "chunked"
 
 
 class TranscriptionService:
     """
-    Unified transcription service for all transcription processes
+    Main transcription orchestrator that uses injected services
     
-    Uses injected services to determine behavior and orchestrates the appropriate
-    transcription strategy based on available services and requirements.
+    This class follows SOLID principles:
+    - Single Responsibility: Orchestrates transcription based on injected services
+    - Open/Closed: Extensible for new transcription types via injection
+    - Liskov Substitution: All transcription services are interchangeable
+    - Interface Segregation: Clean, focused interfaces
+    - Dependency Inversion: Depends on injected service abstractions
     """
     
-    def __init__(self, 
-                 config_manager: ConfigManager, 
+    def __init__(self,
+                 config_manager: ConfigManager,
                  output_manager: 'OutputManager',
                  transcription_service: Optional[TranscriptionServiceProtocol] = None,
                  speaker_service: Optional[SpeakerServiceProtocol] = None,
                  progress_monitor: Optional[ProgressMonitorProtocol] = None,
                  enhanced_service: Optional[TranscriptionServiceProtocol] = None):
-        """
-        Initialize the unified transcription service with injected services
-        
-        Args:
-            config_manager: Configuration manager instance
-            output_manager: Output manager instance
-            transcription_service: Basic transcription service (optional)
-            speaker_service: Speaker diarization service (optional)
-            progress_monitor: Progress monitoring service (optional)
-            enhanced_service: Enhanced transcription service (optional)
-        """
         self.config_manager = config_manager
-        self.config = config_manager.config
         self.output_manager = output_manager
-        
-        # Injected services determine behavior
-        self.transcription_service = transcription_service
-        self.speaker_service = speaker_service
-        self.progress_monitor = progress_monitor
-        self.enhanced_service = enhanced_service
-        
-        # Initialize core components
-        self._initialize_components()
-        
-        # Current processing state
+
+        # Create transcription engine to inject into services (DIP compliance)
+        self.transcription_engine = self._create_transcription_engine()
+
+        # Use injected services or create default ones using factories with injected engine
+        self.transcription_service = transcription_service or TranscriptionServiceFactory.create_service(
+            config_manager, output_manager, self.transcription_engine
+        )
+        self.speaker_service = speaker_service or self._create_speaker_service()
+        self.enhanced_service = enhanced_service or TranscriptionServiceFactory.create_service(
+            config_manager, output_manager, self.transcription_engine
+        )
+        self.progress_monitor = progress_monitor or ProgressMonitorFactory.create_monitor(config_manager)
+
         self.current_job: Optional[Dict[str, Any]] = None
         self.processing_stats: Dict[str, Any] = {}
     
-    def _initialize_components(self) -> None:
-        """Initialize all required components based on injected services"""
-        # Core services (always available)
-        self.job_validator = JobValidator(self.config)
-        self.audio_processor = AudioFileProcessor(self.config_manager, self.output_manager)
-        
-        # Create basic transcription service if not injected
-        if self.transcription_service is None:
-            self.transcription_service = self._create_basic_transcription_service()
-        
-        # Create speaker service if not injected but enabled
-        if self.speaker_service is None and self._is_speaker_diarization_enabled():
-            self.speaker_service = self._create_speaker_service()
-        
-        # Create enhanced service if not injected but enabled
-        if self.enhanced_service is None and self._is_enhanced_features_enabled():
-            self.enhanced_service = self._create_enhanced_service()
-        
-        # Progress monitoring is optional
-        if self.progress_monitor is None:
-            self.progress_monitor = self._create_progress_monitor()
-    
-    def _create_basic_transcription_service(self) -> TranscriptionServiceProtocol:
-        """Create basic transcription service if not injected"""
-        # Create a simple transcription service that implements the protocol
-        class BasicTranscriptionService:
-            def __init__(self, config_manager, output_manager):
-                self.config_manager = config_manager
-                self.output_manager = output_manager
-            
-            def transcribe(self, input_data: Dict[str, Any], **kwargs) -> Generator[Dict[str, Any], None, None]:
-                """Basic transcription implementation"""
-                # Simple transcription logic here
-                yield {"success": True, "data": "Basic transcription completed"}
-        
-        return BasicTranscriptionService(self.config_manager, self.output_manager)
-    
-    def _create_speaker_service(self) -> SpeakerServiceProtocol:
-        """Create speaker transcription service if not injected"""
-        # Create a simple speaker service that implements the protocol
-        class BasicSpeakerService:
-            def __init__(self, speaker_config, app_config, output_manager):
-                self.speaker_config = speaker_config
-                self.app_config = app_config
-                self.output_manager = output_manager
-            
-            def speaker_diarization(self, audio_file_path: str, **kwargs) -> TranscriptionResult:
-                """Basic speaker diarization implementation"""
-                # Simple speaker diarization logic here
-                return TranscriptionResult(
-                    success=True,
-                    segments=[],
-                    error_message=None,
-                    processing_time=0.0
-                )
-        
-        speaker_config = self._create_speaker_config()
-        return BasicSpeakerService(speaker_config, self.config, self.output_manager)
-    
-    def _create_enhanced_service(self) -> TranscriptionServiceProtocol:
-        """Create enhanced transcription service if not injected"""
-        # For now, return the basic service as enhanced
-        # This can be extended with actual enhanced services
-        if self.transcription_service:
-            return self.transcription_service
-        else:
-            # Create a basic service if none exists
-            return self._create_basic_transcription_service()
-    
-    def _create_progress_monitor(self) -> Optional[ProgressMonitorProtocol]:
-        """Create progress monitor if not injected"""
+    def _create_transcription_engine(self):
+        """Create transcription engine with dependency injection"""
         try:
-            from src.logging.progress_monitor import ProgressMonitor
+            from src.core.engines.consolidated_transcription_engine import ConsolidatedTranscriptionEngine
+            return ConsolidatedTranscriptionEngine(
+                config_manager=self.config_manager
+            )
+        except Exception as e:
+            logger.error(f"❌ Error creating transcription engine: {e}")
+            raise
+    
+    def _create_speaker_service(self) -> Optional[SpeakerServiceProtocol]:
+        """Create speaker service if speaker diarization is enabled"""
+        try:
+            # Check if speaker diarization is enabled
+            if not self._is_speaker_diarization_enabled():
+                logger.info("ℹ️ Speaker diarization disabled, not creating speaker service")
+                return None
             
-            # Create a wrapper that implements our protocol
-            class ProgressMonitorWrapper:
-                def __init__(self, monitor):
-                    self.monitor = monitor
-                
-                def start_monitoring(self, file_path: str) -> None:
-                    self.monitor.start_monitoring(file_path)
-                
-                def stop(self) -> None:
-                    if hasattr(self.monitor, 'stop'):
-                        self.monitor.stop()
+            # Use factory to create speaker service with injected engine
+            from src.core.factories.speaker_service_factory import SpeakerServiceFactory
+            return SpeakerServiceFactory.create_service(self.config_manager, self.transcription_engine)
             
-            monitor = ProgressMonitor()
-            return ProgressMonitorWrapper(monitor)
-        except ImportError:
-            logger.debug("Progress monitoring not available")
+        except Exception as e:
+            logger.error(f"Failed to create speaker service: {e}")
             return None
+    
+    def _create_speaker_config(self) -> SpeakerConfig:
+        """Create speaker configuration from app config"""
+        if not self.config_manager.config.speaker:
+            return SpeakerConfig()
+        
+        return self.config_manager.config.speaker
     
     def _is_speaker_diarization_enabled(self) -> bool:
         """Check if speaker diarization is enabled based on config and environment"""
@@ -209,52 +120,10 @@ class TranscriptionService:
             return False
         
         # Check config object
-        if hasattr(self.config, 'speaker') and self.config.speaker:
-            # Check if speaker config has the diarization enabled flag
-            # This is a custom attribute that gets set by the config manager
-            if hasattr(self.config.speaker, '_diarization_enabled'):
-                return self.config.speaker._diarization_enabled
-            
-            # If speaker config exists and has speaker settings, assume enabled
-            if hasattr(self.config.speaker, 'min_speakers'):
-                return True
-        
-        # Check legacy config - this might not exist in the new AppConfig structure
-        # but we keep it for backward compatibility
-        try:
-            if hasattr(self.config, 'speaker_diarization'):
-                return getattr(self.config.speaker_diarization, 'enabled', True)
-        except AttributeError:
-            pass
+        if hasattr(self.config_manager.config, 'speaker') and self.config_manager.config.speaker:
+            return self.config_manager.config.speaker.enabled
         
         return True  # Default to enabled
-    
-    def _create_speaker_config(self) -> SpeakerConfig:
-        """Create speaker configuration from app config"""
-        if not self.config.speaker:
-            return SpeakerConfig()
-        
-        speaker = self.config.speaker
-        system_constants = getattr(self.config.system, 'constants', None) if self.config.system else None
-        default_silence_duration = getattr(system_constants, 'min_silence_duration_ms', 300) if system_constants else 300
-        
-        return SpeakerConfig(
-            min_speakers=getattr(speaker, 'min_speakers', 2),
-            max_speakers=getattr(speaker, 'max_speakers', 4),
-            silence_threshold=getattr(speaker, 'silence_threshold', 1.5),
-            vad_enabled=getattr(speaker, 'vad_enabled', True),
-            word_timestamps=getattr(speaker, 'word_timestamps', True),
-            language=getattr(speaker, 'language', 'he'),
-            beam_size=getattr(speaker, 'beam_size', 5),
-            vad_min_silence_duration_ms=getattr(speaker, 'vad_min_silence_duration_ms', default_silence_duration)
-        )
-    
-    def _is_enhanced_features_enabled(self) -> bool:
-        """Check if enhanced features are enabled in configuration"""
-        return (
-            getattr(self.config, 'enhanced_features', False) or
-            getattr(self.config, 'advanced_processing', False)
-        )
     
     def determine_transcription_mode(self, input_data: Dict[str, Any]) -> TranscriptionMode:
         """
@@ -266,6 +135,11 @@ class TranscriptionService:
         Returns:
             TranscriptionMode to use
         """
+        # Check if chunked transcription is explicitly requested
+        if input_data.get('chunked', False) or input_data.get('chunk_duration'):
+            logger.info("🎯 Chunked transcription requested")
+            return TranscriptionMode.CHUNKED
+        
         # Check if speaker diarization is explicitly requested
         if input_data.get('speaker_diarization', False) or input_data.get('speaker_preset'):
             if self.speaker_service is not None:
@@ -282,8 +156,25 @@ class TranscriptionService:
         if input_data.get('batch', False):
             return TranscriptionMode.BATCH
         
+        # Check if audio file is long enough to warrant chunking
+        file_path = input_data.get('file_path', '')
+        if file_path and self._should_use_chunked_transcription(file_path):
+            logger.info("🎯 Long audio file detected, using chunked transcription")
+            return TranscriptionMode.CHUNKED
+        
         # Default to basic transcription
         return TranscriptionMode.BASIC
+    
+    def _should_use_chunked_transcription(self, file_path: str) -> bool:
+        """Determine if chunked transcription should be used based on audio length"""
+        try:
+            import librosa
+            duration = librosa.get_duration(path=file_path)
+            # Use chunked transcription for files longer than 5 minutes
+            return duration > 300  # 5 minutes = 300 seconds
+        except Exception as e:
+            logger.debug(f"Could not determine audio duration: {e}")
+            return False
     
     def transcribe(self, input_data: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         """
@@ -315,6 +206,8 @@ class TranscriptionService:
                 result = self._transcribe_with_enhanced_features(input_data, **kwargs)
             elif mode == TranscriptionMode.BATCH:
                 result = self._transcribe_batch(input_data, **kwargs)
+            elif mode == TranscriptionMode.CHUNKED:
+                result = self._transcribe_chunked(input_data, **kwargs)
             else:
                 result = self._transcribe_basic(input_data, **kwargs)
             
@@ -348,16 +241,39 @@ class TranscriptionService:
             # Use injected transcription service
             result = list(self.transcription_service.transcribe(input_data, **kwargs))
             
-            return {
-                'success': True,
-                'data': result,
-                'processing_info': {
-                    'mode': 'basic',
-                    'service_type': type(self.transcription_service).__name__
+            logger.info(f"🔍 Service result type: {type(result)}")
+            logger.info(f"🔍 Service result length: {len(result)}")
+            
+            # Extract the actual transcription data from the service result
+            if result and len(result) > 0:
+                service_result = result[0]  # Get the first (and should be only) result
+                
+                logger.info(f"🔍 Service result keys: {list(service_result.keys())}")
+                logger.info(f"🔍 Service result transcription type: {type(service_result.get('transcription', {}))}")
+                
+                # Return the transcription data in the format expected by output processor
+                orchestrator_result = {
+                    'success': True,
+                    'transcription': service_result.get('transcription', {}),  # This is what output processor expects
+                    'model': service_result.get('model', 'unknown'),
+                    'engine': service_result.get('engine', 'unknown'),
+                    'audio_file': service_result.get('audio_file', 'unknown'),
+                    'processing_info': {
+                        'mode': 'basic',
+                        'service_type': type(self.transcription_service).__name__
+                    }
                 }
-            }
+                
+                logger.info(f"🔍 Orchestrator result keys: {list(orchestrator_result.keys())}")
+                logger.info(f"🔍 Orchestrator transcription type: {type(orchestrator_result.get('transcription', {}))}")
+                
+                return orchestrator_result
+            else:
+                logger.warning("🔍 No transcription results generated")
+                return self._create_error_result("No transcription results generated", time.time())
             
         except Exception as e:
+            logger.error(f"🔍 Error in basic transcription: {e}")
             return self._create_error_result(str(e), time.time())
     
     def _transcribe_with_speaker_diarization(self, input_data: Dict[str, Any], **kwargs) -> Dict[str, Any]:
@@ -403,14 +319,24 @@ class TranscriptionService:
             # Use injected enhanced service
             result = list(self.enhanced_service.transcribe(input_data, **kwargs))
             
-            return {
-                'success': True,
-                'data': result,
-                'processing_info': {
-                    'mode': 'enhanced',
-                    'service_type': type(self.enhanced_service).__name__
+            # Extract the actual transcription data from the service result
+            if result and len(result) > 0:
+                service_result = result[0]  # Get the first (and should be only) result
+                
+                # Return the transcription data in the format expected by output processor
+                return {
+                    'success': True,
+                    'transcription': service_result.get('transcription', {}),  # This is what output processor expects
+                    'model': service_result.get('model', 'unknown'),
+                    'engine': service_result.get('engine', 'unknown'),
+                    'audio_file': service_result.get('audio_file', 'unknown'),
+                    'processing_info': {
+                        'mode': 'enhanced',
+                        'service_type': type(self.enhanced_service).__name__
+                    }
                 }
-            }
+            else:
+                return self._create_error_result("No transcription results generated", time.time())
             
         except Exception as e:
             logger.error(f"Enhanced transcription failed: {e}")
@@ -423,6 +349,65 @@ class TranscriptionService:
         # For now, fall back to basic transcription
         # This can be extended with actual batch processing logic
         return self._transcribe_basic(input_data, **kwargs)
+    
+    def _transcribe_chunked(self, input_data: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+        """Chunked transcription processing"""
+        logger.info("🎤 Performing chunked transcription")
+        
+        if not self.transcription_service:
+            return self._create_error_result("Chunked transcription service not available", time.time())
+        
+        try:
+            # Use injected transcription service
+            audio_file = input_data.get('file_path')
+            if not audio_file:
+                return self._create_error_result("No audio file path provided for chunked transcription", time.time())
+            
+            # ALWAYS use ConfigManager first - no hardcoded defaults
+            chunk_duration = None
+            
+            # Try to get chunk duration from ConfigManager in priority order
+            try:
+                if hasattr(self.config_manager.config, 'chunking') and hasattr(self.config_manager.config.chunking, 'chunk_duration_seconds'):
+                    chunk_duration = self.config_manager.config.chunking.chunk_duration_seconds
+                    logger.info(f"🎯 Using chunk duration from ConfigManager chunking: {chunk_duration} seconds")
+                elif hasattr(self.config_manager.config, 'processing') and hasattr(self.config_manager.config.processing, 'chunk_duration_seconds'):
+                    chunk_duration = self.config_manager.config.processing.chunk_duration_seconds
+                    logger.info(f"🎯 Using chunk duration from ConfigManager processing: {chunk_duration} seconds")
+                else:
+                    logger.error("❌ No chunk duration found in ConfigManager - configuration is incomplete")
+                    return self._create_error_result("Chunk duration not configured in ConfigManager", time.time())
+            except Exception as e:
+                logger.error(f"❌ Error reading chunk duration from ConfigManager: {e}")
+                return self._create_error_result(f"Failed to read chunk duration from ConfigManager: {e}", time.time())
+            
+            # Only use input chunk_duration if explicitly provided and different from config
+            input_chunk_duration = input_data.get('chunk_duration')
+            if input_chunk_duration and input_chunk_duration != chunk_duration:
+                logger.info(f"🎯 Overriding ConfigManager chunk duration ({chunk_duration}s) with input value: {input_chunk_duration}s")
+                chunk_duration = input_chunk_duration
+            if not isinstance(chunk_duration, (int, float)) or chunk_duration <= 0:
+                return self._create_error_result("Invalid chunk_duration provided", time.time())
+            
+            result = self.transcription_service.chunked_transcribe(
+                audio_file,
+                chunk_duration=chunk_duration,
+                **kwargs
+            )
+            
+            return {
+                'success': True,
+                'data': result.dict() if hasattr(result, 'dict') else result,
+                'processing_info': {
+                    'mode': 'chunked',
+                    'service_type': type(self.transcription_service).__name__,
+                    'chunk_duration': chunk_duration
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Chunked transcription failed: {e}")
+            return self._create_error_result(str(e), time.time())
     
     def _get_services_used(self, mode: TranscriptionMode) -> List[str]:
         """Get list of services used for the transcription mode"""
@@ -509,7 +494,7 @@ class TranscriptionService:
             'processing_stats': self.processing_stats,
             'available_services': self.get_available_services(),
             'speaker_diarization_enabled': self._is_speaker_diarization_enabled(),
-            'enhanced_features_enabled': self._is_enhanced_features_enabled()
+            'enhanced_features_enabled': getattr(self.config_manager.config, 'enhanced_features', False)
         }
     
     def reset_stats(self) -> None:
@@ -519,7 +504,7 @@ class TranscriptionService:
     
     def cleanup(self) -> None:
         """Clean up resources"""
-        logger.info("🧹 Cleaning up unified transcription service")
+        logger.info("🧹 Cleaning up transcription service")
         self.reset_stats()
         
         # Clean up injected services

@@ -13,6 +13,14 @@ from .logic.queue_waiter import QueueWaiter
 from .factories.runpod_endpoint_factory import RunPodEndpointFactory
 from .processors.output_saver import OutputSaver
 from .processors.result_display import ResultDisplay
+from .services.chunk_management_service import ChunkManagementService
+from .services.chunk_processing_service import ChunkProcessingService
+from .engines.strategies.chunking_strategy import (
+    ChunkingStrategy,
+    OverlappingChunkingStrategy,
+    FixedDurationChunkingStrategy,
+    ChunkingStrategyFactory
+)
 
 __all__ = [
     'TranscriptionService', 
@@ -24,5 +32,11 @@ __all__ = [
     'QueueWaiter',
     'RunPodEndpointFactory',
     'OutputSaver',
-    'ResultDisplay'
+    'ResultDisplay',
+    'ChunkManagementService',
+    'ChunkProcessingService',
+    'ChunkingStrategy',
+    'OverlappingChunkingStrategy',
+    'FixedDurationChunkingStrategy',
+    'ChunkingStrategyFactory'
 ] 

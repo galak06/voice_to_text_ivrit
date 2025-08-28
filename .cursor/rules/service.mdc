@@ -1,0 +1,32 @@
+---
+
+### `.cursor/rules/003-config.mdc`
+
+```mdc
+---
+description: "Config standards: explicit BaseSettings, no hard-coded defaults"
+globs:
+  - "config/**/*.py"
+alwaysApply: false
+---
+
+## Requirements
+- Use `pydantic.BaseSettings` for environment configuration.
+- Avoid hardcoded defaults; require explicit values.
+- Name config classes clearly (e.g., `AppSettings`, `DatabaseConfig`).
+- Validate missing config on startup with clear errors.
+
+## Example
+
+```python
+# BAD
+class AppConfig:
+    DEBUG = True  # hidden default
+
+# GOOD
+class AppSettings(BaseSettings):
+    debug: bool
+    db_url: str
+
+    class Config:
+        env_file = ".env"

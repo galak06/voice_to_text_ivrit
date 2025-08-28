@@ -8,6 +8,7 @@ from pydantic import Field, field_validator, BaseModel
 from enum import Enum
 
 from .base_models import BaseConfigModel
+from .processor import ProcessorConfig
 
 
 class TranscriptionModel(str, Enum):
@@ -84,6 +85,24 @@ class TranscriptionConfig(BaseConfigModel):
         default=500, 
         ge=0, 
         description="Minimum silence duration in milliseconds"
+    )
+    
+    # CTranslate2 optimization settings
+    ctranslate2_optimization: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="CTranslate2-specific optimization parameters"
+    )
+    
+    # Hebrew optimization settings
+    hebrew_optimization: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Hebrew-specific optimization parameters"
+    )
+    
+    # Processor configuration (injected from model files)
+    processor_config: Optional[ProcessorConfig] = Field(
+        default=None,
+        description="Processor configuration injected from model preprocessor files"
     )
     
     # Available options (computed properties)

@@ -52,6 +52,11 @@ class SystemConfig(BaseModel):
     session_management: bool = Field(default=True, description="Enable session management")
     error_reporting: bool = Field(default=True, description="Enable error reporting")
     
+    # Path configurations
+    models_path: str = Field(default="models", description="Path to models directory")
+    temp_dir: str = Field(default="output/temp", description="Path to temporary directory")
+    cache_dir: str = Field(default="output/cache", description="Path to cache directory")
+    
     # Application constants
     constants: ApplicationConstants = Field(default_factory=ApplicationConstants, description="Application constants and thresholds")
     

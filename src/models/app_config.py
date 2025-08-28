@@ -15,6 +15,9 @@ from .runpod import RunPodConfig
 from .output import OutputConfig
 from .system import SystemConfig
 from .input import InputConfig
+from .chunking import ChunkingConfig
+from .processing import ProcessingConfig
+from .ctranslate2 import CTranslate2Config
 
 
 class AppConfig(BaseModel):
@@ -29,6 +32,9 @@ class AppConfig(BaseModel):
     output: Optional[OutputConfig] = Field(default_factory=OutputConfig, description="Output configuration")
     system: Optional[SystemConfig] = Field(default_factory=SystemConfig, description="System configuration")
     input: Optional[InputConfig] = Field(default_factory=InputConfig, description="Input configuration")
+    chunking: Optional[ChunkingConfig] = Field(default_factory=ChunkingConfig, description="Chunking configuration")
+    processing: Optional[ProcessingConfig] = Field(default_factory=ProcessingConfig, description="Processing configuration")
+    ctranslate2_specific: Optional[CTranslate2Config] = Field(default_factory=CTranslate2Config, description="CTranslate2 specific configuration")
     
     model_config = ConfigDict(
         validate_assignment=True,

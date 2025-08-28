@@ -97,7 +97,7 @@ class TranscriptionServiceFactory:
         """Register default transcription services"""
         try:
             # Import and register default services
-            from src.core.orchestrator.speaker_transcription_service import SpeakerTranscriptionService
+            from src.core.orchestrator.transcription_service import TranscriptionService as SpeakerTranscriptionService
             from src.core.orchestrator.transcription_service import TranscriptionService
             
             self.register_service('speaker-diarization', SpeakerTranscriptionService)

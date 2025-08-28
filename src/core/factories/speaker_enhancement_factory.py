@@ -8,7 +8,7 @@ import logging
 from typing import Optional, Dict, Any
 from abc import ABC, abstractmethod
 
-from src.core.orchestrator.speaker_transcription_service import SpeakerTranscriptionService
+from src.core.orchestrator.transcription_service import TranscriptionService as SpeakerTranscriptionService
 from src.core.services.speaker_enhancement_orchestrator import SpeakerEnhancementOrchestrator, SpeakerEnhancementInterface
 
 logger = logging.getLogger(__name__)

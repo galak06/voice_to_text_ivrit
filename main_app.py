@@ -18,6 +18,7 @@ from src.core.application import TranscriptionApplication
 from src.utils.argument_parser import ArgumentParser
 from src.utils.config_manager import ConfigManager
 from src.utils.ui_manager import ApplicationUI
+from src.core.engines.utilities.cleanup_manager import CleanupManager
 
 
 def require_component(component_name: str) -> Callable:
@@ -112,8 +113,64 @@ class CommandHandler:
             speaker_preset=args.speaker_preset
         )
         
-        # Print results
-        self.ui.print_processing_result(result, "single")
+        # Display detailed results like the script does
+        if result and result.get('success'):
+            print("✅ Transcription completed successfully!")
+            print("-" * 60)
+            print("📝 TRANSCRIPTION RESULT:")
+            print("=" * 60)
+            
+            # Display transcription text from the result structure
+            transcription_result = result.get('transcription', {})
+            if transcription_result.get('success'):
+                # Try to get text from different possible locations
+                text = None
+                
+                # First try to get from segments
+                segments = transcription_result.get('segments', [])
+                if segments and len(segments) > 0:
+                    if isinstance(segments[0], dict):
+                        text = segments[0].get('text', segments[0].get('transcription', ''))
+                    else:
+                        text = str(segments[0])
+                
+                # If no segments, try to get from transcription field directly
+                if not text:
+                    text = transcription_result.get('text', transcription_result.get('transcription', ''))
+                
+                # If still no text, try to get from full_text
+                if not text:
+                    text = transcription_result.get('full_text', '')
+                
+                if text:
+                    print(f"📝 Transcription: {text}")
+                else:
+                    print("No transcription text found in result structure")
+                    print(f"Available keys: {list(transcription_result.keys())}")
+            else:
+                print("Transcription processing failed")
+                if 'error' in transcription_result:
+                    print(f"Error: {transcription_result['error']}")
+            
+            print("=" * 60)
+            
+            # Show output files
+            output_result = result.get('output', {})
+            if output_result.get('success'):
+                print("\n📁 Output processing completed successfully")
+                # You can add more output file details here if needed
+            
+            # Show performance metrics if available
+            if 'processing_time' in result:
+                print(f"\n⏱️  Processing time: {result['processing_time']:.2f} seconds")
+        
+        else:
+            print("❌ Transcription failed!")
+            if result and 'error' in result:
+                print(f"Error: {result['error']}")
+            elif result and 'transcription' in result:
+                trans_error = result['transcription'].get('error', 'Unknown error')
+                print(f"Transcription error: {trans_error}")
         
         return ExitCodes.SUCCESS if result['success'] else ExitCodes.ERROR
     
@@ -155,15 +212,27 @@ class ApplicationOrchestrator:
         """Initialize application components with dependency injection"""
         # Initialize configuration manager - only create one instance
         if config_file:
-            # Extract directory from config file path
+            # Use the directory that contains the config file directly
             config_dir = str(Path(config_file).parent)
-            self.config_manager = ConfigManager(config_dir)
+            
+            # Determine environment based on config file name
+            from src.models.environment import Environment
+            if 'production' in config_file or 'ivrit_whisper_large_v3_ct2' in config_file:
+                environment = Environment.PRODUCTION
+            else:
+                environment = Environment.BASE
+            
+            self.config_manager = ConfigManager(config_dir, environment)
         else:
             # Use default config directory
             self.config_manager = ConfigManager()
         
         # Initialize application with dependency injection
-        self.app = TranscriptionApplication(config_manager=self.config_manager)
+        cleanup_manager = CleanupManager(self.config_manager)
+        self.app = TranscriptionApplication(
+            config_manager=self.config_manager,
+            cleanup_manager=cleanup_manager
+        )
         self.ui = self.app.ui_manager
         self.command_handler = CommandHandler(self.app, self.ui)
         
@@ -177,7 +246,6 @@ class ApplicationOrchestrator:
             
         # Verify the injection chain
         assert self.app.config_manager is self.config_manager, "App should use the same config manager"
-        assert self.app.config is self.config_manager.config, "App should use the same config object"
         assert self.ui.config_manager is self.config_manager, "UI should use the same config manager"
         
         # Log successful injection

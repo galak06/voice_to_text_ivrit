@@ -56,7 +56,14 @@ class TranscriptionProgress:
 class ProgressMonitor:
     """Real-time transcription progress monitor"""
     
-    def __init__(self, temp_chunks_dir: str = "output/temp_chunks"):
+    def __init__(self, temp_chunks_dir: str = None):
+        # Use definition.py for temp chunks directory
+        if temp_chunks_dir is None:
+            try:
+                from definition import TEMP_DIR
+                temp_chunks_dir = TEMP_DIR
+            except ImportError:
+                temp_chunks_dir = "output/temp_chunks"
         self.temp_chunks_dir = Path(temp_chunks_dir)
         self.temp_chunks_dir.mkdir(parents=True, exist_ok=True)
         self.monitoring = False

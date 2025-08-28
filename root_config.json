@@ -1,0 +1,80 @@
+{
+  "root": {
+    "workspace_path": "/Users/gilcohen/voic_to_text_docker",
+    "models_directory": "models",
+    "models_path": "/Users/gilcohen/voic_to_text_docker/models",
+    "config_directory": "config",
+    "output_directory": "output",
+    "examples_directory": "examples",
+    "scripts_directory": "scripts",
+    "src_directory": "src",
+    "tests_directory": "tests"
+  },
+  "paths": {
+    "absolute": {
+      "workspace": "/Users/gilcohen/voic_to_text_docker",
+      "models": "/Users/gilcohen/voic_to_text_docker/models",
+      "config": "/Users/gilcohen/voic_to_text_docker/config",
+      "output": "/Users/gilcohen/voic_to_text_docker/output",
+      "examples": "/Users/gilcohen/voic_to_text_docker/examples",
+      "scripts": "/Users/gilcohen/voic_to_text_docker/scripts",
+      "src": "/Users/gilcohen/voic_to_text_docker/src",
+      "tests": "/Users/gilcohen/voic_to_text_docker/tests"
+    },
+    "relative": {
+      "models": "models",
+      "config": "config",
+      "output": "output",
+      "examples": "examples",
+      "scripts": "scripts",
+      "src": "src",
+      "tests": "tests"
+    }
+  },
+  "models": {
+    "download_directory": "models",
+    "cache_directory": "models/cache",
+    "base_path": "models",
+    "unified_storage": true,
+    "ivrit_whisper_large_v3_ct2": {
+      "name": "ivrit-ai/whisper-large-v3-ct2",
+      "type": "ctranslate2",
+      "local_path": "models",
+      "download_script": "scripts/download_ivrit_ct2_model.py",
+      "required_files": [
+        "model.bin",
+        "config.json",
+        "tokenizer.json",
+        "vocabulary.txt"
+      ]
+    },
+    "faster_whisper_v2": {
+      "name": "faster-whisper-v2",
+      "type": "faster_whisper",
+      "local_path": "models",
+      "download_script": "scripts/download_faster_whisper_v2.py",
+      "required_files": [
+        "config.json",
+        "tokenizer.json",
+        "vocabulary.txt"
+      ]
+    },
+    "ivrit_model": {
+      "name": "ivrit-ai/whisper-large-v3",
+      "type": "whisper",
+      "local_path": "models",
+      "download_script": "scripts/download_ivrit_model.py",
+      "required_files": [
+        "config.json",
+        "tokenizer.json",
+        "vocabulary.txt"
+      ]
+    }
+  },
+  "environment": {
+    "type": "development",
+    "os": "darwin",
+    "python_version": "3.9",
+    "auto_detect_paths": true
+  }
+}

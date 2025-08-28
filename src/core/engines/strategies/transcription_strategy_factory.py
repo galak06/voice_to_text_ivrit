@@ -20,26 +20,31 @@ logger = logging.getLogger(__name__)
 class TranscriptionStrategyFactory:
     """Factory for creating appropriate transcription strategies"""
     
-    def __init__(self, config, app_config=None):
-        self.config = config
+    def __init__(self, config_manager, app_config=None):
+        self.config_manager = config_manager
+        self.config = config_manager.config if config_manager else None
         self.app_config = app_config
     
-    def create_strategy(self, audio_file_path: str) -> BaseTranscriptionStrategy:
-        """Create appropriate strategy based on file characteristics"""
-        # First check if file is large enough to require chunking
-        if self._is_large_file(audio_file_path):
-            from .chunked_transcription_strategy import ChunkedTranscriptionStrategy
-            logger.info(f"📁 Large file detected ({self._get_file_size_mb(audio_file_path):.1f}MB), using ChunkedTranscriptionStrategy")
-            return ChunkedTranscriptionStrategy(self.config, self.app_config)
-        # Then check if there are existing chunks (for resuming interrupted processing)
-        elif self._has_existing_chunks():
-            from .existing_chunks_strategy import ExistingChunksStrategy
-            logger.info("📁 Existing chunks found, using ExistingChunksStrategy")
-            return ExistingChunksStrategy(self.config, self.app_config)
-        else:
-            from .direct_transcription_strategy import DirectTranscriptionStrategy
-            logger.info("📁 Small file, using DirectTranscriptionStrategy")
-            return DirectTranscriptionStrategy(self.config, self.app_config)
+    def create_strategy(self, audio_file_path: str) -> 'BaseTranscriptionStrategy':
+        """Create appropriate transcription strategy based on file characteristics"""
+        try:
+            # Check file size first (for chunked transcription)
+            if self._is_large_file(audio_file_path):
+                from .chunked_transcription_strategy import ChunkedTranscriptionStrategy
+                logger.info(f"📁 Large file detected ({self._get_file_size_mb(audio_file_path):.1f}MB), using ChunkedTranscriptionStrategy")
+                return ChunkedTranscriptionStrategy(self.config_manager)
+            # Then check if there are existing chunks (for resuming interrupted processing)
+            elif self._has_existing_chunks():
+                from .existing_chunks_strategy import ExistingChunksStrategy
+                logger.info("📁 Existing chunks found, using ExistingChunksStrategy")
+                return ExistingChunksStrategy(self.config_manager)
+            else:
+                from .direct_transcription_strategy import DirectTranscriptionStrategy
+                logger.info("📁 Small file, using DirectTranscriptionStrategy")
+                return DirectTranscriptionStrategy(self.config_manager)
+        except Exception as e:
+            logger.error(f"❌ Error creating transcription strategy: {e}")
+            raise
     
     def _has_existing_chunks(self) -> bool:
         """Check if audio chunks directory exists and contains files"""

@@ -62,7 +62,12 @@ class TestStableWhisperEngineIntegration(unittest.TestCase):
         # Save results to output folder for verification
         if result and hasattr(result, 'full_text') and result.full_text:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_dir = f"output/transcriptions/test_run_{timestamp}"
+            # Use definition.py for output directory
+            try:
+                from definition import TRANSCRIPTIONS_DIR
+                output_dir = os.path.join(TRANSCRIPTIONS_DIR, f"test_run_{timestamp}")
+            except ImportError:
+                output_dir = f"output/transcriptions/test_run_{timestamp}"
             os.makedirs(output_dir, exist_ok=True)
             
             # Save as text
@@ -150,7 +155,12 @@ class TestStableWhisperEngineIntegration(unittest.TestCase):
             # Try to save what we can
             if result:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                output_dir = f"output/transcriptions/test_run_{timestamp}"
+                # Use definition.py for output directory
+                try:
+                    from definition import TRANSCRIPTIONS_DIR
+                    output_dir = os.path.join(TRANSCRIPTIONS_DIR, f"test_run_{timestamp}")
+                except ImportError:
+                    output_dir = f"output/transcriptions/test_run_{timestamp}"
                 os.makedirs(output_dir, exist_ok=True)
                 
                 # Save debug info

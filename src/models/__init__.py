@@ -13,6 +13,8 @@ from .runpod import RunPodConfig
 from .output import OutputConfig
 from .system import SystemConfig
 from .input import InputConfig
+from .chunking import ChunkingConfig
+from .processing import ProcessingConfig
 from .app_config import AppConfig
 
 __all__ = [
@@ -27,5 +29,7 @@ __all__ = [
     'OutputConfig',
     'SystemConfig',
     'InputConfig',
+    'ChunkingConfig',
+    'ProcessingConfig',
     'AppConfig'
 ] 

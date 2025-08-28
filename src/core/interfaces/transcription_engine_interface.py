@@ -75,7 +75,7 @@ class IChunkableTranscriptionEngine:
     
     @abstractmethod
     def _transcribe_chunk(self, audio_chunk, chunk_count: int, chunk_start: float, 
-                         chunk_end: float, model_name: str) -> str:
+                         chunk_end: float, model_name: str) -> 'TranscriptionResult':
         """
         Transcribe a single audio chunk
         
@@ -87,7 +87,7 @@ class IChunkableTranscriptionEngine:
             model_name: Name of the model to use
             
         Returns:
-            str: Transcribed text for the chunk
+            TranscriptionResult: The transcription result with segments and speakers
         """
         pass
     

@@ -6,7 +6,7 @@ Handles transcription of small files without chunking
 
 import logging
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Dict, Any
 
 from src.core.engines.strategies.base_strategy import BaseTranscriptionStrategy
 from src.models.speaker_models import TranscriptionResult, TranscriptionSegment
@@ -20,18 +20,23 @@ logger = logging.getLogger(__name__)
 class DirectTranscriptionStrategy(BaseTranscriptionStrategy):
     """Strategy for direct transcription of small files"""
     
-    def execute(self, audio_file_path: str, model_name: str, engine: 'TranscriptionEngine') -> TranscriptionResult:
+    def __init__(self, config_manager):
+        """Initialize the strategy with ConfigManager dependency injection"""
+        super().__init__(config_manager)
+    
+    def execute(self, audio_file_path: str, model_name: str, engine: 'TranscriptionEngine', chunk_info: Optional[Dict[str, Any]] = None) -> TranscriptionResult:
         """Execute direct transcription strategy"""
         logger.info(f"🎯 Using DirectTranscriptionStrategy for: {audio_file_path}")
         
         try:
             audio_data, sample_rate = self._load_audio(audio_file_path)
-            chunk_text = self._transcribe_audio(audio_data, sample_rate, engine, model_name)
+            chunk_result = self._transcribe_audio(audio_data, sample_rate, engine, model_name)
             
-            if chunk_text and chunk_text.strip():
-                return self._create_result(audio_data, sample_rate, chunk_text, model_name, audio_file_path)
+            # Now _transcribe_chunk returns TranscriptionResult, so we can use it directly
+            if chunk_result and chunk_result.success:
+                return chunk_result
             else:
-                raise ValueError("No transcription text produced")
+                raise ValueError("No transcription result produced or transcription failed")
                 
         except Exception as e:
             logger.error(f"❌ Error in direct transcription: {e}")
@@ -42,8 +47,8 @@ class DirectTranscriptionStrategy(BaseTranscriptionStrategy):
         import librosa
         return librosa.load(audio_file_path, sr=16000, mono=True)
     
-    def _transcribe_audio(self, audio_data, sample_rate, engine, model_name: str) -> str:
-        """Transcribe audio data"""
+    def _transcribe_audio(self, audio_data, sample_rate, engine, model_name: str) -> 'TranscriptionResult':
+        """Transcribe audio data - now returns TranscriptionResult"""
         start_time = time.time()
         return engine._transcribe_chunk(audio_data, 1, 0, len(audio_data) / sample_rate, model_name)
     

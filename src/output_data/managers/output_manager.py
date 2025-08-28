@@ -21,7 +21,14 @@ logger = logging.getLogger(__name__)
 class OutputManager:
     """Main output manager for transcription results with caching"""
     
-    def __init__(self, output_base_path: str = "output/transcriptions", data_utils: Optional[DataUtils] = None):
+    def __init__(self, output_base_path: str = None, data_utils: Optional[DataUtils] = None):
+        # Use definition.py for default output path
+        if output_base_path is None:
+            try:
+                from definition import TRANSCRIPTIONS_DIR
+                output_base_path = TRANSCRIPTIONS_DIR
+            except ImportError:
+                output_base_path = "output/transcriptions"
         """Initialize output manager with dependency injection and caching"""
         self.output_base_path = output_base_path
         self.data_utils = data_utils or DataUtils()
@@ -56,12 +63,28 @@ class OutputManager:
 
             # Resolve model/engine defaults from data if not provided
             model_final = model or self.data_utils.get_model_name(data_dict) or "unknown-model"
-            # Avoid strict type issues by extracting engine from dict directly
-            engine_final = engine or data_dict.get('engine') or data_dict.get('engine_name') or "unknown-engine"
+            
+            # Extract engine information - TranscriptionResult has model_name but not engine
+            # Use the provided engine parameter or extract from data, or use a default based on model
+            engine_final = engine
+            if not engine_final:
+                # Try to get engine from data
+                engine_final = data_dict.get('engine') or data_dict.get('engine_name')
+                
+                # If still no engine, infer from model name or use default
+                if not engine_final:
+                    if 'ct2' in model_final.lower() or 'ctranslate' in model_final.lower():
+                        engine_final = "ctranslate2"
+                    elif 'whisper' in model_final.lower():
+                        engine_final = "whisper"
+                    else:
+                        engine_final = "transcription-engine"
             
             # Log input data structure
             logger.info(f"   - Input data type: {type(transcription_data)}")
             logger.info(f"   - Converted data keys: {list(data_dict.keys())}")
+            logger.info(f"   - Final model: {model_final}")
+            logger.info(f"   - Final engine: {engine_final}")
             
             # Extract file path
             input_file_path = self.data_utils.get_audio_file(data_dict) or audio_file

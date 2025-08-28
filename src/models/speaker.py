@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 class SpeakerConfig(BaseModel):
     """Speaker diarization configuration"""
     
+    enabled: bool = Field(default=True, description="Enable speaker diarization")
     min_speakers: int = Field(default=1, ge=1, le=10, description="Minimum number of speakers")
     max_speakers: int = Field(default=4, ge=1, le=20, description="Maximum number of speakers")
     silence_threshold: float = Field(default=2.0, ge=0.1, le=10.0, description="Silence threshold in seconds")

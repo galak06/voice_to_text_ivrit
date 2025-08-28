@@ -20,6 +20,19 @@ from .chunk_enhancement_strategies import (
     AdvancedSpeakerEnhancementStrategy
 )
 
+from .chunk_management_service import (
+    ChunkManagementService,
+    ChunkManager,
+    OverlappingChunkManager,
+    FixedDurationChunkManager
+)
+
+from .chunk_processing_service import (
+    ChunkProcessingService,
+    ChunkProcessor,
+    AudioChunkProcessor
+)
+
 __all__ = [
     'SpeakerEnhancementOrchestrator',
     'SpeakerEnhancementInterface', 
@@ -30,5 +43,12 @@ __all__ = [
     'ChunkEnhancementStrategyFactory',
     'NoEnhancementStrategy',
     'BasicSpeakerEnhancementStrategy',
-    'AdvancedSpeakerEnhancementStrategy'
+    'AdvancedSpeakerEnhancementStrategy',
+    'ChunkManagementService',
+    'ChunkManager',
+    'OverlappingChunkManager',
+    'FixedDurationChunkManager',
+    'ChunkProcessingService',
+    'ChunkProcessor',
+    'AudioChunkProcessor'
 ]

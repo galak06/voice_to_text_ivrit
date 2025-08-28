@@ -44,7 +44,12 @@ def create_docx_from_json():
     """Create DOCX from existing JSON file"""
     
     # Find the latest JSON file
-    transcriptions_dir = "/Users/gilcohen/voic_to_text_docker/output/transcriptions"
+    # Use definition.py for transcriptions directory
+    try:
+        from definition import TRANSCRIPTIONS_DIR
+        transcriptions_dir = TRANSCRIPTIONS_DIR
+    except ImportError:
+        transcriptions_dir = "/Users/gilcohen/voic_to_text_docker/output/transcriptions"
     
     # Look for the most recent directory
     latest_dir = None

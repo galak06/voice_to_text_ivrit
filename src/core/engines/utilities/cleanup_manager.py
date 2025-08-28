@@ -15,19 +15,37 @@ logger = logging.getLogger(__name__)
 class CleanupManager:
     """Manages cleanup operations for transcription engines"""
     
-    def __init__(self, config):
-        """Initialize cleanup manager with configuration"""
-        self.config = config
+    def __init__(self, config_manager):
+        """Initialize cleanup manager with ConfigManager - no fallback to direct config"""
+        if not config_manager:
+            raise ValueError("ConfigManager is required - no fallback to direct config")
+        
+        self.config_manager = config_manager
+        
+        # Get configuration values from ConfigManager
+        config = config_manager.config
         self.cleanup_logs_before_run = getattr(config, 'cleanup_logs_before_run', True)
         self.max_output_files = getattr(config, 'max_output_files', 5)
-        self.temp_chunks_dir = "output/temp_chunks"
+        
+        # Get directory paths from ConfigManager
+        dir_paths = config_manager.get_directory_paths()
+        # JSON files go to chunk_results, not temp_chunks
+        self.temp_chunks_dir = dir_paths.get('chunk_results_dir', 'output/chunk_results')
+        self.chunk_results_dir = dir_paths.get('chunk_results_dir', 'output/chunk_results')
+        self.audio_chunks_dir = dir_paths.get('audio_chunks_dir', 'output/audio_chunks')
     
     def execute_cleanup(self, clear_console: bool = True, clear_files: bool = True, clear_output: bool = True) -> None:
         """Execute cleanup operations based on parameters"""
+        logger.info(f"🧹 execute_cleanup called with: console={clear_console}, files={clear_files}, output={clear_output}")
+        
         if clear_console:
             self._clear_console_output()
         
         if clear_files:
+            # Always clean up chunks regardless of config flag
+            logger.info("🧹 Forcing chunk cleanup...")
+            self._cleanup_previous_chunks()
+            # Also do log cleanup if configured
             self._cleanup_logs()
         
         if clear_output:
@@ -59,12 +77,22 @@ class CleanupManager:
     
     def _clear_log_files(self) -> None:
         """Clear log files"""
-        log_files = [
-            "output/transcription.log",
-            "output/error.log", 
-            "output/debug.log",
-            "output/progress.log"
-        ]
+                # Use definition.py for log file paths
+        try:
+            from definition import LOGS_DIR
+            log_files = [
+                os.path.join(LOGS_DIR, "transcription.log"),
+                os.path.join(LOGS_DIR, "error.log"),
+                os.path.join(LOGS_DIR, "debug.log"),
+                os.path.join(LOGS_DIR, "progress.log")
+            ]
+        except ImportError:
+            log_files = [
+                "output/transcription.log",
+                "output/error.log",
+                "output/debug.log",
+                "output/progress.log"
+            ]
         
         for log_file in log_files:
             if os.path.exists(log_file):
@@ -73,12 +101,48 @@ class CleanupManager:
     def _cleanup_previous_chunks(self) -> None:
         """Clean up previous transcription chunks at the start of new run"""
         try:
+            logger.info("🧹 Starting chunk cleanup process...")
+            
+            # Clean up temp_chunks directory
             if os.path.exists(self.temp_chunks_dir):
+                logger.info(f"🧹 Found temp_chunks directory: {self.temp_chunks_dir}")
                 import shutil
                 shutil.rmtree(self.temp_chunks_dir)
                 logger.info(f"🧹 Cleaned previous temp_chunks directory: {self.temp_chunks_dir}")
+            else:
+                logger.info(f"🧹 No temp_chunks directory found: {self.temp_chunks_dir}")
+            
+            # Use instance variable for chunk_results directory
+            chunk_results_dir = self.chunk_results_dir
+            logger.info(f"🧹 Using chunk_results_dir: {chunk_results_dir}")
+            
+            if os.path.exists(chunk_results_dir):
+                logger.info(f"🧹 Found chunk_results directory: {chunk_results_dir}")
+                # List files before deletion for debugging
+                files = os.listdir(chunk_results_dir)
+                logger.info(f"🧹 Found {len(files)} files to delete: {files[:5]}...")
+                
+                import shutil
+                shutil.rmtree(chunk_results_dir)
+                logger.info(f"🧹 Deleted chunk_results directory: {chunk_results_dir}")
+                
+                # Recreate empty directory
+                os.makedirs(chunk_results_dir, exist_ok=True)
+                logger.info(f"🧹 Recreated empty chunk_results directory: {chunk_results_dir}")
+                
+                # Verify deletion
+                if os.path.exists(chunk_results_dir):
+                    remaining_files = os.listdir(chunk_results_dir)
+                    logger.info(f"🧹 Verification: directory exists with {len(remaining_files)} files")
+                else:
+                    logger.error(f"🧹 ERROR: Directory was not recreated: {chunk_results_dir}")
+            else:
+                logger.info(f"🧹 No chunk_results directory found: {chunk_results_dir}")
+                
         except Exception as e:
-            logger.warning(f"⚠️ Could not clean previous chunks: {e}")
+            logger.error(f"❌ Could not clean previous chunks: {e}")
+            import traceback
+            logger.error(f"❌ Full traceback: {traceback.format_exc()}")
     
     def _truncate_log_file(self, log_file: str) -> None:
         """Truncate a single log file"""
@@ -91,7 +155,13 @@ class CleanupManager:
     def _cleanup_output_files(self) -> None:
         """Clean up old output files"""
         try:
-            output_dir = "output"
+            # Use definition.py for output directory
+            try:
+                from definition import OUTPUT_DIR
+                output_dir = OUTPUT_DIR
+            except ImportError:
+                output_dir = "output"
+            
             if not os.path.exists(output_dir):
                 return
                 
@@ -152,7 +222,9 @@ class CleanupManager:
         """Automatically clean up temp files after transcription completion"""
         try:
             # Clean audio chunk files if they exist (keep JSON chunks)
-            audio_chunks_dir = "output/audio_chunks"
+            # Use instance variable for audio chunks directory
+            audio_chunks_dir = self.audio_chunks_dir
+            
             if os.path.exists(audio_chunks_dir):
                 import shutil
                 shutil.rmtree(audio_chunks_dir)

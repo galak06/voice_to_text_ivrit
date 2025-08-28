@@ -1,0 +1,27 @@
+---
+description: "Pydantic model standards: explicit validation, no fallbacks"
+globs:
+  - "models/**/*.py"
+alwaysApply: false
+---
+
+## Requirements
+- Use `pydantic.BaseModel` for all structured data models.
+- Name models clearly (e.g., `UserCreate`, `AppSettings`).
+- Avoid fallback defaults—use `Field(...)` to enforce required fields.
+- Validate `None` explicitly using validators (no silent defaults).
+
+## Examples
+
+```python
+# BAD: hides missing data
+api_key: Optional[str] = None
+
+# GOOD: required field, explicit validation
+api_key: str = Field(...)
+
+@field_validator('api_key')
+def must_not_be_empty(cls, v):
+  if not v.strip():
+    raise ValueError("api_key cannot be empty")
+  return v

@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 class ExistingChunksStrategy(BaseTranscriptionStrategy):
     """Strategy for processing existing audio chunks"""
     
+    def __init__(self, config_manager):
+        """Initialize the strategy with ConfigManager dependency injection"""
+        super().__init__(config_manager)
+    
     def execute(self, audio_file_path: str, model_name: str, engine: 'TranscriptionEngine') -> TranscriptionResult:
         """Execute existing chunks strategy"""
         logger.info(f"🎯 Using ExistingChunksStrategy for: {audio_file_path}")
@@ -53,7 +57,7 @@ class ExistingChunksStrategy(BaseTranscriptionStrategy):
         """Fallback to chunked transcription strategy"""
         logger.warning(f"⚠️ Audio chunks directory not found or empty, falling back to chunked transcription")
         from .chunked_transcription_strategy import ChunkedTranscriptionStrategy
-        fallback_strategy = ChunkedTranscriptionStrategy(self.config, self.app_config)
+        fallback_strategy = ChunkedTranscriptionStrategy(self.config, self.app_config, self.config_manager)
         return fallback_strategy.execute(audio_file_path, model_name, engine)
     
     def _process_existing_chunks(self, chunk_files, engine, model_name: str):

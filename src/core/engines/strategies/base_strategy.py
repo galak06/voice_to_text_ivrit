@@ -19,10 +19,14 @@ logger = logging.getLogger(__name__)
 class BaseTranscriptionStrategy(ABC):
     """Abstract base class for transcription strategies"""
     
-    def __init__(self, config, app_config=None):
-        """Initialize strategy with configuration"""
-        self.config = config
-        self.app_config = app_config
+    def __init__(self, config_manager):
+        """Initialize strategy with ConfigManager dependency injection"""
+        if not config_manager:
+            raise ValueError("ConfigManager is required")
+        if not hasattr(config_manager, 'config'):
+            raise ValueError("ConfigManager must have a config attribute")
+        self.config_manager = config_manager
+        self.config = config_manager.config
     
     @abstractmethod
     def execute(self, audio_file_path: str, model_name: str, engine: 'TranscriptionEngine') -> TranscriptionResult:

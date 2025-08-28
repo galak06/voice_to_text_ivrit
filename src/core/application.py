@@ -11,27 +11,24 @@ from pathlib import Path
 from typing import Dict, Optional, Any
 
 from src.core.logic.error_handler import ErrorHandler
-from src.core.logic.file_validator import FileValidator
-from src.core.logic.performance_monitor import PerformanceMonitor
 from src.core.logic.performance_tracker import PerformanceTracker
-from src.core.logic.result_builder import ResultBuilder
 
 from src.core.orchestrator.transcription_service import TranscriptionService
-from src.core.processors.audio_file_processor import AudioFileProcessor
-from src.core.processors.batch_processor import BatchProcessor
 from src.core.processors.input_processor import InputProcessor
 from src.core.processors.output_processor import OutputProcessor
-from src.core.processors.processing_pipeline import ProcessingPipeline
-from src.core.processors.result_display import ResultDisplay
-from src.models import AppConfig, TranscriptionRequest, TranscriptionResult
-from src.utils.config_manager import ConfigManager
-from src.utils.dependency_manager import DependencyManager
+from src.utils.config_manager import ConfigManager, OutputConfig, InputConfig, SystemConfig
 from src.utils.ui_manager import ApplicationUI
 from src.output_data.managers.output_manager import OutputManager
 from src.clients.audio_transcription_client import AudioTranscriptionClient
 from src.logging.logging_service import LoggingService
 from src.core.processors.processing_pipeline import ProcessingContext
 from src.core.factories.pipeline_factory import PipelineFactory
+from src.output_data.utils.data_utils import DataUtils
+from src.core.engines.utilities.cleanup_manager import CleanupManager
+import traceback
+
+# Import definition paths
+from definition import CHUNK_RESULTS_DIR, TEMP_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -44,37 +41,22 @@ class TranscriptionApplication:
     to specialized components through dependency injection.
     """
     
-    def __init__(self, config_manager: Optional[ConfigManager] = None, config_path: Optional[str] = None, ui_manager: Optional[ApplicationUI] = None):
+    def __init__(self, config_manager: ConfigManager, ui_manager: Optional[ApplicationUI] = None, cleanup_manager: Optional[CleanupManager] = None):
         """
         Initialize the transcription application
         
         Args:
-            config_manager: Optional ConfigManager instance (creates default if None)
-            config_path: Optional path to configuration file or directory (used if config_manager is None)
+            config_manager: ConfigManager instance (required)
             ui_manager: Optional ApplicationUI instance (creates default if None)
+            cleanup_manager: Optional CleanupManager instance (creates default if None)
         """
-        # Initialize configuration first (dependency)
-        if config_manager is not None:
-            # Use provided ConfigManager - validate it's properly initialized
-            if not hasattr(config_manager, 'config') or config_manager.config is None:
-                raise ValueError("Provided ConfigManager must be properly initialized with config")
-            self.config_manager = config_manager
-        elif config_path:
-            # Create ConfigManager with custom path
-            config_path_obj = Path(config_path)
-            if config_path_obj.is_file():
-                # It's a file, use the parent directory
-                config_dir = str(config_path_obj.parent)
-            else:
-                # It's a directory or doesn't exist, use as is
-                config_dir = config_path
-            self.config_manager = ConfigManager(config_dir)
-        else:
-            # Create default ConfigManager - this should be avoided in production
-            # Prefer to inject a properly configured ConfigManager
-            self.config_manager = ConfigManager()
+        # Validate ConfigManager is properly initialized
+        if not hasattr(config_manager, 'config') or config_manager.config is None:
+            raise ValueError("ConfigManager must be properly initialized with config")
         
-        self.config = self.config_manager.config
+        self.config_manager = config_manager
+        
+
         
         # Ensure configuration sections are initialized
         self._ensure_config_initialized()
@@ -84,14 +66,13 @@ class TranscriptionApplication:
         
         # Initialize core components with dependency injection
         # At this point, config.output is guaranteed to be initialized
-        assert self.config.output is not None, "Output configuration must be initialized"
+        assert self.config_manager.config.output is not None, "Output configuration must be initialized"
         
         # Create DataUtils instance for dependency injection
-        from src.output_data.utils.data_utils import DataUtils
         data_utils = DataUtils()
         
         self.output_manager = OutputManager(
-            output_base_path=self.config.output.output_dir,
+            output_base_path=self.config_manager.config.output.output_dir,
             data_utils=data_utils
         )
         
@@ -114,10 +95,10 @@ class TranscriptionApplication:
         self.logging_service = LoggingService(self.config_manager)
         
         # Initialize UI manager
-        if ui_manager:
-            self.ui_manager = ui_manager
-        else:
-            self.ui_manager = ApplicationUI(self.config_manager)
+        self.ui_manager = ui_manager or ApplicationUI(self.config_manager)
+        
+        # Initialize cleanup manager
+        self.cleanup_manager = cleanup_manager 
         
         # Verify config manager injection throughout the application
         self._verify_config_injection()
@@ -125,24 +106,23 @@ class TranscriptionApplication:
     def _ensure_config_initialized(self):
         """Ensure all required configuration sections are initialized"""
         # Initialize output configuration if not present
-        if not hasattr(self.config, 'output') or self.config.output is None:
-            from src.utils.config_manager import OutputConfig
-            self.config.output = OutputConfig()
+        if not hasattr(self.config_manager.config, 'output') or self.config_manager.config.output is None:
+            self.config_manager.config.output = OutputConfig()
+        # DO NOT overwrite existing output config - it will lose JSON values!
+        # The config should come from JSON files, not default OutputConfig()
         
         # Initialize input configuration if not present
-        if not hasattr(self.config, 'input') or self.config.input is None:
-            from src.utils.config_manager import InputConfig
+        if not hasattr(self.config_manager.config, 'input') or self.config_manager.config.input is None:
             try:
-                self.config.input = InputConfig()
+                self.config_manager.config.input = InputConfig()
             except Exception:
                 # If InputConfig cannot be constructed, ensure attribute exists with sensible defaults
                 # without violating typing by skipping assignment when models are strict.
                 pass
         
         # Initialize system configuration if not present
-        if not hasattr(self.config, 'system') or self.config.system is None:
-            from src.utils.config_manager import SystemConfig
-            self.config.system = SystemConfig()
+        if not hasattr(self.config_manager.config, 'system') or self.config_manager.config.system is None:
+            self.config_manager.config.system = SystemConfig()
     
     def _generate_session_id(self) -> str:
         """Generate a unique session ID"""
@@ -152,8 +132,8 @@ class TranscriptionApplication:
         """Setup application logging"""
         level = None
         try:
-            if getattr(self.config, 'system', None) is not None:
-                level = getattr(self.config.system, 'log_level', None)
+            if getattr(self.config_manager.config, 'system', None) is not None:
+                level = getattr(self.config_manager.config.system, 'log_level', None)
         except Exception:
             level = None
         if level is not None:
@@ -173,67 +153,19 @@ class TranscriptionApplication:
         start_time = time.time()
         
         try:
-            # Preferred path for unit tests: use injected processors and orchestrator
-            try:
-                logger.info(f"🎯 DEBUG: Trying preferred path with engine={kwargs.get('engine')}, model={kwargs.get('model')}")
-                input_result = self.input_processor.process_input(audio_file_path)
-                if not input_result.get('success'):
-                    return {'success': False, 'error': input_result.get('error', 'Input processing failed')}
-                model = kwargs.get('model') or (self.config.transcription.default_model if self.config and self.config.transcription else None)
-                engine = kwargs.get('engine') or (self.config.transcription.default_engine if self.config and self.config.transcription else None)
-                input_data = {'file_path': audio_file_path, 'file_name': Path(audio_file_path).name}
-                transcribe_result = self.transcription_service.transcribe(
-                    input_data,
-                    model=model,
-                    engine=engine
-                )
-                output_result = self.output_processor.process_output(
-                    input_result=input_result,
-                    transcription_result=transcribe_result
-                )
-                processing_time = time.time() - start_time
-                self._track_file_performance(processing_time, bool(output_result.get('success')), audio_file_path)
-                return {
-                    'success': bool(input_result.get('success') and transcribe_result.get('success') and output_result.get('success')),
-                    'input': input_result,
-                    'transcription': transcribe_result,
-                    'output': output_result,
-                    'session_id': self.current_session_id
-                }
-            except Exception as e:
-                # Fallback to pipeline-based processing
-                logger.info(f"🎯 DEBUG: Falling back to pipeline processing due to: {e}")
-                context = ProcessingContext(
-                    session_id=self.current_session_id,
-                    file_path=audio_file_path,
-                    operation_type="audio_transcription",
-                    parameters=kwargs
-                )
-                pipeline = PipelineFactory.create_pipeline_from_operation(
-                    "audio_transcription",
-                    self.config_manager,
-                    self.output_manager
-                )
-                result = pipeline.process(context)
-                processing_time = time.time() - start_time
-                self._track_file_performance(processing_time, result.success, audio_file_path)
-                return self._convert_processing_result_to_dict(result)
+            # Execute cleanup and verify results
+            self._execute_preprocessing_cleanup()
+            
+            # Process the file using the preferred path (injected processors) - NO FALLBACK
+            result = self._process_file_preferred_path(audio_file_path, start_time, **kwargs)
+            return result
             
         except (ValueError, TypeError) as e:
-            processing_time = time.time() - start_time
-            error_result = self._handle_processing_error(e, audio_file_path, processing_time)
-            logger.error(f"Validation error processing {audio_file_path}: {e}")
-            return error_result
+            return self._handle_validation_error(e, audio_file_path, start_time)
         except (OSError, IOError) as e:
-            processing_time = time.time() - start_time
-            error_result = self._handle_processing_error(e, audio_file_path, processing_time)
-            logger.error(f"File system error processing {audio_file_path}: {e}")
-            return error_result
+            return self._handle_file_system_error(e, audio_file_path, start_time)
         except Exception as e:
-            processing_time = time.time() - start_time
-            error_result = self._handle_processing_error(e, audio_file_path, processing_time)
-            logger.error(f"Unexpected error processing {audio_file_path}: {e}")
-            return error_result
+            return self._handle_unexpected_error(e, audio_file_path, start_time)
     
     def _convert_processing_result_to_dict(self, result) -> Dict[str, Any]:
         """Convert ProcessingResult to dictionary format for backward compatibility"""
@@ -296,6 +228,111 @@ class TranscriptionApplication:
             'recovery_successful': error_result.get('recovery_successful', False)
         }
     
+    def _execute_preprocessing_cleanup(self) -> None:
+        """Execute cleanup process at the beginning of file processing"""
+        logger.info("🧹 ===== STARTING CLEANUP PROCESS =====")
+        try:
+            if self.cleanup_manager:
+                logger.info("🧹 Using injected CleanupManager")
+                logger.info("🧹 Executing cleanup process...")
+                result = self.cleanup_manager.execute_cleanup(clear_console=True, clear_files=True, clear_output=False)
+                logger.info(f"🧹 Cleanup execution completed with result: {result}")
+                logger.info("🧹 Cleanup completed at the beginning of file processing")
+                
+                # Verify cleanup results
+                self._verify_cleanup_results()
+            else:
+                logger.warning("⚠️ No cleanup manager available, skipping cleanup")
+                
+        except Exception as e:
+            logger.error(f"❌ Cleanup failed at beginning: {e}")
+            logger.error(f"❌ Full cleanup error traceback: {traceback.format_exc()}")
+    
+    def _verify_cleanup_results(self) -> None:
+        """Verify that cleanup was successful"""
+        try:
+            if os.path.exists(CHUNK_RESULTS_DIR):
+                remaining_files = os.listdir(CHUNK_RESULTS_DIR)
+                logger.info(f"🧹 Verification: chunk_results directory has {len(remaining_files)} files after cleanup")
+                if remaining_files:
+                    logger.warning(f"⚠️ WARNING: {len(remaining_files)} files still exist in chunk_results after cleanup!")
+                else:
+                    logger.info("✅ SUCCESS: All chunk files were cleaned up successfully")
+            else:
+                logger.info("🧹 chunk_results directory was completely removed during cleanup")
+            
+            if os.path.exists(TEMP_DIR):
+                temp_files = os.listdir(TEMP_DIR)
+                logger.info(f"🧹 Verification: temp directory has {len(temp_files)} files after cleanup")
+            else:
+                logger.info("🧹 temp directory was completely removed during cleanup")
+        except Exception as verify_error:
+            logger.warning(f"⚠️ Could not verify cleanup results: {verify_error}")
+    
+    def _process_file_preferred_path(self, audio_file_path: str, start_time: float, **kwargs) -> Dict[str, Any]:
+        """Process file using injected processors (preferred path)"""
+        try:
+            logger.info(f"🎯 DEBUG: Trying preferred path with engine={kwargs.get('engine')}, model={kwargs.get('model')}")
+            
+            # Process input
+            input_result = self.input_processor.process_input(audio_file_path)
+            if not input_result.get('success'):
+                return {'success': False, 'error': input_result.get('error', 'Input processing failed')}
+            
+            # Get model and engine from kwargs or config
+            model = kwargs.get('model') or (self.config_manager.config.transcription.default_model if self.config_manager.config and self.config_manager.config.transcription else None)
+            engine = kwargs.get('engine') or (self.config_manager.config.transcription.default_engine if self.config_manager.config and self.config_manager.config.transcription else None)
+            
+            # Prepare input data
+            input_data = {'file_path': audio_file_path, 'file_name': Path(audio_file_path).name}
+            
+            # Transcribe
+            transcribe_result = self.transcription_service.transcribe(input_data, model=model, engine=engine)
+            
+            # Process output
+            output_result = self.output_processor.process_output(
+                input_metadata=input_result,
+                transcription_result=transcribe_result
+            )
+            
+            # Track performance and return result
+            processing_time = time.time() - start_time
+            self._track_file_performance(processing_time, bool(output_result.get('success')), audio_file_path)
+            
+            return {
+                'success': bool(input_result.get('success') and transcribe_result.get('success') and output_result.get('success')),
+                'input': input_result,
+                'transcription': transcribe_result,
+                'output': output_result,
+                'session_id': self.current_session_id
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Preferred path failed: {e}")
+            return {'success': False, 'error': f'Preferred path failed: {e}'}
+    
+
+    def _handle_validation_error(self, error: Exception, file_path: str, start_time: float) -> Dict[str, Any]:
+        """Handle validation errors during file processing"""
+        processing_time = time.time() - start_time
+        error_result = self._handle_processing_error(error, file_path, processing_time)
+        logger.error(f"Validation error processing {file_path}: {error}")
+        return error_result
+    
+    def _handle_file_system_error(self, error: Exception, file_path: str, start_time: float) -> Dict[str, Any]:
+        """Handle file system errors during file processing"""
+        processing_time = time.time() - start_time
+        error_result = self._handle_processing_error(error, file_path, processing_time)
+        logger.error(f"File system error processing {file_path}: {error}")
+        return error_result
+    
+    def _handle_unexpected_error(self, error: Exception, file_path: str, start_time: float) -> Dict[str, Any]:
+        """Handle unexpected errors during file processing"""
+        processing_time = time.time() - start_time
+        error_result = self._handle_processing_error(error, file_path, processing_time)
+        logger.error(f"Unexpected error processing {file_path}: {error}")
+        return error_result
+    
     def process_batch(self, input_directory: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """
         Process multiple audio files in batch using the new pipeline structure
@@ -330,7 +367,7 @@ class TranscriptionApplication:
             
             # If tests expect using InputProcessor discovery when no input_directory provided
             if not input_directory:
-                files = self.input_processor.discover_files(self.config.input.directory if self.config and self.config.input else '')
+                files = self.input_processor.discover_files(self.config_manager.config.input.directory if self.config_manager.config and self.config_manager.config.input else '')
                 if not files:
                     return {'success': False, 'error': 'No audio files found'}
                 # Process each file as tests expect
@@ -342,14 +379,14 @@ class TranscriptionApplication:
                     if not input_result.get('success'):
                         continue
                     transcribe_result = self.transcription_service.transcribe(
-                        file_path=f,
-                        model=self.config.transcription.default_model if self.config and self.config.transcription else None,
-                        engine=self.config.transcription.default_engine if self.config and self.config.transcription else None
+                        {'file_path': f},
+                        model=self.config_manager.config.transcription.default_model if self.config_manager.config and self.config_manager.config.transcription else None,
+                        engine=self.config_manager.config.transcription.default_engine if self.config_manager.config and self.config_manager.config.transcription else None
                     )
                     if not transcribe_result.get('success'):
                         continue
                     output_result = self.output_processor.process_output(
-                        input_data=input_result,
+                        input_metadata=input_result,
                         transcription_result=transcribe_result
                     )
                     if output_result.get('success'):
@@ -505,7 +542,7 @@ class TranscriptionApplication:
                 return self._audio_client
             
             # Create client if not exists
-            self._audio_client = AudioTranscriptionClient(config=self.config)
+            self._audio_client = AudioTranscriptionClient(config=self.config_manager.config)
             logger.info("Audio client created and cached")
             return self._audio_client
             
@@ -522,7 +559,7 @@ class TranscriptionApplication:
         """
         status = {
             'session_id': self.current_session_id,
-            'config_loaded': self.config is not None,
+            'config_loaded': self.config_manager.config is not None,
             'output_manager_ready': self.output_manager is not None,
             'error_handler_ready': self.error_handler is not None,
             'input_processor_ready': self.input_processor is not None,

@@ -5,8 +5,10 @@ Separates different speakers in the conversation
 """
 
 from pathlib import Path
-from src.core.orchestrator.speaker_transcription_service import SpeakerTranscriptionService
+from src.core.orchestrator.transcription_service import TranscriptionService
 from src.core.factories.speaker_config_factory import SpeakerConfigFactory
+from src.utils.config_manager import ConfigManager
+from src.output_data import OutputManager
 
 def speaker_diarization(audio_file_path: str, model_name: str = None, save_output: bool = True, speaker_config_preset: str = "default", run_session_id: str = None, engine_type: str = None):
     """
@@ -19,18 +21,27 @@ def speaker_diarization(audio_file_path: str, model_name: str = None, save_outpu
         speaker_config_preset (str): Speaker configuration preset (default, conversation, interview, custom)
     """
     
-    # Get configuration from factory
-    config = SpeakerConfigFactory.get_config(speaker_config_preset)
+    # Create config manager and output manager
+    config_manager = ConfigManager()
+    output_manager = OutputManager(config_manager)
     
-    # Create speaker transcription service with specified configuration
-    service = SpeakerTranscriptionService(config)
+    # Create unified transcription service
+    service = TranscriptionService(config_manager, output_manager)
     
-    # Perform transcription
-    result = service.speaker_diarization(audio_file_path, model_name, save_output, run_session_id, engine_type)
+    # Prepare input data
+    input_data = {
+        'file_path': audio_file_path,
+        'speaker_diarization': True,
+        'speaker_preset': speaker_config_preset,
+        'model': model_name,
+        'save_output': save_output,
+        'session_id': run_session_id,
+        'engine': engine_type
+    }
     
-    # Display results
-    service.display_results(result)
+    # Perform transcription with speaker diarization
+    result = service.transcribe(input_data)
     
-    return result.success
+    return result.get('success', False)
 
  

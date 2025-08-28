@@ -195,7 +195,12 @@ class ApplicationUI:
         
         # Available configuration files
         print("  Available Configuration Files:")
-        config_dir = Path("config/environments")
+        # Use definition.py for config directory
+        try:
+            from definition import ENVIRONMENTS_DIR
+            config_dir = Path(ENVIRONMENTS_DIR)
+        except ImportError:
+            config_dir = Path("config/environments")
         if config_dir.exists():
             config_files = sorted([f.name for f in config_dir.glob("*.json")])
             for config_file_name in config_files:

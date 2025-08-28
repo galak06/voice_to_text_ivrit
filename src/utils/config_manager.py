@@ -10,21 +10,48 @@ import logging
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from dotenv import load_dotenv
+from src.models.environment import Environment
+from src.models.transcription import TranscriptionConfig
+from src.models.speaker import SpeakerConfig
+from src.models.batch import BatchConfig
+from src.models.docker import DockerConfig
+from src.models.runpod import RunPodConfig
+from src.models.output import OutputConfig
+from src.models.system import SystemConfig
+from src.models.input import InputConfig
+from src.models.chunking import ChunkingConfig
+from src.models.processing import ProcessingConfig
+from src.models.app_config import AppConfig
 
 logger = logging.getLogger(__name__)
 
-from src.models import (
-    Environment,
-    TranscriptionConfig,
-    SpeakerConfig,
-    BatchConfig,
-    DockerConfig,
-    RunPodConfig,
-    OutputConfig,
-    SystemConfig,
-    InputConfig,
-    AppConfig
-)
+
+
+# Import definition paths
+try:
+    from definition import (
+        ROOT_DIR, MODELS_DIR, CONFIG_DIR, OUTPUT_DIR, EXAMPLES_DIR,
+        SCRIPTS_DIR, SRC_DIR, TESTS_DIR, TRANSCRIPTIONS_DIR,
+        CHUNK_RESULTS_DIR, AUDIO_CHUNKS_DIR, LOGS_DIR, TEMP_DIR, TEMP_CHUNKS_DIR
+    )
+    DEFINITION_AVAILABLE = True
+except ImportError:
+    DEFINITION_AVAILABLE = False
+    # Fallback values if definition import fails
+    ROOT_DIR = os.getcwd()
+    MODELS_DIR = 'models'
+    CONFIG_DIR = 'config'
+    OUTPUT_DIR = 'output'
+    EXAMPLES_DIR = 'examples'
+    SCRIPTS_DIR = 'scripts'
+    SRC_DIR = 'src'
+    TESTS_DIR = 'tests'
+    TRANSCRIPTIONS_DIR = 'output/transcriptions'
+    CHUNK_RESULTS_DIR = 'output/chunk_results'
+    AUDIO_CHUNKS_DIR = 'output/audio_chunks'
+    LOGS_DIR = 'output/logs'
+    TEMP_DIR = 'output/temp'
+    TEMP_CHUNKS_DIR = 'output/temp_chunks'
 
 
 class EnvironmentLoader:
@@ -53,24 +80,43 @@ class JsonConfigLoader:
     
     def load_config(self, environment: Environment) -> Dict[str, Any]:
         """Load and merge configuration for given environment"""
-        # Load base config
-        base_config = self._load_json_file("environments/base.json")
+        # Load base config (if exists)
+        base_config = self._load_json_file("base.json")
+        logger.info(f"🔍 Base config loaded: {list(base_config.keys()) if base_config else 'Empty'}")
         
         # Load environment-specific config
-        env_config = self._load_json_file(f"environments/{environment.value}.json")
+        env_config = self._load_json_file(f"{environment.value}.json")
+        logger.info(f"🔍 Environment config loaded: {list(env_config.keys()) if env_config else 'Empty'}")
         
         # Merge configurations
-        return self._merge_configs(base_config, env_config)
+        merged_config = self._merge_configs(base_config, env_config)
+        logger.info(f"🔍 Merged config keys: {list(merged_config.keys()) if merged_config else 'Empty'}")
+        if 'transcription' in merged_config:
+            transcription_keys = list(merged_config['transcription'].keys()) if merged_config['transcription'] else []
+            logger.info(f"🔍 Transcription config keys after merge: {transcription_keys}")
+            if 'ctranslate2_optimization' in merged_config['transcription']:
+                ct2_config = merged_config['transcription']['ctranslate2_optimization']
+                logger.info(f"🔍 CTranslate2 config after merge: {ct2_config}")
+        
+        return merged_config
     
     def _load_json_file(self, filename: str) -> Dict[str, Any]:
         """Load JSON file safely"""
         file_path = self.config_dir / filename
+        logger.info(f"🔍 Trying to load file: {file_path}")
+        logger.info(f"🔍 File exists: {file_path.exists()}")
+        logger.info(f"🔍 Config dir: {self.config_dir}")
+        logger.info(f"🔍 Current working directory: {Path.cwd()}")
+        
         if not file_path.exists():
+            logger.warning(f"⚠️ File not found: {file_path}")
             return {}
         
         try:
             with open(file_path, 'r') as f:
-                return json.load(f)
+                content = json.load(f)
+                logger.info(f"✅ Successfully loaded {filename} with keys: {list(content.keys()) if content else 'Empty'}")
+                return content
         except Exception as e:
             logger.warning(f"Could not load {filename}: {e}")
             return {}
@@ -99,7 +145,7 @@ class AppConfigFactory:
             config_dict = config_dict.copy()
             
             # Ensure all sections exist with defaults
-            sections = ['transcription', 'speaker', 'batch', 'docker', 'runpod', 'output', 'system', 'input']
+            sections = ['transcription', 'speaker', 'batch', 'docker', 'runpod', 'output', 'system', 'input', 'chunking', 'processing']
             for section in sections:
                 if section not in config_dict or not config_dict[section]:
                     config_dict[section] = {}
@@ -127,7 +173,9 @@ class AppConfigFactory:
                 runpod=RunPodConfig(**config_dict['runpod']),
                 output=OutputConfig(**config_dict['output']),
                 system=SystemConfig(**config_dict['system']),
-                input=InputConfig(**config_dict['input'])
+                input=InputConfig(**config_dict['input']),
+                chunking=ChunkingConfig(**config_dict['chunking']),
+                processing=ProcessingConfig(**config_dict['processing'])
             )
         except Exception as e:
             logger.error(f"Error creating configuration: {e}")
@@ -142,7 +190,9 @@ class AppConfigFactory:
                     runpod=RunPodConfig(),
                     output=OutputConfig(),
                     system=SystemConfig(),
-                    input=InputConfig()
+                    input=InputConfig(),
+                    chunking=ChunkingConfig(),
+                    processing=ProcessingConfig()
                 )
             except Exception:
                 return AppConfig(environment=environment)
@@ -225,8 +275,8 @@ class ConfigOverrideApplier:
     @staticmethod
     def _apply_speaker_override(config: AppConfig, value: str) -> None:
         """Apply speaker diarization override"""
-        if hasattr(config, 'speaker'):
-            setattr(config.speaker, '_diarization_enabled', value.lower() == 'true')
+        if hasattr(config, 'speaker') and config.speaker:
+            config.speaker.enabled = value.lower() == 'true'
             logger.info(f"🔧 Applied SPEAKER_DIARIZATION_ENABLED={value} to speaker config")
     
     @staticmethod
@@ -523,3 +573,43 @@ class ConfigManager:
         """Get speaker configuration for specific preset"""
         from src.core.factories.speaker_config_factory import SpeakerConfigFactory
         return SpeakerConfigFactory.get_config(preset)
+    
+    def get_directory_paths(self) -> Dict[str, str]:
+        """Get directory paths from definition.py through config manager"""
+        if DEFINITION_AVAILABLE:
+            return {
+                'root_dir': ROOT_DIR,
+                'models_dir': MODELS_DIR,
+                'config_dir': CONFIG_DIR,
+                'output_dir': OUTPUT_DIR,
+                'examples_dir': EXAMPLES_DIR,
+                'scripts_dir': SCRIPTS_DIR,
+                'src_dir': SRC_DIR,
+                'tests_dir': TESTS_DIR,
+                'transcriptions_dir': TRANSCRIPTIONS_DIR,
+                'chunk_results_dir': CHUNK_RESULTS_DIR,
+                'audio_chunks_dir': AUDIO_CHUNKS_DIR,
+                'logs_dir': LOGS_DIR,
+                'temp_dir': TEMP_DIR,
+                'temp_chunks_dir': TEMP_CHUNKS_DIR
+            }
+        else:
+            # Fallback paths if definition.py is not available
+            return {
+                'root_dir': os.getcwd(),
+                'models_dir': 'models',
+                'config_dir': 'config',
+                'output_dir': 'output',
+                'examples_dir': 'examples',
+                'scripts_dir': 'scripts',
+                'src_dir': 'src',
+                'tests_dir': 'tests',
+                'transcriptions_dir': 'output/transcriptions',
+                'chunk_results_dir': 'output/chunk_results',
+                'audio_chunks_dir': 'output/audio_chunks',
+                'logs_dir': 'output/logs',
+                'temp_dir': 'output/temp',
+                'temp_chunks_dir': 'output/temp_chunks'
+            }
+    
+

@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from src.models.speaker_models import TranscriptionResult, TranscriptionSegment
-from src.core.orchestrator.speaker_transcription_service import SpeakerTranscriptionService
+from src.core.orchestrator.transcription_service import TranscriptionService as SpeakerTranscriptionService
 
 logger = logging.getLogger(__name__)
 
