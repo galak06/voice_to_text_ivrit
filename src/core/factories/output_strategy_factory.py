@@ -73,12 +73,22 @@ class OutputStrategyFactory:
         try:
             # Import here to avoid circular imports
             from src.output_data.managers.output_manager import OutputManager
+            from src.output_data.utils.data_utils import DataUtils
             
             # Create the output strategy
             output_strategy = OutputStrategyFactory.create_merged_output_strategy(config_manager)
             
-            # Create the output manager with injected strategy
-            output_manager = OutputManager(output_strategy=output_strategy)
+            # Get output path from ConfigManager
+            directory_paths = config_manager.get_directory_paths()
+            output_base_path = directory_paths.get('transcriptions_dir', 'output/transcriptions')
+            
+            # Create the output manager with injected strategy and required parameters
+            output_manager = OutputManager(
+                output_base_path=output_base_path,
+                data_utils=DataUtils(),
+                output_strategy=output_strategy,
+                config_manager=config_manager
+            )
             
             logger.info("✅ OutputManager created successfully with injected output strategy")
             return output_manager

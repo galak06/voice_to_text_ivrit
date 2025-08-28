@@ -24,11 +24,17 @@ logger = logging.getLogger(__name__)
 class OutputManager:
     """Main output manager for transcription results with caching and output strategy injection"""
     
-    def __init__(self, output_base_path: str, data_utils: DataUtils, output_strategy: Any):
-        # Use default output path if none provided
-       
+    def __init__(self, output_base_path: str, data_utils: DataUtils, output_strategy: Any, config_manager: Any = None):
         """Initialize output manager with dependency injection and caching"""
-        self.output_base_path = output_base_path
+        # Use ConfigManager for output paths if available, otherwise fallback to provided path
+        if config_manager and hasattr(config_manager, 'get_directory_paths'):
+            directory_paths = config_manager.get_directory_paths()
+            self.output_base_path = directory_paths.get('transcriptions_dir', output_base_path)
+            logger.info(f"🚀 OutputManager using ConfigManager path: {self.output_base_path}")
+        else:
+            self.output_base_path = output_base_path
+            logger.info(f"⚠️ OutputManager using fallback path: {self.output_base_path}")
+        
         self.data_utils = data_utils or DataUtils()
         
         # Inject output strategy for intelligent text processing
@@ -44,7 +50,7 @@ class OutputManager:
         self._text_content_cache = {}
         
         # Ensure base output directory exists
-        os.makedirs(output_base_path, exist_ok=True)
+        os.makedirs(self.output_base_path, exist_ok=True)
     
     def save_transcription(
         self,
