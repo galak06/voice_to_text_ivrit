@@ -66,6 +66,36 @@ class DocxFormatter:
         return text.strip()
     
     @staticmethod
+    def create_simple_document(
+        full_text: str,
+        audio_file: str,
+        model: str,
+        engine: str
+    ) -> Optional[Document]:
+        """Create a simple Word document with full text (no speaker segmentation)"""
+        try:
+            doc = Document()
+            
+            # Set document to RTL
+            DocxFormatter._set_document_rtl(doc)
+            
+            # Add title
+            title = doc.add_heading('דוח תמלול', 0)
+            DocxFormatter._set_paragraph_rtl(title)
+            
+            # Add metadata table
+            DocxFormatter._add_metadata_table(doc, audio_file, model, engine)
+            
+            # Add full text content
+            DocxFormatter._add_full_text_content(doc, full_text)
+            
+            return doc
+            
+        except Exception as e:
+            logger.error(f"Error creating simple DOCX document: {e}")
+            return None
+    
+    @staticmethod
     def create_transcription_document(
         transcription_data: List[Dict[str, Any]],
         audio_file: str,
@@ -249,6 +279,60 @@ class DocxFormatter:
         summary_para = doc.add_paragraph()
         DocxFormatter._set_paragraph_rtl(summary_para)
         summary_para.add_run(f"סה״כ קטעים: {total_segments}, סה״כ מילים: {total_words}")
+    
+    @staticmethod
+    def _add_full_text_content(doc: Document, full_text: str):
+        """Add full text content to document (no speaker segmentation)"""
+        # Add heading with RTL
+        heading = doc.add_heading('תמלול מלא', level=1)
+        DocxFormatter._set_paragraph_rtl(heading)
+        
+        # Validate input text
+        if not full_text or not full_text.strip():
+            para = doc.add_paragraph("אין תוכן תמלול זמין")
+            DocxFormatter._set_paragraph_rtl(para)
+            return
+        
+        # Clean and improve the text
+        cleaned_text = DocxFormatter.improve_hebrew_punctuation(full_text.strip())
+        
+        # Split text into paragraphs (split by double newlines or long sentences)
+        paragraphs = []
+        if '\n\n' in cleaned_text:
+            paragraphs = cleaned_text.split('\n\n')
+        else:
+            # Split by sentences (roughly)
+            sentences = cleaned_text.split('. ')
+            paragraphs = [s.strip() + '.' for s in sentences if s.strip()]
+        
+        # If no natural paragraphs, create one
+        if not paragraphs:
+            paragraphs = [cleaned_text]
+        
+        # Add each paragraph to the document
+        total_words = 0
+        for paragraph_text in paragraphs:
+            if paragraph_text.strip():
+                para = doc.add_paragraph()
+                DocxFormatter._set_paragraph_rtl(para)
+                
+                # Add text content
+                text_run = para.add_run(paragraph_text.strip())
+                text_run.font.size = Pt(12)
+                
+                total_words += len(paragraph_text.split())
+        
+        # Add summary
+        summary_heading = doc.add_heading('סיכום', level=2)
+        DocxFormatter._set_paragraph_rtl(summary_heading)
+        
+        summary_para = doc.add_paragraph()
+        DocxFormatter._set_paragraph_rtl(summary_para)
+        summary_para.add_run(f"סה״כ מילים: {total_words}")
+        
+        logger.info(f"📄 Simple DOCX Content Statistics:")
+        logger.info(f"   - Total words: {total_words}")
+        logger.info(f"   - Paragraphs: {len(paragraphs)}")
     
     @staticmethod
     def _format_timestamp(seconds: float) -> str:

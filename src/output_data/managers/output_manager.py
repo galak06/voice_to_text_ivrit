@@ -1,37 +1,44 @@
 #!/usr/bin/env python3
 """
-Output Manager
-Main orchestrator for all output operations
+Output manager for transcription results with caching and output strategy injection
 """
 
 import os
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Dict, Any, Optional, List
 from pathlib import Path
 
-from ..formatters.json_formatter import JsonFormatter, CustomJSONEncoder
-from ..formatters.text_formatter import TextFormatter
-from ..formatters.docx_formatter import DocxFormatter
-from ..utils.path_utils import PathUtils
-from ..utils.data_utils import DataUtils
-from .file_manager import FileManager
+# Import default output path
+from definition import TRANSCRIPTIONS_DIR
+DEFAULT_OUTPUT_PATH = TRANSCRIPTIONS_DIR
+
+from src.output_data.utils.data_utils import DataUtils
+from src.output_data.formatters.text_formatter import TextFormatter
+from src.output_data.formatters.json_formatter import JsonFormatter
+from src.output_data.formatters.docx_formatter import DocxFormatter
+from src.output_data.utils.file_manager import FileManager
+from src.output_data.utils.path_utils import PathUtils
 
 logger = logging.getLogger(__name__)
 
 class OutputManager:
-    """Main output manager for transcription results with caching"""
+    """Main output manager for transcription results with caching and output strategy injection"""
     
-    def __init__(self, output_base_path: str = None, data_utils: Optional[DataUtils] = None):
-        # Use definition.py for default output path
+    def __init__(self, output_base_path: Optional[str] = None, data_utils: Optional[DataUtils] = None, output_strategy: Optional[Any] = None):
+        # Use default output path if none provided
         if output_base_path is None:
-            try:
-                from definition import TRANSCRIPTIONS_DIR
-                output_base_path = TRANSCRIPTIONS_DIR
-            except ImportError:
-                output_base_path = "output/transcriptions"
+            output_base_path = DEFAULT_OUTPUT_PATH
+        
         """Initialize output manager with dependency injection and caching"""
         self.output_base_path = output_base_path
         self.data_utils = data_utils or DataUtils()
+        
+        # Inject output strategy for intelligent text processing
+        self.output_strategy = output_strategy
+        if self.output_strategy:
+            logger.info("🚀 OutputManager initialized with injected output strategy")
+        else:
+            logger.info("⚠️ OutputManager initialized without output strategy - using legacy processing")
         
         # Cache for processed data to avoid duplicate processing
         self._processed_data_cache = {}
@@ -155,7 +162,7 @@ class OutputManager:
             return {'success': False}
     
     def _process_and_cache_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Process data once and cache results for reuse"""
+        """Process data once and cache results for reuse using injected output strategy"""
         # Create a cache key based on data content
         cache_key = hash(str(sorted(data.items())))
         
@@ -163,6 +170,73 @@ class OutputManager:
             logger.info("Using cached processed data")
             return self._processed_data_cache[cache_key]
         
+        # Use injected output strategy if available for intelligent text processing
+        if self.output_strategy and 'segments' in data:
+            logger.info("🚀 Using injected output strategy for intelligent text processing")
+            
+            try:
+                # Get segments from data
+                segments = data['segments']
+                logger.info(f"   - Processing {len(segments)} segments with output strategy")
+                
+                # Use output strategy to create final output and deduplicated segments
+                final_text = self.output_strategy.create_final_output(segments)
+                deduplicated_segments = self.output_strategy.create_segmented_output(segments)
+                
+                logger.info(f"   - Output strategy processed: {len(segments)} → {len(deduplicated_segments)} segments")
+                logger.info(f"   - Final text created: {len(final_text)} characters")
+                
+                # Update data with processed results
+                processed_data = data.copy()
+                processed_data['segments'] = deduplicated_segments
+                processed_data['full_text'] = final_text
+                processed_data['_output_strategy_processed'] = True
+                
+                # Process speakers data from deduplicated segments
+                speakers = self.data_utils.extract_speakers_data(processed_data)
+                self._speakers_cache[cache_key] = speakers
+                
+                # Format text content using deduplicated data
+                if speakers:
+                    text_content = TextFormatter.format_conversation_text(speakers)
+                else:
+                    text_content = final_text
+                self._text_content_cache[cache_key] = text_content
+                
+                # Add metadata
+                processed_data['_cached_speakers'] = speakers
+                processed_data['_cached_text_content'] = text_content
+                processed_data['_cached_word_count'] = len(text_content.split())
+                processed_data['_cached_char_count'] = len(text_content)
+                processed_data['_deduplication_applied'] = True
+                
+                logger.info("✅ Output strategy processing completed successfully")
+                
+            except Exception as e:
+                logger.error(f"❌ Output strategy processing failed: {e}")
+                logger.info("🔄 Falling back to legacy processing")
+                # Fall back to legacy processing
+                processed_data = self._legacy_process_and_cache_data(data, cache_key)
+        else:
+            # Use legacy processing if no output strategy available
+            logger.info("🔄 Using legacy text processing (no output strategy injected)")
+            processed_data = self._legacy_process_and_cache_data(data, cache_key)
+        
+        # Cache the processed data
+        self._processed_data_cache[cache_key] = processed_data
+        
+        # Limit cache size to prevent memory issues
+        if len(self._processed_data_cache) > 100:
+            # Remove oldest entries
+            oldest_key = next(iter(self._processed_data_cache))
+            del self._processed_data_cache[oldest_key]
+            del self._speakers_cache[oldest_key]
+            del self._text_content_cache[oldest_key]
+        
+        return processed_data
+    
+    def _legacy_process_and_cache_data(self, data: Dict[str, Any], cache_key: int) -> Dict[str, Any]:
+        """Legacy data processing method (fallback when output strategy is not available)"""
         # Remove empty/whitespace-only segments using DataUtils helper
         try:
             cleaned_data = self.data_utils.clean_segments(data)
@@ -187,17 +261,7 @@ class OutputManager:
         processed_data['_cached_text_content'] = text_content
         processed_data['_cached_word_count'] = len(text_content.split())
         processed_data['_cached_char_count'] = len(text_content)
-        
-        # Cache the processed data
-        self._processed_data_cache[cache_key] = processed_data
-        
-        # Limit cache size to prevent memory issues
-        if len(self._processed_data_cache) > 100:
-            # Remove oldest entries
-            oldest_key = next(iter(self._processed_data_cache))
-            del self._processed_data_cache[oldest_key]
-            del self._speakers_cache[oldest_key]
-            del self._text_content_cache[oldest_key]
+        processed_data['_legacy_processing'] = True
         
         return processed_data
     
@@ -296,35 +360,57 @@ class OutputManager:
                 # Convert data to DOCX format
                 speakers = self.data_utils.extract_speakers_data(data)
             
-            docx_data = []
-            
-            for speaker_name, segments in speakers.items():
-                for segment in segments:
-                    if isinstance(segment, dict) and 'text' in segment:
-                        docx_data.append({
-                            'speaker': speaker_name,
-                            'text': segment['text'],
-                            'start': segment.get('start', 0),
-                            'end': segment.get('end', 0)
-                        })
-            
-            # Log DOCX data preparation
-            logger.info(f"   - DOCX data segments: {len(docx_data)}")
-            if docx_data:
-                total_docx_text = sum(len(seg['text']) for seg in docx_data)
-                total_docx_words = sum(len(seg['text'].split()) for seg in docx_data)
-                logger.info(f"   - DOCX total text length: {total_docx_text} characters")
-                logger.info(f"   - DOCX total word count: {total_docx_words} words")
-                logger.info(f"   - First DOCX segment: {docx_data[0]['start']:.1f}s - {docx_data[0]['end']:.1f}s")
-                logger.info(f"   - Last DOCX segment: {docx_data[-1]['start']:.1f}s - {docx_data[-1]['end']:.1f}s")
-            
-            # Create document
-            doc = DocxFormatter.create_transcription_document(
-                docx_data, 
-                self.data_utils.get_audio_file(data),
-                self.data_utils.get_model_name(data),
-                engine
-            )
+            # If no speakers data available, create a simple document with full text
+            if not speakers or len(speakers) == 0:
+                logger.info("   - No speakers data available, creating document with full text")
+                
+                # Use full_text if available, otherwise concatenate segments
+                if 'full_text' in data and data['full_text']:
+                    full_text = data['full_text']
+                    logger.info(f"   - Using full_text: {len(full_text)} characters")
+                else:
+                    # Fallback: concatenate all segment texts
+                    full_text = " ".join([seg.get('text', '') for seg in data.get('segments', [])])
+                    logger.info(f"   - Concatenated segments: {len(full_text)} characters")
+                
+                # Create simple document with full text
+                doc = DocxFormatter.create_simple_document(
+                    full_text,
+                    self.data_utils.get_audio_file(data),
+                    self.data_utils.get_model_name(data),
+                    engine
+                )
+            else:
+                # Use speakers data for structured document
+                docx_data = []
+                
+                for speaker_name, segments in speakers.items():
+                    for segment in segments:
+                        if isinstance(segment, dict) and 'text' in segment:
+                            docx_data.append({
+                                'speaker': speaker_name,
+                                'text': segment['text'],
+                                'start': segment.get('start', 0),
+                                'end': segment.get('end', 0)
+                            })
+                
+                # Log DOCX data preparation
+                logger.info(f"   - DOCX data segments: {len(docx_data)}")
+                if docx_data:
+                    total_docx_text = sum(len(seg['text']) for seg in docx_data)
+                    total_docx_words = sum(len(seg['text'].split()) for seg in docx_data)
+                    logger.info(f"   - DOCX total text length: {total_docx_text} characters")
+                    logger.info(f"   - DOCX total word count: {total_docx_words} words")
+                    logger.info(f"   - First DOCX segment: {docx_data[0]['start']:.1f}s - {docx_data[0]['end']:.1f}s")
+                    logger.info(f"   - Last DOCX segment: {docx_data[-1]['start']:.1f}s - {docx_data[-1]['end']:.1f}s")
+                
+                # Create document
+                doc = DocxFormatter.create_transcription_document(
+                    docx_data, 
+                    self.data_utils.get_audio_file(data),
+                    self.data_utils.get_model_name(data),
+                    engine
+                )
             
             if doc:
                 filename = PathUtils.generate_output_filename(
