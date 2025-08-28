@@ -5,7 +5,7 @@ Output manager for transcription results with caching and output strategy inject
 
 import os
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List, Union, Optional
 from pathlib import Path
 
 # Import default output path
@@ -16,7 +16,7 @@ from src.output_data.utils.data_utils import DataUtils
 from src.output_data.formatters.text_formatter import TextFormatter
 from src.output_data.formatters.json_formatter import JsonFormatter
 from src.output_data.formatters.docx_formatter import DocxFormatter
-from src.output_data.utils.file_manager import FileManager
+from .file_manager import FileManager
 from src.output_data.utils.path_utils import PathUtils
 
 logger = logging.getLogger(__name__)
@@ -24,11 +24,9 @@ logger = logging.getLogger(__name__)
 class OutputManager:
     """Main output manager for transcription results with caching and output strategy injection"""
     
-    def __init__(self, output_base_path: Optional[str] = None, data_utils: Optional[DataUtils] = None, output_strategy: Optional[Any] = None):
+    def __init__(self, output_base_path: str, data_utils: DataUtils, output_strategy: Any):
         # Use default output path if none provided
-        if output_base_path is None:
-            output_base_path = DEFAULT_OUTPUT_PATH
-        
+       
         """Initialize output manager with dependency injection and caching"""
         self.output_base_path = output_base_path
         self.data_utils = data_utils or DataUtils()
@@ -265,7 +263,7 @@ class OutputManager:
         
         return processed_data
     
-    def _save_json(self, data: Dict[str, Any], output_dir: str, model: str, engine: str) -> Optional[str]:
+    def _save_json(self, data: Dict[str, Any], output_dir: str, model: str, engine: str) -> Union[str, None]:
         """Save transcription as JSON"""
         try:
             filename = PathUtils.generate_output_filename(
@@ -284,7 +282,7 @@ class OutputManager:
             logger.error(f"Error saving JSON: {e}")
             return None
     
-    def _save_text(self, data: Dict[str, Any], output_dir: str, model: str, engine: str) -> Optional[str]:
+    def _save_text(self, data: Dict[str, Any], output_dir: str, model: str, engine: str) -> Union[str, None]:
         """Save transcription as text using cached data"""
         try:
             # Log input data for text saving
@@ -337,7 +335,7 @@ class OutputManager:
             logger.error(f"Error saving text: {e}")
             return None
     
-    def _save_docx(self, data: Dict[str, Any], output_dir: str, model: str, engine: str) -> Optional[str]:
+    def _save_docx(self, data: Dict[str, Any], output_dir: str, model: str, engine: str) -> Union[str, None]:
         """Save transcription as DOCX using cached data"""
         try:
             # Log input data for DOCX saving
