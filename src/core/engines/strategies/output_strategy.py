@@ -42,7 +42,11 @@ class OverlappingTextDeduplicator(IntelligentDeduplicationStrategy):
         if not segments:
             return []
         
+        logger.info(f"🔄 Starting intelligent deduplication for {len(segments)} segments...")
+        
         processed_segments = []
+        overlap_count = 0
+        
         for i, current_segment in enumerate(segments):
             if i == 0:
                 processed_segments.append(current_segment.copy())
@@ -50,12 +54,18 @@ class OverlappingTextDeduplicator(IntelligentDeduplicationStrategy):
             
             prev_segment = processed_segments[-1]
             if self._segments_overlap(prev_segment, current_segment):
+                logger.debug(f"🔄 Detected overlap between segments {i-1} and {i}")
+                logger.debug(f"   - Prev: {prev_segment.get('start', 0):.1f}s - {prev_segment.get('end', 0):.1f}s")
+                logger.debug(f"   - Curr: {current_segment.get('start', 0):.1f}s - {current_segment.get('end', 0):.1f}s")
+                
                 processed_segment = self._remove_overlapping_text(prev_segment, current_segment)
                 processed_segments.append(processed_segment)
+                overlap_count += 1
             else:
                 processed_segments.append(current_segment.copy())
         
         logger.info(f"✅ Intelligent deduplication completed: {len(segments)} → {len(processed_segments)} segments")
+        logger.info(f"   - Overlaps detected and processed: {overlap_count}")
         return processed_segments
     
     def _segments_overlap(self, segment1: Dict[str, Any], segment2: Dict[str, Any]) -> bool:
@@ -85,13 +95,25 @@ class OverlappingTextDeduplicator(IntelligentDeduplicationStrategy):
             prev_text = prev_segment.get('text', '')
             curr_text = current_segment.get('text', '')
             
+            logger.debug(f"🔄 Processing overlap: {overlap_duration:.1f}s duration")
+            logger.debug(f"   - Prev text end: '{prev_text[-50:]}...'")
+            logger.debug(f"   - Curr text start: '{curr_text[:50]}...'")
+            
             cleaned_text = self._remove_overlapping_text_portion(prev_text, curr_text)
             
             if cleaned_text != curr_text:
+                chars_removed = len(curr_text) - len(cleaned_text)
+                logger.info(f"✅ Overlap removed: {chars_removed} characters from chunk {current_segment.get('chunk_number', '?')}")
+                logger.debug(f"   - Original: '{curr_text[:100]}...'")
+                logger.debug(f"   - Cleaned: '{cleaned_text[:100]}...'")
+                
                 processed_segment['text'] = cleaned_text
                 processed_segment['overlap_removed'] = True
                 processed_segment['overlap_duration'] = overlap_duration
                 processed_segment['overlap_with_chunk'] = prev_segment.get('chunk_number', 0)
+                processed_segment['overlap_chars_removed'] = chars_removed
+            else:
+                logger.debug(f"ℹ️ No text overlap found despite time overlap")
         
         return processed_segment
     
@@ -122,19 +144,35 @@ class OverlappingTextDeduplicator(IntelligentDeduplicationStrategy):
         if similarity_overlap:
             return similarity_overlap
         
+        # If still no match, try partial matching for Hebrew text
+        partial_overlap = self._find_partial_hebrew_overlap(prev_text, curr_text)
+        if partial_overlap:
+            return partial_overlap
+        
         return ""
     
     def _find_exact_overlap(self, prev_text: str, curr_text: str) -> str:
-        """Find exact overlapping text"""
-        max_overlap_length = min(len(prev_text), len(curr_text), 100)
+        """Find exact overlapping text with more flexible matching"""
+        if not prev_text or not curr_text:
+            return ""
         
-        for overlap_length in range(max_overlap_length, 0, -1):
-            prev_end = prev_text[-overlap_length:]
+        # Clean and normalize texts for comparison
+        prev_clean = self._normalize_text(prev_text)
+        curr_clean = self._normalize_text(curr_text)
+        
+        max_overlap_length = min(len(prev_clean), len(curr_clean), 100)
+        
+        for overlap_length in range(max_overlap_length, 10, -1):  # Minimum 10 chars for meaningful overlap
+            prev_end = prev_clean[-overlap_length:]
             
-            if curr_text.startswith(prev_end):
-                if len(prev_end.strip()) > 5:
-                    if not self._is_just_common_words(prev_end):
-                        return prev_end
+            # Check if current text starts with this portion
+            if curr_clean.startswith(prev_end):
+                # Get the original text portion (not normalized)
+                original_overlap = prev_text[-overlap_length:]
+                if len(original_overlap.strip()) > 10:  # Ensure meaningful overlap
+                    if not self._is_just_common_words(original_overlap):
+                        logger.debug(f"🔄 Found exact overlap: '{original_overlap[:30]}...' ({overlap_length} chars)")
+                        return original_overlap
         
         return ""
     
@@ -249,7 +287,8 @@ class OverlappingTextDeduplicator(IntelligentDeduplicationStrategy):
         
         # Remove common punctuation and normalize spaces
         import re
-        normalized = re.sub(r'[^\w\s]', ' ', text)  # Remove punctuation
+        # Remove punctuation but keep Hebrew text intact
+        normalized = re.sub(r'[^\w\s\u0590-\u05FF]', ' ', text)  # Keep Hebrew characters
         normalized = re.sub(r'\s+', ' ', normalized)  # Normalize spaces
         normalized = normalized.strip()
         
@@ -273,6 +312,35 @@ class OverlappingTextDeduplicator(IntelligentDeduplicationStrategy):
             return 0.0
         
         return (common_chars * 2) / total_chars  # Normalize to 0-1 range
+    
+    def _find_partial_hebrew_overlap(self, prev_text: str, curr_text: str) -> str:
+        """Find partial overlapping text for Hebrew content with flexible matching"""
+        if not prev_text or not curr_text:
+            return ""
+        
+        # Look for common phrases at the end of previous text and beginning of current text
+        max_phrase_length = min(len(prev_text), len(curr_text), 80)
+        
+        for phrase_length in range(max_phrase_length, 15, -1):  # Minimum 15 chars for meaningful overlap
+            # Get the end portion of previous text
+            prev_end = prev_text[-phrase_length:]
+            
+            # Check if current text starts with this phrase (allowing for slight differences)
+            if curr_text.startswith(prev_end):
+                if len(prev_end.strip()) > 15:  # Ensure meaningful overlap
+                    logger.debug(f"🔄 Found partial Hebrew overlap: '{prev_end[:30]}...' ({phrase_length} chars)")
+                    return prev_end
+            
+            # Also try with some flexibility - check if current text starts with a similar phrase
+            # Remove common prefixes like "אז" (so) from current text for comparison
+            curr_start = curr_text[:phrase_length]
+            if curr_start.startswith('אז '):
+                curr_start = curr_start[3:]  # Remove "אז " prefix
+                if prev_end.endswith(curr_start) and len(curr_start) > 10:
+                    logger.debug(f"🔄 Found flexible Hebrew overlap: '{curr_start[:30]}...' ({len(curr_start)} chars)")
+                    return curr_start
+        
+        return ""
     
     def _is_just_common_words(self, text: str) -> bool:
         """Check if text is just common words that shouldn't be considered overlap"""
@@ -307,10 +375,15 @@ class MergedOutputStrategy(OutputStrategy):
         if not segments:
             return ""
         
+        logger.info(f"🔄 MergedOutputStrategy.create_final_output called with {len(segments)} segments")
+        
         # Sort segments by start time
         sorted_segments = sorted(segments, key=lambda x: x.get('start', 0.0))
+        logger.info(f"   - First segment: {sorted_segments[0].get('start', 0):.1f}s - {sorted_segments[0].get('end', 0):.1f}s")
+        logger.info(f"   - Second segment: {sorted_segments[1].get('start', 0):.1f}s - {sorted_segments[1].get('end', 0):.1f}s")
         
         # Apply intelligent deduplication
+        logger.info(f"🔄 Calling deduplicator.deduplicate_segments...")
         deduplicated_segments = self.deduplicator.deduplicate_segments(sorted_segments)
         
         # Build final text

@@ -2,6 +2,7 @@
 """
 DOCX Formatter
 Handles Word document formatting and RTL support
+ONLY generates high-quality DOCX from processed text files
 """
 
 import logging
@@ -17,7 +18,7 @@ from docx.oxml import OxmlElement
 logger = logging.getLogger(__name__)
 
 class DocxFormatter:
-    """DOCX formatting utilities with RTL support"""
+    """DOCX formatting utilities with RTL support - ONLY for high-quality text-based DOCX"""
     
     @staticmethod
     def improve_hebrew_punctuation(text: str) -> str:
@@ -56,8 +57,8 @@ class DocxFormatter:
             (r'([א-ת])\s*-\s*([א-ת])', r'\1-\2'),  # Hyphens in Hebrew words
             (r'([א-ת])\s*/\s*([א-ת])', r'\1/\2'),  # Slashes in Hebrew words
             
-            # Clean up multiple spaces
-            (r'\s+', ' '),
+            # Clean up multiple spaces (but preserve word spacing)
+            (r'[ \t]+', ' '),
         ]
         
         for pattern, replacement in improvements:
@@ -66,64 +67,120 @@ class DocxFormatter:
         return text.strip()
     
     @staticmethod
-    def create_simple_document(
-        full_text: str,
-        audio_file: str,
-        model: str,
-        engine: str
-    ) -> Optional[Document]:
-        """Create a simple Word document with full text (no speaker segmentation)"""
+    def create_docx_from_word_ready_text(
+        text_file_path: str,
+        output_docx_path: str,
+        audio_file: str = "merged_chunks",
+        model: str = "merged",
+        engine: str = "merged"
+    ) -> bool:
+        """
+        Create a DOCX file from the Word-ready text file
+        
+        This method reads the clean, formatted text file and creates a properly
+        formatted Word document that maintains all the spacing and formatting
+        from the text file.
+        
+        This is the ONLY DOCX generation method - it produces high-quality output
+        from processed, cleaned text rather than raw chunk data.
+        """
         try:
+            # Read the Word-ready text file
+            with open(text_file_path, 'r', encoding='utf-8') as f:
+                text_content = f.read()
+            
+            if not text_content.strip():
+                logger.error("Text file is empty or contains only whitespace")
+                return False
+            
+            # Create the document
             doc = Document()
             
-            # Set document to RTL
+            # Set document to RTL for Hebrew text
             DocxFormatter._set_document_rtl(doc)
             
             # Add title
-            title = doc.add_heading('דוח תמלול', 0)
+            title = doc.add_heading('🎤 TRANSCRIPTION - READY FOR WORD', 0)
             DocxFormatter._set_paragraph_rtl(title)
             
             # Add metadata table
             DocxFormatter._add_metadata_table(doc, audio_file, model, engine)
             
-            # Add full text content
-            DocxFormatter._add_full_text_content(doc, full_text)
+            # Add the formatted text content
+            DocxFormatter._add_word_ready_text_content(doc, text_content)
             
-            return doc
+            # Save the document
+            doc.save(output_docx_path)
+            logger.info(f"✅ DOCX created successfully from Word-ready text: {output_docx_path}")
+            return True
             
+        except FileNotFoundError:
+            logger.error(f"Text file not found: {text_file_path}")
+            return False
         except Exception as e:
-            logger.error(f"Error creating simple DOCX document: {e}")
-            return None
+            logger.error(f"Error creating DOCX from Word-ready text: {e}")
+            return False
     
     @staticmethod
-    def create_transcription_document(
-        transcription_data: List[Dict[str, Any]],
-        audio_file: str,
-        model: str,
-        engine: str
-    ) -> Optional[Document]:
-        """Create a Word document with transcription data"""
+    def _add_word_ready_text_content(doc: Document, text_content: str) -> None:
+        """Add the Word-ready text content to the document with proper formatting"""
         try:
-            doc = Document()
+            # Split content into lines
+            lines = text_content.split('\n')
             
-            # Set document to RTL
-            DocxFormatter._set_document_rtl(doc)
+            # Process each line
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # Check if this is a header line
+                if line.startswith('🎤') or line.startswith('=') or line.startswith('Generated:') or line.startswith('Total Chunks:') or line.startswith('Duration:'):
+                    # Add header as a formatted paragraph
+                    if line.startswith('🎤'):
+                        header = doc.add_heading(line, level=1)
+                        DocxFormatter._set_paragraph_rtl(header)
+                    elif line.startswith('='):
+                        # Add separator line
+                        sep = doc.add_paragraph(line)
+                        sep.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        DocxFormatter._set_paragraph_rtl(sep)
+                    else:
+                        # Add metadata line
+                        meta = doc.add_paragraph(line)
+                        meta.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        DocxFormatter._set_paragraph_rtl(meta)
+                
+                # Check if this is a timestamp line
+                elif line.startswith('[') and ']' in line:
+                    # Add timestamp as a formatted paragraph
+                    timestamp = doc.add_paragraph(line)
+                    timestamp.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    # Make timestamp bold
+                    for run in timestamp.runs:
+                        run.bold = True
+                        run.font.size = Pt(11)
+                    DocxFormatter._set_paragraph_rtl(timestamp)
+                
+                # Check if this is the end section
+                elif line.startswith('End of Transcription') or line.startswith('Copy this text'):
+                    # Add end section
+                    end = doc.add_paragraph(line)
+                    end.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    DocxFormatter._set_paragraph_rtl(end)
+                
+                # This is regular text content
+                else:
+                    # Add regular text content
+                    text_para = doc.add_paragraph(line)
+                    text_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT  # Right-aligned for Hebrew
+                    DocxFormatter._set_paragraph_rtl(text_para)
             
-            # Add title
-            title = doc.add_heading('דוח תמלול', 0)
-            DocxFormatter._set_paragraph_rtl(title)
-            
-            # Add metadata table
-            DocxFormatter._add_metadata_table(doc, audio_file, model, engine)
-            
-            # Add transcription content
-            DocxFormatter._add_transcription_content(doc, transcription_data)
-            
-            return doc
+            logger.info(f"✅ Added {len(lines)} lines of Word-ready text content to document")
             
         except Exception as e:
-            logger.error(f"Error creating DOCX document: {e}")
-            return None
+            logger.error(f"Error adding Word-ready text content: {e}")
+            raise
     
     @staticmethod
     def _set_document_rtl(doc: Document):
@@ -179,81 +236,6 @@ class DocxFormatter:
             logger.debug(f"Could not set text run RTL: {e}")
     
     @staticmethod
-    def _add_hebrew_text_with_rtl(paragraph, text: str):
-        """Add Hebrew text with proper RTL formatting and punctuation at the end"""
-        try:
-            # Clean and improve Hebrew punctuation
-            cleaned_text = DocxFormatter.improve_hebrew_punctuation(text)
-            
-            # Split text into parts (text and punctuation)
-            import re
-            
-            # Find Hebrew text and punctuation
-            hebrew_pattern = r'[א-ת\s]+'
-            
-            # Split the text into Hebrew and punctuation parts
-            parts = []
-            current_pos = 0
-            
-            while current_pos < len(cleaned_text):
-                # Find next Hebrew text
-                hebrew_match = re.search(hebrew_pattern, cleaned_text[current_pos:])
-                if hebrew_match:
-                    hebrew_start = current_pos + hebrew_match.start()
-                    hebrew_end = current_pos + hebrew_match.end()
-                    
-                    # Add text before Hebrew (if any)
-                    if hebrew_start > current_pos:
-                        parts.append(('text', cleaned_text[current_pos:hebrew_start]))
-                    
-                    # Add Hebrew text
-                    hebrew_text = cleaned_text[hebrew_start:hebrew_end].strip()
-                    if hebrew_text:
-                        parts.append(('hebrew', hebrew_text))
-                    
-                    current_pos = hebrew_end
-                else:
-                    # Add remaining text
-                    if current_pos < len(cleaned_text):
-                        parts.append(('text', cleaned_text[current_pos:]))
-                    break
-            
-            # For RTL, we need to reverse the order of parts so punctuation appears at the end
-            # This ensures proper Hebrew text flow
-            rtl_parts = []
-            hebrew_text_parts = []
-            punctuation_parts = []
-            
-            for part_type, part_text in parts:
-                if part_type == 'hebrew':
-                    hebrew_text_parts.append(('hebrew', part_text))
-                else:
-                    punctuation_parts.append(('text', part_text))
-            
-            # Add Hebrew text first, then punctuation (for RTL flow)
-            rtl_parts.extend(hebrew_text_parts)
-            rtl_parts.extend(punctuation_parts)
-            
-            # Add parts to paragraph with proper RTL
-            for part_type, part_text in rtl_parts:
-                if part_text.strip():
-                    if part_type == 'hebrew':
-                        # Add Hebrew text with RTL
-                        hebrew_run = paragraph.add_run(part_text)
-                        hebrew_run.font.size = Pt(12)
-                        DocxFormatter._set_text_run_rtl(hebrew_run)
-                    else:
-                        # Add punctuation/regular text
-                        text_run = paragraph.add_run(part_text)
-                        text_run.font.size = Pt(12)
-            
-        except Exception as e:
-            logger.warning(f"Could not add Hebrew text with RTL: {e}")
-            # Fallback to simple text addition
-            text_run = paragraph.add_run(text)
-            text_run.font.size = Pt(12)
-    
-    @staticmethod
     def _add_metadata_table(doc: Document, audio_file: str, model: str, engine: str):
         """Add metadata table to document"""
         table = doc.add_table(rows=1, cols=2)
@@ -285,151 +267,4 @@ class DocxFormatter:
             # Set RTL for all cells
             for cell in row_cells:
                 for paragraph in cell.paragraphs:
-                    DocxFormatter._set_paragraph_rtl(paragraph)
-    
-    @staticmethod
-    def _add_transcription_content(doc: Document, transcription_data: List[Dict[str, Any]]):
-        """Add transcription content to document"""
-        # Add heading with RTL
-        heading = doc.add_heading('תמלול שיחה', level=1)
-        DocxFormatter._set_paragraph_rtl(heading)
-        
-        # Validate input data
-        if not transcription_data:
-            para = doc.add_paragraph("אין נתוני תמלול זמינים")
-            DocxFormatter._set_paragraph_rtl(para)
-            return
-        
-        # Group segments by speaker for better conversation flow
-        speakers_data = {}
-        total_segments = 0
-        total_words = 0
-        
-        for segment in transcription_data:
-            if isinstance(segment, dict):
-                speaker = segment.get('speaker', 'Unknown')
-                text = segment.get('text', '').strip()
-                
-                # Only add segments with actual text content
-                if text:
-                    if speaker not in speakers_data:
-                        speakers_data[speaker] = []
-                    speakers_data[speaker].append(segment)
-                    total_segments += 1
-                    total_words += len(text.split())
-        
-        # Log content statistics
-        logger.info(f"📄 DOCX Content Statistics:")
-        logger.info(f"   - Total segments: {total_segments}")
-        logger.info(f"   - Total words: {total_words}")
-        logger.info(f"   - Speakers: {list(speakers_data.keys())}")
-        
-        if not speakers_data:
-            para = doc.add_paragraph("אין תוכן תמלול זמין")
-            DocxFormatter._set_paragraph_rtl(para)
-            return
-        
-        # Add content by speaker
-        for speaker_name, segments in speakers_data.items():
-            # Add speaker header
-            speaker_heading = doc.add_heading(f'🎤 {speaker_name}', level=2)
-            DocxFormatter._set_paragraph_rtl(speaker_heading)
-            
-            # Sort segments by start time for chronological order
-            segments.sort(key=lambda x: x.get('start', 0))
-            
-            # Add segments for this speaker
-            speaker_words = 0
-            for segment in segments:
-                text = segment.get('text', '').strip()
-                start_time = segment.get('start', 0)
-                
-                if text:
-                    # Create paragraph with RTL alignment
-                    para = doc.add_paragraph()
-                    DocxFormatter._set_paragraph_rtl(para)
-                    
-                    # Add timestamp
-                    timestamp = DocxFormatter._format_timestamp(start_time)
-                    timestamp_run = para.add_run(f"{timestamp} ")
-                    timestamp_run.font.size = Pt(8)
-                    timestamp_run.font.color.rgb = RGBColor(128, 128, 128)
-                    
-                    # Add text content
-                    DocxFormatter._add_hebrew_text_with_rtl(para, text)
-                    
-                    speaker_words += len(text.split())
-            
-            # Log speaker statistics
-            logger.info(f"   - {speaker_name}: {len(segments)} segments, {speaker_words} words")
-            
-            # Add spacing between speakers
-            doc.add_paragraph()
-        
-        # Add summary at the end
-        summary_heading = doc.add_heading('סיכום', level=2)
-        DocxFormatter._set_paragraph_rtl(summary_heading)
-        
-        summary_para = doc.add_paragraph()
-        DocxFormatter._set_paragraph_rtl(summary_para)
-        summary_para.add_run(f"סה״כ קטעים: {total_segments}, סה״כ מילים: {total_words}")
-    
-    @staticmethod
-    def _add_full_text_content(doc: Document, full_text: str):
-        """Add full text content to document (no speaker segmentation)"""
-        # Add heading with RTL
-        heading = doc.add_heading('תמלול מלא', level=1)
-        DocxFormatter._set_paragraph_rtl(heading)
-        
-        # Validate input text
-        if not full_text or not full_text.strip():
-            para = doc.add_paragraph("אין תוכן תמלול זמין")
-            DocxFormatter._set_paragraph_rtl(para)
-            return
-        
-        # Clean and improve the text
-        cleaned_text = DocxFormatter.improve_hebrew_punctuation(full_text.strip())
-        
-        # Split text into paragraphs (split by double newlines or long sentences)
-        paragraphs = []
-        if '\n\n' in cleaned_text:
-            paragraphs = cleaned_text.split('\n\n')
-        else:
-            # Split by sentences (roughly)
-            sentences = cleaned_text.split('. ')
-            paragraphs = [s.strip() + '.' for s in sentences if s.strip()]
-        
-        # If no natural paragraphs, create one
-        if not paragraphs:
-            paragraphs = [cleaned_text]
-        
-        # Add each paragraph to the document
-        total_words = 0
-        for paragraph_text in paragraphs:
-            if paragraph_text.strip():
-                para = doc.add_paragraph()
-                DocxFormatter._set_paragraph_rtl(para)
-                
-                # Add text content
-                DocxFormatter._add_hebrew_text_with_rtl(para, paragraph_text.strip())
-                
-                total_words += len(paragraph_text.split())
-        
-        # Add summary
-        summary_heading = doc.add_heading('סיכום', level=2)
-        DocxFormatter._set_paragraph_rtl(summary_heading)
-        
-        summary_para = doc.add_paragraph()
-        DocxFormatter._set_paragraph_rtl(summary_para)
-        summary_para.add_run(f"סה״כ מילים: {total_words}")
-        
-        logger.info(f"📄 Simple DOCX Content Statistics:")
-        logger.info(f"   - Total words: {total_words}")
-        logger.info(f"   - Paragraphs: {len(paragraphs)}")
-    
-    @staticmethod
-    def _format_timestamp(seconds: float) -> str:
-        """Format seconds into MM:SS format"""
-        minutes = int(seconds // 60)
-        secs = int(seconds % 60)
-        return f"{minutes:02d}:{secs:02d}" 
+                    DocxFormatter._set_paragraph_rtl(paragraph) 

@@ -100,7 +100,7 @@
     "output_dir": "output/transcriptions",
     "chunk_results_dir": "output/chunk_results",
     "audio_chunks_dir": "output/audio_chunks",
-    "chunk_temp_dir": "output/temp_chunks"
+    "use_processed_text_only": true
   },
   "logging": {
     "level": "INFO",

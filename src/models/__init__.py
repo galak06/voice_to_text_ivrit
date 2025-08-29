@@ -5,8 +5,7 @@ Pydantic models for configuration management
 """
 
 from .environment import Environment
-from .transcription import TranscriptionConfig, TranscriptionRequest, TranscriptionResult
-from .speaker import SpeakerConfig
+from .transcription import TranscriptionConfig, TranscriptionRequest
 from .batch import BatchConfig
 from .docker import DockerConfig
 from .runpod import RunPodConfig
@@ -16,13 +15,40 @@ from .input import InputConfig
 from .chunking import ChunkingConfig
 from .processing import ProcessingConfig
 from .app_config import AppConfig
+from .input_validation import (
+    InputType,
+    TranscriptionEngine,
+    AudioFileValidation,
+    JobInputValidation,
+    InputValidationRequest,
+    BatchInputValidation
+)
+# Merged transcription results (includes speaker models)
+from .transcription_results import (
+    TranscriptionResult,
+    TranscriptionSegment,
+    WordTimestamp,
+    CTranslate2GenerationResult,
+    TranscriptionMetadata,
+    BatchTranscriptionResult,
+    TranscriptionError,
+    SpeakerConfig,
+    SpeakerDiarizationRequest
+)
 
 __all__ = [
     'Environment',
     'TranscriptionConfig',
     'TranscriptionRequest',
     'TranscriptionResult',
-    'SpeakerConfig', 
+    'TranscriptionSegment',
+    'WordTimestamp',
+    'CTranslate2GenerationResult',
+    'TranscriptionMetadata',
+    'BatchTranscriptionResult',
+    'TranscriptionError',
+    'SpeakerConfig',
+    'SpeakerDiarizationRequest',
     'BatchConfig',
     'DockerConfig',
     'RunPodConfig',
@@ -31,5 +57,11 @@ __all__ = [
     'InputConfig',
     'ChunkingConfig',
     'ProcessingConfig',
-    'AppConfig'
+    'AppConfig',
+    'InputType',
+    'TranscriptionEngine',
+    'AudioFileValidation',
+    'JobInputValidation',
+    'InputValidationRequest',
+    'BatchInputValidation'
 ] 

@@ -15,7 +15,7 @@ DEFAULT_OUTPUT_PATH = TRANSCRIPTIONS_DIR
 from src.output_data.utils.data_utils import DataUtils
 from src.output_data.formatters.text_formatter import TextFormatter
 from src.output_data.formatters.json_formatter import JsonFormatter
-from src.output_data.formatters.docx_formatter import DocxFormatter
+
 from .file_manager import FileManager
 from src.output_data.utils.path_utils import PathUtils
 
@@ -61,7 +61,7 @@ class OutputManager:
         input_metadata: Optional[Dict[str, Any]] = None,
         session_id: Optional[str] = None
     ) -> Dict[str, str]:
-        """Save transcription in all formats"""
+        """Save transcription in JSON and TXT formats only. High-quality DOCX is generated separately."""
         try:
             logger.info(f"💾 SAVING TRANSCRIPTION:")
             logger.info(f"   - Audio file: {audio_file}")
@@ -100,42 +100,97 @@ class OutputManager:
             # Extract file path
             input_file_path = self.data_utils.get_audio_file(data_dict) or audio_file
             
-            # Create output directory
-            output_dir = FileManager.create_output_directory(
-                self.output_base_path, model_final, engine_final, session_id, audio_file
-            )
+            # Create output directory with timestamp
+            output_dir = self._create_output_directory(model_final, engine_final)
             
-            # Process data once and cache results
-            processed_data = self._process_and_cache_data(data_dict)
+            # Process data using output strategy if available
+            if self.output_strategy:
+                logger.info("🔄 Using injected output strategy for intelligent text processing")
+                # Extract segments from the data - check both 'segments' and 'speakers' fields
+                segments = None
+                if 'segments' in data_dict:
+                    segments = data_dict['segments']
+                elif 'speakers' in data_dict:
+                    # Extract segments from speakers data
+                    speakers_data = data_dict['speakers']
+                    if isinstance(speakers_data, dict) and '0' in speakers_data:
+                        segments = speakers_data['0']  # Get segments from speaker '0'
+                        logger.info(f"🔄 Extracted {len(segments)} segments from speakers data")
+                
+                if segments:
+                    # Use the output strategy to create final output with overlapping detection
+                    logger.info(f"🔄 Applying overlapping detection and deduplication to {len(segments)} segments...")
+                    
+                    # Log first few segments for debugging
+                    for i, seg in enumerate(segments[:3]):
+                        logger.info(f"   - Segment {i}: {seg.get('start', 0):.1f}s - {seg.get('end', 0):.1f}s, text: '{seg.get('text', '')[:50]}...'")
+                    
+                    processed_text = self.output_strategy.create_final_output(segments)
+                    deduplicated_segments = self.output_strategy.create_segmented_output(segments)
+                    
+                    # Log overlapping detection results
+                    original_chars = sum(len(seg.get('text', '')) for seg in segments)
+                    final_chars = len(processed_text)
+                    chars_removed = original_chars - final_chars
+                    
+                    logger.info(f"   - Output strategy processed: {len(segments)} → {len(deduplicated_segments)} segments")
+                    logger.info(f"   - Final text created: {len(processed_text)} characters")
+                    logger.info(f"   - Overlapping text removed: {chars_removed} characters ({chars_removed/original_chars*100:.1f}% reduction)")
+                    
+                    # Log segments that had overlap removed
+                    overlap_segments = [seg for seg in deduplicated_segments if hasattr(seg, 'overlap_removed') and seg.overlap_removed]
+                    if overlap_segments:
+                        logger.info(f"   - Segments with overlap removed: {len(overlap_segments)}")
+                        for seg in overlap_segments[:3]:  # Show first 3
+                            logger.info(f"      - Chunk {getattr(seg, 'chunk_number', '?')}: {getattr(seg, 'overlap_duration', 0):.1f}s overlap removed")
+                    
+                    # Update the data with processed text
+                    processed_data = data_dict.copy()
+                    processed_data['full_text'] = processed_text
+                    processed_data['_cached_text_content'] = processed_text
+                    processed_data['_cached_word_count'] = len(processed_text.split()) if processed_text else 0
+                    processed_data['_cached_char_count'] = len(processed_text) if processed_text else 0
+                    processed_data['_deduplication_applied'] = True
+                    logger.info(f"✅ Output strategy processed {len(segments)} segments into {len(processed_text)} characters")
+                else:
+                    # Fallback if no segments found
+                    logger.warning("⚠️ No segments found in data, using legacy processing")
+                    processed_data = self._process_data_legacy(data_dict)
+            else:
+                logger.info("🔄 Using legacy text processing (no output strategy injected)")
+                processed_data = self._process_data_legacy(data_dict)
             
-            # Save in different formats using cached data
-            saved_files = {}
+            # Save in different formats
+            results = {}
             
-            # Save JSON
+            # Check configuration for output format
+            config = getattr(self, 'config_manager', None)
+            use_processed_text = True
+            
+            if config and hasattr(config, 'config') and config.config.output:
+                output_config = config.config.output
+                use_processed_text = getattr(output_config, 'use_processed_text_only', True)
+            
+            # Save JSON only - text and DOCX handled separately from processed text
             json_file = self._save_json(processed_data, output_dir, model_final, engine_final)
             if json_file:
-                saved_files['json'] = json_file
+                results['json'] = json_file
             
-            # Save TXT
-            txt_file = self._save_text(processed_data, output_dir, model_final, engine_final)
-            if txt_file:
-                saved_files['txt'] = txt_file
+            # Note: High-quality DOCX is generated separately from processed text file
+            # This ensures only the best quality output is produced without duplication
             
-            # Save DOCX
-            docx_file = self._save_docx(processed_data, output_dir, model_final, engine_final)
-            if docx_file:
-                saved_files['docx'] = docx_file
-            
-            # Log success
-            logger.info(f"✅ Saved {len(saved_files)} output files to {output_dir}")
-            logger.info(f"   - Files: {list(saved_files.keys())}")
-            
-            return saved_files
-            
+            if results:
+                logger.info(f"✅ Saved {len(results)} output files to {output_dir}")
+                logger.info(f"   - Files: {list(results.keys())}")
+                if use_processed_text:
+                    logger.info("   - Using processed text only - no duplicate text files created")
+                return results
+            else:
+                logger.error("❌ No output files were saved successfully")
+                return {}
+                
         except Exception as e:
             logger.error(f"Error saving transcription: {e}")
-            import traceback
-            logger.error(f"Error details: {traceback.format_exc()}")
             return {}
 
     # Backwards-compatibility helpers expected by some pipeline tests
@@ -152,18 +207,7 @@ class OutputManager:
             logger.error(f"Error in save_json: {e}")
             return {'success': False}
 
-    def save_text(self, text: str, base_filename: str) -> Dict[str, Any]:
-        """Save a text file to the base output directory.
-        Returns a dict with success and file_path for compatibility with tests."""
-        try:
-            os.makedirs(self.output_base_path, exist_ok=True)
-            file_path = os.path.join(self.output_base_path, f"{base_filename}.txt")
-            if FileManager.save_file(text, file_path):
-                return {'success': True, 'file_path': file_path}
-            return {'success': False}
-        except Exception as e:
-            logger.error(f"Error in save_text: {e}")
-            return {'success': False}
+
     
     def _process_and_cache_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Process data once and cache results for reuse using injected output strategy"""
@@ -184,11 +228,30 @@ class OutputManager:
                 logger.info(f"   - Processing {len(segments)} segments with output strategy")
                 
                 # Use output strategy to create final output and deduplicated segments
+                logger.info(f"🔄 Applying overlapping detection and deduplication to {len(segments)} segments...")
+                
+                # Log first few segments for debugging
+                for i, seg in enumerate(segments[:3]):
+                    logger.info(f"   - Segment {i}: {seg.get('start', 0):.1f}s - {seg.get('end', 0):.1f}s, text: '{seg.get('text', '')[:50]}...'")
+                
                 final_text = self.output_strategy.create_final_output(segments)
                 deduplicated_segments = self.output_strategy.create_segmented_output(segments)
                 
+                # Log overlapping detection results
+                original_chars = sum(len(seg.get('text', '')) for seg in segments)
+                final_chars = len(final_text)
+                chars_removed = original_chars - final_chars
+                
                 logger.info(f"   - Output strategy processed: {len(segments)} → {len(deduplicated_segments)} segments")
                 logger.info(f"   - Final text created: {len(final_text)} characters")
+                logger.info(f"   - Overlapping text removed: {chars_removed} characters ({chars_removed/original_chars*100:.1f}% reduction)")
+                
+                # Log segments that had overlap removed
+                overlap_segments = [seg for seg in deduplicated_segments if seg.get('overlap_removed', False)]
+                if overlap_segments:
+                    logger.info(f"   - Segments with overlap removed: {len(overlap_segments)}")
+                    for seg in overlap_segments[:3]:  # Show first 3
+                        logger.info(f"      - Chunk {seg.get('chunk_number', '?')}: {seg.get('overlap_duration', 0):.1f}s overlap removed")
                 
                 # Update data with processed results
                 processed_data = data.copy()
@@ -200,11 +263,9 @@ class OutputManager:
                 speakers = self.data_utils.extract_speakers_data(processed_data)
                 self._speakers_cache[cache_key] = speakers
                 
-                # Format text content using deduplicated data
-                if speakers:
-                    text_content = TextFormatter.format_conversation_text(speakers)
-                else:
-                    text_content = final_text
+                # Use the deduplicated text directly from the output strategy
+                # This ensures overlapping text is actually removed
+                text_content = final_text
                 self._text_content_cache[cache_key] = text_content
                 
                 # Add metadata
@@ -269,6 +330,47 @@ class OutputManager:
         
         return processed_data
     
+    def _create_output_directory(self, model: str, engine: str) -> str:
+        """Create output directory with timestamp"""
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        dir_name = f"run_{timestamp}"
+        
+        # Create the main run directory
+        run_dir = os.path.join(self.output_base_path, dir_name)
+        os.makedirs(run_dir, exist_ok=True)
+        
+        # Create the specific transcription directory
+        transcription_dir = os.path.join(run_dir, f"{timestamp}_{model}_{engine}_chunks")
+        os.makedirs(transcription_dir, exist_ok=True)
+        
+        return transcription_dir
+    
+    def _process_data_legacy(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Process data using legacy method when no output strategy is available"""
+        # Cache the processed data
+        if '_legacy_processing' not in data:
+            data['_legacy_processing'] = True
+            
+            # Extract speakers data
+            if '_cached_speakers' not in data:
+                data['_cached_speakers'] = self.data_utils.extract_speakers_data(data)
+            
+            # Extract text content
+            if '_cached_text_content' not in data:
+                data['_cached_text_content'] = self.data_utils.extract_text_content(data)
+            
+            # Cache word and character counts
+            if '_cached_word_count' not in data:
+                text_content = data.get('_cached_text_content', '')
+                data['_cached_word_count'] = len(text_content.split()) if text_content else 0
+            
+            if '_cached_char_count' not in data:
+                text_content = data.get('_cached_text_content', '')
+                data['_cached_char_count'] = len(text_content) if text_content else 0
+        
+        return data
+
     def _save_json(self, data: Dict[str, Any], output_dir: str, model: str, engine: str) -> Union[str, None]:
         """Save transcription as JSON"""
         try:
@@ -288,149 +390,9 @@ class OutputManager:
             logger.error(f"Error saving JSON: {e}")
             return None
     
-    def _save_text(self, data: Dict[str, Any], output_dir: str, model: str, engine: str) -> Union[str, None]:
-        """Save transcription as text using cached data"""
-        try:
-            # Log input data for text saving
-            logger.info(f"📝 SAVING TEXT FORMAT:")
-            logger.info(f"   - Input data keys: {list(data.keys())}")
-            
-            # Use cached data if available
-            if '_cached_speakers' in data:
-                speakers = data['_cached_speakers']
-                text_content = data['_cached_text_content']
-                logger.info(f"   - Using cached text content")
-            else:
-                # Fallback to processing if not cached
-                if 'segments' in data:
-                    logger.info(f"   - Input segments count: {len(data['segments'])}")
-                    total_text_length = sum(len(seg.get('text', '')) for seg in data['segments'])
-                    total_words = sum(len(seg.get('text', '').split()) for seg in data['segments'])
-                    logger.info(f"   - Input total text length: {total_text_length} characters")
-                    logger.info(f"   - Input total word count: {total_words} words")
-                
-                # Extract and format text
-                speakers = self.data_utils.extract_speakers_data(data)
-                if speakers:
-                    logger.info(f"   - Extracted speakers: {list(speakers.keys())}")
-                    for speaker, segments in speakers.items():
-                        speaker_words = sum(len(seg.get('text', '').split()) for seg in segments)
-                        logger.info(f"   - {speaker}: {len(segments)} segments, {speaker_words} words")
-                    text_content = TextFormatter.format_conversation_text(speakers)
-                else:
-                    logger.info(f"   - No speakers data extracted, using fallback")
-                    text_content = self.data_utils.extract_text_content(data)
-            
-            filename = PathUtils.generate_output_filename(
-                "transcription", model, engine, "txt"
-            )
-            file_path = os.path.join(output_dir, filename)
-            
-            # Log text content before saving
-            final_word_count = len(text_content.split())
-            logger.info(f"   - Final text content length: {len(text_content)} characters")
-            logger.info(f"   - Final text word count: {final_word_count} words")
-            logger.info(f"   - Text content lines: {text_content.count(chr(10)) + 1}")
-            logger.info(f"   - Text file path: {file_path}")
-            
-            if FileManager.save_file(text_content, file_path):
-                logger.info(f"Text saved: {file_path}")
-                return file_path
-            return None
-        except Exception as e:
-            logger.error(f"Error saving text: {e}")
-            return None
+
     
-    def _save_docx(self, data: Dict[str, Any], output_dir: str, model: str, engine: str) -> Union[str, None]:
-        """Save transcription as DOCX using cached data"""
-        try:
-            # Log input data for DOCX saving
-            logger.info(f"📄 SAVING DOCX FORMAT:")
-            logger.info(f"   - Input data keys: {list(data.keys())}")
-            
-            # Use cached data if available
-            if '_cached_speakers' in data:
-                speakers = data['_cached_speakers']
-                logger.info(f"   - Using cached speakers data")
-            else:
-                # Fallback to processing if not cached
-                if 'segments' in data:
-                    logger.info(f"   - Input segments count: {len(data['segments'])}")
-                    total_text_length = sum(len(seg.get('text', '')) for seg in data['segments'])
-                    total_words = sum(len(seg.get('text', '').split()) for seg in data['segments'])
-                    logger.info(f"   - Input total text length: {total_text_length} characters")
-                    logger.info(f"   - Input total word count: {total_words} words")
-                
-                # Convert data to DOCX format
-                speakers = self.data_utils.extract_speakers_data(data)
-            
-            # If no speakers data available, create a simple document with full text
-            if not speakers or len(speakers) == 0:
-                logger.info("   - No speakers data available, creating document with full text")
-                
-                # Use full_text if available, otherwise concatenate segments
-                if 'full_text' in data and data['full_text']:
-                    full_text = data['full_text']
-                    logger.info(f"   - Using full_text: {len(full_text)} characters")
-                else:
-                    # Fallback: concatenate all segment texts
-                    full_text = " ".join([seg.get('text', '') for seg in data.get('segments', [])])
-                    logger.info(f"   - Concatenated segments: {len(full_text)} characters")
-                
-                # Create simple document with full text
-                doc = DocxFormatter.create_simple_document(
-                    full_text,
-                    self.data_utils.get_audio_file(data),
-                    self.data_utils.get_model_name(data),
-                    engine
-                )
-            else:
-                # Use speakers data for structured document
-                docx_data = []
-                
-                for speaker_name, segments in speakers.items():
-                    for segment in segments:
-                        if isinstance(segment, dict) and 'text' in segment:
-                            docx_data.append({
-                                'speaker': speaker_name,
-                                'text': segment['text'],
-                                'start': segment.get('start', 0),
-                                'end': segment.get('end', 0)
-                            })
-                
-                # Log DOCX data preparation
-                logger.info(f"   - DOCX data segments: {len(docx_data)}")
-                if docx_data:
-                    total_docx_text = sum(len(seg['text']) for seg in docx_data)
-                    total_docx_words = sum(len(seg['text'].split()) for seg in docx_data)
-                    logger.info(f"   - DOCX total text length: {total_docx_text} characters")
-                    logger.info(f"   - DOCX total word count: {total_docx_words} words")
-                    logger.info(f"   - First DOCX segment: {docx_data[0]['start']:.1f}s - {docx_data[0]['end']:.1f}s")
-                    logger.info(f"   - Last DOCX segment: {docx_data[-1]['start']:.1f}s - {docx_data[-1]['end']:.1f}s")
-                
-                # Create document
-                doc = DocxFormatter.create_transcription_document(
-                    docx_data, 
-                    self.data_utils.get_audio_file(data),
-                    self.data_utils.get_model_name(data),
-                    engine
-                )
-            
-            if doc:
-                filename = PathUtils.generate_output_filename(
-                    "transcription", model, engine, "docx"
-                )
-                file_path = os.path.join(output_dir, filename)
-                
-                doc.save(file_path)
-                logger.info(f"DOCX saved: {file_path}")
-                logger.info(f"   - DOCX file size: {os.path.getsize(file_path)} bytes")
-                return file_path
-            
-            return None
-        except Exception as e:
-            logger.error(f"Error saving DOCX: {e}")
-            return None
+
     
     def clear_cache(self):
         """Clear all cached data to free memory"""

@@ -23,6 +23,7 @@ from src.clients.audio_transcription_client import AudioTranscriptionClient
 from src.logging.logging_service import LoggingService
 from src.core.processors.processing_pipeline import ProcessingContext
 from src.core.factories.pipeline_factory import PipelineFactory
+from src.core.factories.output_strategy_factory import OutputStrategyFactory
 from src.output_data.utils.data_utils import DataUtils
 from src.core.engines.utilities.cleanup_manager import CleanupManager
 import traceback
@@ -71,9 +72,14 @@ class TranscriptionApplication:
         # Create DataUtils instance for dependency injection
         data_utils = DataUtils()
         
+        # Create output strategy using factory
+        output_strategy = OutputStrategyFactory.create_merged_output_strategy(self.config_manager)
+        
         self.output_manager = OutputManager(
             output_base_path=self.config_manager.config.output.output_dir,
-            data_utils=data_utils
+            data_utils=data_utils,
+            output_strategy=output_strategy,
+            config_manager=self.config_manager
         )
         
         # Initialize specialized processors with ConfigManager injection

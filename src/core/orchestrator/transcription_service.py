@@ -80,11 +80,28 @@ class TranscriptionService:
         """Create transcription engine with dependency injection"""
         try:
             from src.core.engines.consolidated_transcription_engine import ConsolidatedTranscriptionEngine
-            return ConsolidatedTranscriptionEngine(
-                config_manager=self.config_manager
+            from src.core.engines.utilities.simple_text_processor import SimpleTextProcessor
+            
+            logger.info(f"🔍 CONFIG DEBUG: TranscriptionService creating engine with ConfigManager: {type(self.config_manager)}")
+            logger.info(f"🔍 CONFIG DEBUG: ConfigManager config type: {type(self.config_manager.config)}")
+            
+            # Create and inject text processor
+            text_processor = SimpleTextProcessor()
+            logger.info(f"🔍 CONFIG DEBUG: Created text processor: {type(text_processor)}")
+            
+            logger.info(f"🔍 CONFIG DEBUG: Creating ConsolidatedTranscriptionEngine...")
+            engine = ConsolidatedTranscriptionEngine(
+                config_manager=self.config_manager,
+                text_processor=text_processor
             )
+            logger.info(f"🔍 CONFIG DEBUG: Created engine: {type(engine)}")
+            return engine
+            
         except Exception as e:
             logger.error(f"❌ Error creating transcription engine: {e}")
+            logger.error(f"❌ CONFIG DEBUG: Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"❌ CONFIG DEBUG: Full traceback: {traceback.format_exc()}")
             raise
     
     def _create_speaker_service(self) -> Optional[SpeakerServiceProtocol]:

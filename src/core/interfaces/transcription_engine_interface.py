@@ -6,7 +6,7 @@ This interface defines the contract that all transcription engines must implemen
 
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
-from ...models.speaker_models import SpeakerConfig, TranscriptionResult, TranscriptionSegment
+from ...models import SpeakerConfig, TranscriptionResult, TranscriptionSegment
 
 
 class ITranscriptionEngine(ABC):

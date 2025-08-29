@@ -7,7 +7,7 @@ Follows SOLID principles with clean, focused classes
 import os
 import json
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List, Union
 from pathlib import Path
 from dotenv import load_dotenv
 from src.models.environment import Environment
@@ -58,7 +58,7 @@ class EnvironmentLoader:
     """Single responsibility: Load and determine environment"""
     
     @staticmethod
-    def determine_environment(override: Optional[Environment] = None) -> Environment:
+    def determine_environment(override: Union[Environment, None] = None) -> Environment:
         """Determine current environment"""
         if override:
             return override
@@ -91,12 +91,32 @@ class JsonConfigLoader:
         # Merge configurations
         merged_config = self._merge_configs(base_config, env_config)
         logger.info(f"🔍 Merged config keys: {list(merged_config.keys()) if merged_config else 'Empty'}")
+        
+        # Enhanced transcription config debugging
         if 'transcription' in merged_config:
             transcription_keys = list(merged_config['transcription'].keys()) if merged_config['transcription'] else []
             logger.info(f"🔍 Transcription config keys after merge: {transcription_keys}")
+            
+            # Debug default_engine specifically
+            if 'default_engine' in merged_config['transcription']:
+                engine = merged_config['transcription']['default_engine']
+                logger.info(f"🔍 CONFIG DEBUG: Default engine after merge: {engine} (type: {type(engine)})")
+            else:
+                logger.warning(f"⚠️ CONFIG DEBUG: No default_engine found in transcription config!")
+            
+            # Debug ctranslate2_optimization
             if 'ctranslate2_optimization' in merged_config['transcription']:
                 ct2_config = merged_config['transcription']['ctranslate2_optimization']
                 logger.info(f"🔍 CTranslate2 config after merge: {ct2_config}")
+                if ct2_config is None:
+                    logger.error(f"❌ CONFIG DEBUG: ctranslate2_optimization is None - this will cause failures!")
+            else:
+                logger.warning(f"⚠️ CONFIG DEBUG: No ctranslate2_optimization found in transcription config!")
+        else:
+            logger.error(f"❌ CONFIG DEBUG: No transcription section found in merged config!")
+        
+        # Validate critical configuration after merge
+        self._validate_critical_config(merged_config)
         
         return merged_config
     
@@ -132,6 +152,34 @@ class JsonConfigLoader:
                 result[key] = value
         
         return result
+    
+    def _validate_critical_config(self, config: Dict[str, Any]) -> None:
+        """Validate critical configuration requirements"""
+        logger.info("🔍 CONFIG DEBUG: Validating critical configuration...")
+        
+        if 'transcription' not in config:
+            logger.error("❌ CONFIG DEBUG: Missing transcription section in configuration")
+            return
+        
+        transcription = config['transcription']
+        
+        # Validate engine type
+        if 'default_engine' in transcription:
+            engine = transcription['default_engine']
+            logger.info(f"🔍 CONFIG DEBUG: Engine type: {engine}")
+            
+            # Validate CTranslate2 configuration
+            if engine == 'ctranslate2-whisper':
+                if 'ctranslate2_optimization' not in transcription or transcription['ctranslate2_optimization'] is None:
+                    logger.error("❌ CONFIG DEBUG: ctranslate2_optimization is required for ctranslate2-whisper engine")
+                else:
+                    logger.info("✅ CONFIG DEBUG: ctranslate2_optimization configuration found")
+            else:
+                logger.info(f"🔍 CONFIG DEBUG: Engine {engine} does not require ctranslate2_optimization")
+        else:
+            logger.warning("⚠️ CONFIG DEBUG: No default_engine specified in transcription config")
+        
+        logger.info("🔍 CONFIG DEBUG: Critical configuration validation completed")
 
 
 class AppConfigFactory:
@@ -202,7 +250,7 @@ class EnvFileLoader:
     """Single responsibility: Load .env file using python-dotenv"""
     
     @staticmethod
-    def load_env_file(env_file_path: Path = None) -> bool:
+    def load_env_file(env_file_path: Union[Path, None] = None) -> bool:
         """Load .env file into environment variables"""
         if env_file_path is None:
             env_file_path = Path(".env")
@@ -506,7 +554,7 @@ class ConfigPrinter:
 class ConfigManager:
     """Main configuration manager - orchestrates other components"""
     
-    def __init__(self, config_dir: str = "config", environment: Optional[Environment] = None):
+    def __init__(self, config_dir: str = "config", environment: Union[Environment, None] = None):
         """
         Initialize configuration manager
         
@@ -550,11 +598,41 @@ class ConfigManager:
         """Validate configuration"""
         return ConfigValidator.validate(self.config)
     
+    def debug_config(self) -> None:
+        """Debug configuration loading and show critical settings"""
+        logger.info("🔍 CONFIG DEBUG: ==========================================")
+        logger.info("🔍 CONFIG DEBUG: CONFIGURATION DEBUG INFORMATION")
+        logger.info("🔍 CONFIG DEBUG: ==========================================")
+        
+        # Show environment
+        logger.info(f"🔍 CONFIG DEBUG: Environment: {self.environment.value}")
+        logger.info(f"🔍 CONFIG DEBUG: Config directory: {self.config_dir}")
+        
+        # Show transcription config
+        if hasattr(self.config, 'transcription') and self.config.transcription:
+            trans = self.config.transcription
+            logger.info(f"🔍 CONFIG DEBUG: Default engine: {getattr(trans, 'default_engine', 'NOT_SET')}")
+            logger.info(f"🔍 CONFIG DEBUG: Default model: {getattr(trans, 'default_model', 'NOT_SET')}")
+            logger.info(f"🔍 CONFIG DEBUG: CTranslate2 optimization: {getattr(trans, 'ctranslate2_optimization', 'NOT_SET')}")
+            logger.info(f"🔍 CONFIG DEBUG: Beam size: {getattr(trans, 'beam_size', 'NOT_SET')}")
+        else:
+            logger.error("❌ CONFIG DEBUG: No transcription configuration found!")
+        
+        # Show output config
+        if hasattr(self.config, 'output') and self.config.output:
+            output = self.config.output
+            logger.info(f"🔍 CONFIG DEBUG: Output directory: {getattr(output, 'output_dir', 'NOT_SET')}")
+            logger.info(f"🔍 CONFIG DEBUG: Use processed text only: {getattr(output, 'use_processed_text_only', 'NOT_SET')}")
+        else:
+            logger.error("❌ CONFIG DEBUG: No output configuration found!")
+        
+        logger.info("🔍 CONFIG DEBUG: ==========================================")
+    
     def print_config(self, show_sensitive: bool = False):
         """Print configuration"""
         ConfigPrinter.print_config(self.config, show_sensitive)
     
-    def save_config(self, filename: Optional[str] = None):
+    def save_config(self, filename: Union[str, None] = None):
         """Save configuration to file"""
         if filename is None:
             filename = f"config_{self.environment.value}.json"

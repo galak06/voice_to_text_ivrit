@@ -70,6 +70,9 @@ Examples:
         # Status
         status_parser = subparsers.add_parser('status', help='Show application status')
         
+        # Process existing chunks
+        process_chunks_parser = subparsers.add_parser('process-chunks', help='Process existing chunk results without transcription')
+        
         return parser
     
     @staticmethod

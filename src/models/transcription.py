@@ -56,7 +56,7 @@ class TranscriptionConfig(BaseConfigModel):
     
     # Engine configuration
     default_engine: TranscriptionEngine = Field(
-        default=TranscriptionEngine.SPEAKER_DIARIZATION, 
+        default=TranscriptionEngine.CTRANSLATE2_WHISPER, 
         description="Default transcription engine"
     )
     
@@ -92,6 +92,15 @@ class TranscriptionConfig(BaseConfigModel):
         default=None,
         description="CTranslate2-specific optimization parameters"
     )
+    
+    @field_validator('ctranslate2_optimization')
+    @classmethod
+    def validate_ctranslate2_config(cls, v, info):
+        """Validate CTranslate2 configuration when engine is ctranslate2-whisper"""
+        if info.data and info.data.get('default_engine') == TranscriptionEngine.CTRANSLATE2_WHISPER:
+            if v is None:
+                raise ValueError("ctranslate2_optimization is required when default_engine is ctranslate2-whisper")
+        return v
     
     # Hebrew optimization settings
     hebrew_optimization: Optional[Dict[str, Any]] = Field(

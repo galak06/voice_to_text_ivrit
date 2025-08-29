@@ -14,11 +14,12 @@ ENGINE_MAP = {
     'consolidated': ConsolidatedTranscriptionEngine,
     'optimized-whisper': ConsolidatedTranscriptionEngine,  # Now uses consolidated engine
     'ctranslate2': ConsolidatedTranscriptionEngine,  # Alias for consolidated engine
+    'ctranslate2-whisper': ConsolidatedTranscriptionEngine,  # Add explicit support for ctranslate2-whisper
     'whisper': ConsolidatedTranscriptionEngine,  # Default to consolidated engine
     'speaker-diarization': ConsolidatedTranscriptionEngine,  # Uses consolidated engine with speaker diarization
 }
 
-def create_engine(engine_type: str, config, app_config=None) -> TranscriptionEngine:
+def create_engine(engine_type: str, config, app_config=None, text_processor=None) -> TranscriptionEngine:
     """
     Create a transcription engine based on type
     
@@ -26,6 +27,7 @@ def create_engine(engine_type: str, config, app_config=None) -> TranscriptionEng
         engine_type: Type of engine to create
         config: Configuration for the engine
         app_config: Application configuration
+        text_processor: Optional text processor to inject
         
     Returns:
         TranscriptionEngine instance
@@ -37,7 +39,7 @@ def create_engine(engine_type: str, config, app_config=None) -> TranscriptionEng
         raise ValueError(f"Unsupported engine type: {engine_type}. Supported types: {list(ENGINE_MAP.keys())}")
     
     engine_class = ENGINE_MAP[engine_type]
-    engine = engine_class(config, app_config)
+    engine = engine_class(config, app_config, text_processor)
     
     # Set engine type for proper identification
     engine.engine_type = engine_type

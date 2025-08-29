@@ -30,7 +30,17 @@ class DirectTranscriptionStrategy(BaseTranscriptionStrategy):
         
         try:
             audio_data, sample_rate = self._load_audio(audio_file_path)
-            chunk_result = self._transcribe_audio(audio_data, sample_rate, engine, model_name)
+            
+            # If chunk_info is provided, use it for proper chunk numbering
+            if chunk_info:
+                chunk_number = chunk_info.get('chunk_number', 1)
+                chunk_start = chunk_info.get('start', 0)
+                chunk_end = chunk_info.get('end', len(audio_data) / sample_rate)
+                chunk_result = self._transcribe_audio_with_chunk_info(audio_data, sample_rate, engine, model_name, 
+                                                                   chunk_number, chunk_start, chunk_end)
+            else:
+                # Fallback to default behavior
+                chunk_result = self._transcribe_audio(audio_data, sample_rate, engine, model_name)
             
             # Now _transcribe_chunk returns TranscriptionResult, so we can use it directly
             if chunk_result and chunk_result.success:
@@ -51,6 +61,12 @@ class DirectTranscriptionStrategy(BaseTranscriptionStrategy):
         """Transcribe audio data - now returns TranscriptionResult"""
         start_time = time.time()
         return engine._transcribe_chunk(audio_data, 1, 0, len(audio_data) / sample_rate, model_name)
+    
+    def _transcribe_audio_with_chunk_info(self, audio_data, sample_rate, engine, model_name: str, 
+                                        chunk_number: int, chunk_start: float, chunk_end: float) -> 'TranscriptionResult':
+        """Transcribe audio data with proper chunk information"""
+        start_time = time.time()
+        return engine._transcribe_chunk(audio_data, chunk_number, chunk_start, chunk_end, model_name)
     
     def _create_result(self, audio_data, sample_rate, chunk_text: str, model_name: str, audio_file_path: str) -> TranscriptionResult:
         """Create transcription result"""

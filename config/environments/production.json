@@ -108,8 +108,7 @@
   "output": {
     "output_dir": "output/transcriptions/ivrit_whisper_large_v3_ct2",
     "chunk_results_dir": "output/chunk_results",
-    "audio_chunks_dir": "output/audio_chunks",
-    "chunk_temp_dir": "output/temp_chunks"
+    "audio_chunks_dir": "output/audio_chunks"
   },
   "logging": {
     "level": "INFO",

@@ -7,7 +7,7 @@ Voice-to-Text Transcription Application
 import sys
 import logging
 from pathlib import Path
-from typing import Optional, Dict, Any, Callable
+from typing import Dict, Any, Callable, Union
 from functools import wraps
 
 # Add project root to path
@@ -89,7 +89,7 @@ class CommandHandler:
         self.ui.print_help()
         return ExitCodes.SUCCESS
     
-    def handle_config_info(self, config_file: Optional[str]) -> int:
+    def handle_config_info(self, config_file: Union[str, None]) -> int:
         """Handle config info command"""
         self.ui.print_config_info(config_file)
         return ExitCodes.SUCCESS
@@ -203,12 +203,12 @@ class ApplicationOrchestrator:
     """Orchestrates the application lifecycle following Single Responsibility Principle"""
     
     def __init__(self):
-        self.config_manager: Optional[ConfigManager] = None
-        self.app: Optional[TranscriptionApplication] = None
-        self.ui: Optional[ApplicationUI] = None
-        self.command_handler: Optional[CommandHandler] = None
+        self.config_manager: Union[ConfigManager, None] = None
+        self.app: Union[TranscriptionApplication, None] = None
+        self.ui: Union[ApplicationUI, None] = None
+        self.command_handler: Union[CommandHandler, None] = None
     
-    def initialize(self, config_file: Optional[str] = None) -> None:
+    def initialize(self, config_file: Union[str, None] = None) -> None:
         """Initialize application components with dependency injection"""
         # Initialize configuration manager - only create one instance
         if config_file:
@@ -228,11 +228,21 @@ class ApplicationOrchestrator:
             self.config_manager = ConfigManager()
         
         # Initialize application with dependency injection
+        logger = logging.getLogger(__name__)
+        logger.info(f"🔍 CONFIG DEBUG: Creating cleanup manager with ConfigManager: {type(self.config_manager)}")
+        
+        # Debug configuration loading
+        self.config_manager.debug_config()
+        
         cleanup_manager = CleanupManager(self.config_manager)
+        logger.info(f"🔍 CONFIG DEBUG: Created cleanup manager: {type(cleanup_manager)}")
+        
+        logger.info(f"🔍 CONFIG DEBUG: Creating TranscriptionApplication with ConfigManager: {type(self.config_manager)}")
         self.app = TranscriptionApplication(
             config_manager=self.config_manager,
             cleanup_manager=cleanup_manager
         )
+        logger.info(f"🔍 CONFIG DEBUG: Created TranscriptionApplication: {type(self.app)}")
         self.ui = self.app.ui_manager
         self.command_handler = CommandHandler(self.app, self.ui)
         
@@ -263,6 +273,20 @@ class ApplicationOrchestrator:
                 if self.ui:
                     self.ui.print_banner()
                 
+                # 🧹 EXECUTE COMPREHENSIVE CLEANUP AT THE BEGINNING OF THE PROCESS
+                if hasattr(self.app, 'cleanup_manager') and self.app.cleanup_manager:
+                    logger = logging.getLogger(__name__)
+                    logger.info("🧹 EXECUTING COMPREHENSIVE CLEANUP AT THE BEGINNING OF THE PROCESS")
+                    self.app.cleanup_manager.execute_cleanup(
+                        clear_console=True,
+                        clear_files=True,
+                        clear_output=False
+                    )
+                    logger.info("✅ COMPREHENSIVE CLEANUP COMPLETED SUCCESSFULLY")
+                else:
+                    logger = logging.getLogger(__name__)
+                    logger.warning("⚠️ Cleanup manager not available, skipping comprehensive cleanup")
+                
                 # Handle special commands first
                 if args.help_config:
                     return self._handle_config_info(args.config_file)
@@ -291,7 +315,7 @@ class ApplicationOrchestrator:
             return self._handle_error(e, args.verbose)
     
     @require_component('command_handler')
-    def _handle_config_info(self, config_file: Optional[str]) -> int:
+    def _handle_config_info(self, config_file: Union[str, None]) -> int:
         """Handle config info command with null check"""
         return self.command_handler.handle_config_info(config_file)  # type: ignore
     

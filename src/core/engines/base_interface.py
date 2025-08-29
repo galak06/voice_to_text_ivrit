@@ -8,7 +8,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 
-from src.models.speaker_models import TranscriptionResult
+from src.models import TranscriptionResult
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class TranscriptionEngine(ABC):
         pass
     
     @abstractmethod
-    def _transcribe_chunk(self, audio_chunk, chunk_count: int, chunk_start: float, chunk_end: float, model_name: str) -> str:
+    def _transcribe_chunk(self, audio_chunk, chunk_count: int, chunk_start: float, chunk_end: float, model_name: str) -> TranscriptionResult:
         """Transcribe a single audio chunk - to be implemented by each engine"""
         pass
     

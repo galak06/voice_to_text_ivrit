@@ -141,14 +141,21 @@ class OutputProcessor:
         
         output_results = {}
         
-        # Process each supported format
-        if 'json' in self.supported_formats:
+        # Check configuration for output format
+        use_processed_text = True
+        
+        if self.config.output:
+            use_processed_text = getattr(self.config.output, 'use_processed_text_only', True)
+        
+        # Process output based on configuration
+        if use_processed_text:
+            # Only save JSON - text and DOCX will be handled separately from processed text
             output_results['json'] = self._save_json_output(transcription_data, input_file_path, model, engine)
-        
-        if 'txt' in self.supported_formats:
+            self.logger.info("🔄 Using processed text only - JSON saved, text/DOCX handled separately")
+        else:
+            # Legacy mode - save all formats
+            output_results['json'] = self._save_json_output(transcription_data, input_file_path, model, engine)
             output_results['txt'] = self._save_text_output(transcription_data, input_file_path, model, engine)
-        
-        if 'docx' in self.supported_formats:
             output_results['docx'] = self._save_docx_output(transcription_data, input_file_path, model, engine)
         
         return output_results
