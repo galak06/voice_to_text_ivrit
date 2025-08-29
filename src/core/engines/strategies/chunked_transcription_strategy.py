@@ -402,9 +402,13 @@ class ChunkedTranscriptionStrategy(BaseTranscriptionStrategy):
                 return None
             
             # Clean model memory before processing this chunk (but don't reload the model)
-            if hasattr(engine, 'cleanup_models'):
-                engine.cleanup_models()
+            if hasattr(engine, 'cleanup_memory_only'):
+                engine.cleanup_memory_only()
                 logger.debug(f"🧹 Model memory cleaned for chunk {chunk_number}")
+            elif hasattr(engine, 'cleanup_models'):
+                # Fallback to full cleanup only if memory-only method doesn't exist
+                logger.warning(f"⚠️ Using full model cleanup for chunk {chunk_number} - this will cause model reloading!")
+                engine.cleanup_models()
             
             # Use the injected DirectTranscriptionStrategy to process this chunk
             # This ensures we get exactly the same transcription logic and results

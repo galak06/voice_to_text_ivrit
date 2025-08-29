@@ -238,10 +238,23 @@ class ModelManager:
         # If we reach here, no configuration was found - throw exception
         raise ValueError(f"Processor source configuration not found in ConfigManager for model: {model_name}. Please ensure ctranslate2_optimization section exists.")
     
+    def cleanup_memory_only(self) -> None:
+        """Clean up memory without unloading models - keeps models in cache"""
+        try:
+            # Only run garbage collection to free unused memory
+            import gc
+            gc.collect()
+            
+            # Log memory cleanup without unloading models
+            logger.debug("🧹 Memory cleanup completed (models remain loaded)")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Memory cleanup failed: {e}")
+
     def cleanup_models(self) -> None:
-        """Clean up loaded models to free memory"""
+        """Clean up loaded models to free memory - use only when completely done"""
         for model_name in list(self._model_cache.keys()):
-            logger.info(f"Cleaning up model: {model_name}")
+            logger.info(f"🔄 Unloading model: {model_name}")
             model = self._model_cache[model_name]
             
             if hasattr(model, 'unload_model'):
@@ -253,7 +266,7 @@ class ModelManager:
         self._model_cache.clear()
         self._processor_cache.clear()
         gc.collect()
-        logger.info("Model cleanup completed")
+        logger.info("✅ Model cleanup completed - all models unloaded")
     
     def get_cache_info(self) -> Dict[str, Any]:
         """Get information about model cache"""

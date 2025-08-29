@@ -8,10 +8,12 @@ from .transcription_strategy_factory import TranscriptionStrategyFactory
 from .direct_transcription_strategy import DirectTranscriptionStrategy
 from .chunked_transcription_strategy import ChunkedTranscriptionStrategy
 from .existing_chunks_strategy import ExistingChunksStrategy
+# Chunking strategies module
+# Follows SOLID principles with dependency injection
+
 from .chunking_strategy import (
     ChunkingStrategy,
     OverlappingChunkingStrategy,
-    FixedDurationChunkingStrategy,
     ChunkingStrategyFactory
 )
 
@@ -23,6 +25,5 @@ __all__ = [
     'ExistingChunksStrategy',
     'ChunkingStrategy',
     'OverlappingChunkingStrategy',
-    'FixedDurationChunkingStrategy',
     'ChunkingStrategyFactory'
 ]
