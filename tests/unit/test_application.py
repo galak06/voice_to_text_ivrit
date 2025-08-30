@@ -69,8 +69,8 @@ class TestTranscriptionApplication(unittest.TestCase):
     @patch('src.core.application.OutputManager')
     @patch('src.core.application.InputProcessor')
     @patch('src.core.application.OutputProcessor')
-    @patch('src.core.application.TranscriptionOrchestrator')
-    def test_application_initialization(self, mock_orchestrator, mock_output_processor, 
+    @patch('src.core.application.TranscriptionService')
+    def test_application_initialization(self, mock_transcription_service, mock_output_processor, 
                                       mock_input_processor, mock_output_manager, mock_config_manager):
         """Test application initialization with dependency injection"""
         # Mock config manager
@@ -90,11 +90,11 @@ class TestTranscriptionApplication(unittest.TestCase):
         mock_output_processor_instance = Mock()
         mock_output_processor.return_value = mock_output_processor_instance
         
-        mock_orchestrator_instance = Mock()
-        mock_orchestrator.return_value = mock_orchestrator_instance
+        mock_transcription_service_instance = Mock()
+        mock_transcription_service.return_value = mock_transcription_service_instance
         
         # Initialize application
-        with TranscriptionApplication() as app:
+        with TranscriptionApplication(config_manager=mock_config_manager_instance) as app:
             # Verify components were initialized
             self.assertIsNotNone(app.config)
             self.assertIsNotNone(app.output_manager)
@@ -118,8 +118,8 @@ class TestTranscriptionApplication(unittest.TestCase):
     @patch('src.core.application.OutputManager')
     @patch('src.core.application.InputProcessor')
     @patch('src.core.application.OutputProcessor')
-    @patch('src.core.application.TranscriptionOrchestrator')
-    def test_process_single_file_success(self, mock_orchestrator, mock_output_processor, 
+    @patch('src.core.application.TranscriptionService')
+    def test_process_single_file_success(self, mock_transcription_service, mock_output_processor, 
                                        mock_input_processor, mock_output_manager, mock_config_manager):
         """Test successful single file processing"""
         # Setup mocks
@@ -146,14 +146,14 @@ class TestTranscriptionApplication(unittest.TestCase):
         }
         mock_output_processor.return_value = mock_output_processor_instance
         
-        mock_orchestrator_instance = Mock()
-        mock_orchestrator_instance.transcribe.return_value = {
+        mock_transcription_service_instance = Mock()
+        mock_transcription_service_instance.transcribe.return_value = {
             'success': True,
             'transcription': 'Test transcription',
             'model': 'ivrit-ai/whisper-large-v3-ct2',
             'engine': 'speaker-diarization'
         }
-        mock_orchestrator.return_value = mock_orchestrator_instance
+        mock_transcription_service.return_value = mock_transcription_service_instance
         
         # Test single file processing
         with TranscriptionApplication() as app:
@@ -168,15 +168,15 @@ class TestTranscriptionApplication(unittest.TestCase):
             
             # Verify method calls
             mock_input_processor_instance.process_input.assert_called_once_with('test.wav')
-            mock_orchestrator_instance.transcribe.assert_called_once()
+            mock_transcription_service_instance.transcribe.assert_called_once()
             mock_output_processor_instance.process_output.assert_called_once()
     
     @patch('src.core.application.ConfigManager')
     @patch('src.core.application.OutputManager')
     @patch('src.core.application.InputProcessor')
     @patch('src.core.application.OutputProcessor')
-    @patch('src.core.application.TranscriptionOrchestrator')
-    def test_process_single_file_failure(self, mock_orchestrator, mock_output_processor, 
+    @patch('src.core.application.TranscriptionService')
+    def test_process_single_file_failure(self, mock_transcription_service, mock_output_processor, 
                                        mock_input_processor, mock_output_manager, mock_config_manager):
         """Test single file processing failure"""
         # Setup mocks
@@ -197,8 +197,8 @@ class TestTranscriptionApplication(unittest.TestCase):
         mock_output_processor_instance = Mock()
         mock_output_processor.return_value = mock_output_processor_instance
         
-        mock_orchestrator_instance = Mock()
-        mock_orchestrator.return_value = mock_orchestrator_instance
+        mock_transcription_service_instance = Mock()
+        mock_transcription_service.return_value = mock_transcription_service_instance
         
         # Test single file processing failure
         with TranscriptionApplication() as app:
@@ -209,15 +209,15 @@ class TestTranscriptionApplication(unittest.TestCase):
             self.assertIn('error', result)
             self.assertEqual(result['error'], 'File not found')
             
-            # Verify orchestrator was not called
-            mock_orchestrator_instance.transcribe.assert_not_called()
+            # Verify transcription service was not called
+            mock_transcription_service_instance.transcribe.assert_not_called()
     
     @patch('src.core.application.ConfigManager')
     @patch('src.core.application.OutputManager')
     @patch('src.core.application.InputProcessor')
     @patch('src.core.application.OutputProcessor')
-    @patch('src.core.application.TranscriptionOrchestrator')
-    def test_process_batch_success(self, mock_orchestrator, mock_output_processor, 
+    @patch('src.core.application.TranscriptionService')
+    def test_process_batch_success(self, mock_transcription_service, mock_output_processor, 
                                  mock_input_processor, mock_output_manager, mock_config_manager):
         """Test successful batch processing"""
         # Setup mocks
@@ -244,14 +244,14 @@ class TestTranscriptionApplication(unittest.TestCase):
         }
         mock_output_processor.return_value = mock_output_processor_instance
         
-        mock_orchestrator_instance = Mock()
-        mock_orchestrator_instance.transcribe.return_value = {
+        mock_transcription_service_instance = Mock()
+        mock_transcription_service_instance.transcribe.return_value = {
             'success': True,
             'transcription': 'Test transcription',
             'model': 'base',
             'engine': 'speaker-diarization'
         }
-        mock_orchestrator.return_value = mock_orchestrator_instance
+        mock_transcription_service.return_value = mock_transcription_service_instance
         
         # Test batch processing
         with TranscriptionApplication() as app:
@@ -268,14 +268,14 @@ class TestTranscriptionApplication(unittest.TestCase):
             # Verify method calls
             mock_input_processor_instance.discover_files.assert_called_once()
             self.assertEqual(mock_input_processor_instance.process_input.call_count, 2)
-            self.assertEqual(mock_orchestrator_instance.transcribe.call_count, 2)
+            self.assertEqual(mock_transcription_service_instance.transcribe.call_count, 2)
     
     @patch('src.core.application.ConfigManager')
     @patch('src.core.application.OutputManager')
     @patch('src.core.application.InputProcessor')
     @patch('src.core.application.OutputProcessor')
-    @patch('src.core.application.TranscriptionOrchestrator')
-    def test_process_batch_no_files(self, mock_orchestrator, mock_output_processor, 
+    @patch('src.core.application.TranscriptionService')
+    def test_process_batch_no_files(self, mock_transcription_service, mock_output_processor, 
                                   mock_input_processor, mock_output_manager, mock_config_manager):
         """Test batch processing with no files found"""
         # Setup mocks
@@ -293,8 +293,8 @@ class TestTranscriptionApplication(unittest.TestCase):
         mock_output_processor_instance = Mock()
         mock_output_processor.return_value = mock_output_processor_instance
         
-        mock_orchestrator_instance = Mock()
-        mock_orchestrator.return_value = mock_orchestrator_instance
+        mock_transcription_service_instance = Mock()
+        mock_transcription_service.return_value = mock_transcription_service_instance
         
         # Test batch processing with no files
         with TranscriptionApplication() as app:
@@ -307,7 +307,7 @@ class TestTranscriptionApplication(unittest.TestCase):
             
             # Verify no processing occurred
             mock_input_processor_instance.process_input.assert_not_called()
-            mock_orchestrator_instance.transcribe.assert_not_called()
+            mock_transcription_service_instance.transcribe.assert_not_called()
     
     @patch('src.core.application.ConfigManager')
     @patch('src.core.application.OutputManager')

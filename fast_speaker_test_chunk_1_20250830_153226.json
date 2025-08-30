@@ -1,0 +1,29 @@
+{
+  "test_info": {
+    "test_name": "Fast Chunk-First Speaker Recognition",
+    "timestamp": "2025-08-30T15:32:26.271045",
+    "chunk_tested": 1,
+    "processing_time": "FAST (single chunk only)"
+  },
+  "enhanced_chunk": {
+    "chunk_number": 1,
+    "start_time": 0.0,
+    "end_time": 30.0,
+    "duration": 30.0,
+    "json_file": "chunk_001_0s_30s.json",
+    "json_path": "output/chunk_results/chunk_001_0s_30s.json",
+    "text": " לפולין ואני רוצה להזכיר שיש לנו בעצם, שאתה רוצה ללכת לסבים, נכון, ועכשיו אני שואל אותך מה מרגיש לך, את רוצה קודם לגמור, אין לי בעיה, אין לי בעיה, תגיד מה אתה מעדיף, בואי נדבר על פולין ואחרי זה אנחנו נדבר על הסבים אבא ואמא, בסדר? בסדר, אז בואי, פולין, פולין, אז סיפרתי שבסוף מאי",
+    "status": "completed",
+    "audio_file": "audio_chunk_001_0s_30s.wav",
+    "audio_path": "output/audio_chunks/audio_chunk_001_0s_30s.wav",
+    "audio_exists": true,
+    "speakers_detected": 1,
+    "dominant_speaker": "SPEAKER_00",
+    "speaker_confidence": 1.0,
+    "all_speakers": {
+      "SPEAKER_00": 30.0
+    },
+    "speaker_alignment_method": "single_chunk_fast_test",
+    "processing_timestamp": "2025-08-30T15:32:26.270933"
+  }
+}

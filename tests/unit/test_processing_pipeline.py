@@ -40,7 +40,7 @@ class TestProcessingPipeline(unittest.TestCase):
         
         self.output_manager = Mock(spec=OutputManager)
         self.output_manager.save_json.return_value = {'success': True, 'file_path': '/test/output.json'}
-        self.output_manager.save_text.return_value = {'success': True, 'file_path': '/test/output.txt'}
+        self.output_manager.save_transcription.return_value = {'json': '/test/output.json'}
         
         # Create a concrete test pipeline
         class TestPipeline(ProcessingPipeline):
@@ -145,7 +145,7 @@ class TestAudioFileProcessingPipeline(unittest.TestCase):
         
         self.output_manager = Mock(spec=OutputManager)
         self.output_manager.save_json.return_value = {'success': True, 'file_path': '/test/output.json'}
-        self.output_manager.save_text.return_value = {'success': True, 'file_path': '/test/output.txt'}
+        self.output_manager.save_transcription.return_value = {'json': '/test/output.json'}
         
         # Create temporary directory for test files
         self.temp_dir = tempfile.mkdtemp()

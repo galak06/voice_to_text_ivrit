@@ -16,7 +16,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.clients.audio_transcription_client import AudioTranscriptionClient
-from src.models import TranscriptionRequest, TranscriptionResult, AppConfig
+from src.models import TranscriptionRequest, TranscriptionResult, AppConfig, TranscriptionMetadata
 
 
 class TestAudioTranscriptionClient(unittest.TestCase):
@@ -58,6 +58,7 @@ class TestAudioTranscriptionClient(unittest.TestCase):
 
         # Initialize client with mocked dependencies
         self.client = AudioTranscriptionClient(
+            config_manager=mock_config_manager_instance,
             config=self.mock_config,
             endpoint_factory=self.mock_endpoint_factory,
             file_validator=self.mock_file_validator,
@@ -96,7 +97,7 @@ class TestAudioTranscriptionClient(unittest.TestCase):
             mock_config_manager_instance.validate.return_value = True
             mock_config_manager.return_value = mock_config_manager_instance
             
-            client = AudioTranscriptionClient()
+            client = AudioTranscriptionClient(config_manager=mock_config_manager_instance)
             
             self.assertIsNotNone(client.config)
             self.assertIsNotNone(client.endpoint_factory)
@@ -143,10 +144,15 @@ class TestAudioTranscriptionClient(unittest.TestCase):
         # Mock result collector
         result = TranscriptionResult(
             success=True,
-            transcription="Test transcription",
-            processing_time=10.5,
+            text="Test transcription",
             segments=[],
-            speakers={}
+            speakers={},
+            metadata=TranscriptionMetadata(
+                model_name="test-model",
+                engine="test-engine",
+                language="he",
+                processing_time=10.5
+            )
         )
         self.mock_result_collector.collect_result.return_value = result
         
@@ -272,9 +278,16 @@ class TestAudioTranscriptionClient(unittest.TestCase):
         # Mock result collector failure
         result = TranscriptionResult(
             success=False,
-            error="Test error",
+            text="",
             segments=[],
-            speakers={}
+            speakers={},
+            error_message="Test error",
+            metadata=TranscriptionMetadata(
+                model_name="test-model",
+                engine="test-engine",
+                language="he",
+                processing_time=0.0
+            )
         )
         self.mock_result_collector.collect_result.return_value = result
         

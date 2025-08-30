@@ -480,21 +480,24 @@ class ChunkedTranscriptionStrategy(BaseTranscriptionStrategy):
         speakers_dict = {}
         
         for segment in deduplicated_segments:
+            # Skip segments with empty or whitespace-only text
+            text = segment.get('text', '').strip()
+            if not text:
+                logger.debug(f"⚠️ Skipping segment with empty text: {segment.get('start', 0):.1f}s - {segment.get('end', 0):.1f}s")
+                continue
+                
             speaker_id = segment.get('speaker_id', 'unknown')
             if speaker_id not in speakers_dict:
                 speakers_dict[speaker_id] = []
             
             # Create TranscriptionSegment from segment data
-            from src.models.speaker_models import TranscriptionSegment
+            from src.models.transcription_results import TranscriptionSegment
             transcription_segment = TranscriptionSegment(
-                text=segment.get('text', ''),
+                text=text,
                 start=segment.get('start', 0.0),
                 end=segment.get('end', 0.0),
                 speaker=speaker_id,
-                confidence=segment.get('confidence', 0.0),
-                chunk_file=segment.get('chunk_file', ''),
-                chunk_number=segment.get('chunk_number', 0),
-                metadata=segment.get('metadata', {})
+                confidence=segment.get('confidence', 0.0)
             )
             speakers_dict[speaker_id].append(transcription_segment)
         
@@ -503,24 +506,42 @@ class ChunkedTranscriptionStrategy(BaseTranscriptionStrategy):
         logger.info(f"📝 Final transcript: {len(full_text)} characters, {len(full_text.split())} words")
         logger.info(f"🎯 Output strategy completed with {len(deduplicated_segments)} deduplicated segments")
         
+        # Get model and engine names from config manager to ensure they're always available
+        config_model_name = self.config_manager.config.transcription.default_model
+        config_engine_name = self.config_manager.config.transcription.default_engine
+        
+        # Use provided model_name if available, otherwise fall back to config
+        final_model_name = model_name if model_name and model_name != "unknown" else config_model_name
+        final_engine_name = config_engine_name
+        
+        logger.info(f"📝 Creating final transcription result with model: {final_model_name}, engine: {final_engine_name}")
+        
         return TranscriptionResult(
             success=True,
             speakers=speakers_dict,
             full_text=full_text,
             transcription_time=processing_time,
-            model_name=model_name,
+            model_name=final_model_name,
+            engine=final_engine_name,  # Add engine information
             audio_file=audio_file_path,
             speaker_count=speaker_count
         )
     
     def _create_error_result(self, audio_file_path: str, error_message: str) -> TranscriptionResult:
         """Create error result"""
+        # Get model and engine names from config manager even for error results
+        config_model_name = self.config_manager.config.transcription.default_model
+        config_engine_name = self.config_manager.config.transcription.default_engine
+        
+        logger.info(f"📝 Creating error transcription result with model: {config_model_name}, engine: {config_engine_name}")
+        
         return TranscriptionResult(
             success=False,
             speakers={},
             full_text="",
             transcription_time=0.0,
-            model_name="unknown",
+            model_name=config_model_name,
+            engine=config_engine_name,  # Add engine information
             audio_file=audio_file_path,
             speaker_count=0,
             error_message=error_message

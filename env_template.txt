@@ -1,0 +1,14 @@
+# HuggingFace Token Configuration
+# Copy this file to .env and fill in your actual token
+
+# Your HuggingFace token for accessing pyannote.audio models
+# Get your token from: https://huggingface.co/settings/tokens
+HF_TOKEN=your_huggingface_token_here
+
+# Optional: Additional configuration
+# SPEAKER_DIARIZATION_ENABLED=true
+# SPEAKER_DIARIZATION_DISABLE_COMPLETELY=false
+# ENHANCED_SPEAKER_PROCESSING=true
+
+# Example:
+# HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx

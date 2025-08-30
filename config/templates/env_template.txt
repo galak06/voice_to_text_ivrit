@@ -17,9 +17,24 @@ DEFAULT_ENGINE=speaker-diarization
 MAX_PAYLOAD_SIZE=200000000  # 200MB in bytes
 STREAMING_ENABLED=true
 
-# Speaker Diarization Control
-# Set to 'false' to disable speaker diarization completely
-SPEAKER_DIARIZATION_ENABLED=true
+# Speaker Recognition Configuration
+SPEAKER_DIARIZATION_ENABLED=false
+SPEAKER_DIARIZATION_DISABLE_COMPLETELY=false
+HF_TOKEN=your_huggingface_token_here
+
+# Enhanced Processing
+ENHANCED_SPEAKER_PROCESSING=false
+PYANNOTE_MODEL=pyannote/speaker-diarization@2.1
+
+# Disable Options
+DISABLE_SPEAKER_DETECTION=false
+DISABLE_SPEAKER_LABELING=false
+DISABLE_SPEAKER_SEGMENTATION=false
+USE_SINGLE_SPEAKER_MODE=false
+
+# Memory Optimization
+PYANNOTE_CACHE_DIR=./models/pyannote_cache
+MAX_AUDIO_DURATION=3600
 
 # Logging
 LOG_LEVEL=INFO

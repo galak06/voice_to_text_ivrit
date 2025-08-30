@@ -77,6 +77,7 @@ class TranscriptionResult(BaseModel):
     full_text: str = Field(default="", description="Complete transcription text")
     transcription_time: float = Field(..., ge=0, description="Time taken for transcription in seconds")
     model_name: str = Field(..., description="Name of the model used")
+    engine: Optional[str] = Field(default=None, description="Name of the transcription engine used")
     audio_file: str = Field(..., description="Path to the audio file")
     speaker_count: int = Field(..., ge=0, description="Number of speakers detected")
     error_message: Optional[str] = Field(default=None, description="Error message if transcription failed")

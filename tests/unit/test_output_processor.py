@@ -78,23 +78,18 @@ class TestOutputProcessor(unittest.TestCase):
         self.assertIn('formats_generated', result)
         self.assertIn('timestamp', result)
         
-        # Check output files
+        # Check output files - only JSON is generated in processed text mode
         output_files = result['output_files']
         self.assertIn('json', output_files)
-        self.assertIn('txt', output_files)
-        self.assertIn('docx', output_files)
         
-        # Check that all formats were successful
-        for format_name, format_result in output_files.items():
-            self.assertTrue(format_result['success'])
-            self.assertIn('file_path', format_result)
-            self.assertEqual(format_result['format'], format_name)
+        # Check that JSON format was successful
+        self.assertTrue(output_files['json']['success'])
+        self.assertIn('file_path', output_files['json'])
+        self.assertEqual(output_files['json']['format'], 'json')
         
-        # Check formats generated
-        self.assertEqual(len(result['formats_generated']), 3)
+        # Check formats generated (only JSON in processed text mode)
+        self.assertEqual(len(result['formats_generated']), 1)
         self.assertIn('json', result['formats_generated'])
-        self.assertIn('txt', result['formats_generated'])
-        self.assertIn('docx', result['formats_generated'])
     
     def test_process_output_transcription_failure(self):
         """Test output processing with failed transcription"""
@@ -137,18 +132,13 @@ class TestOutputProcessor(unittest.TestCase):
         
         self.assertTrue(result['success'])
         
-        # Check output files
+        # Check output files - only JSON is generated in processed text mode
         output_files = result['output_files']
         self.assertTrue(output_files['json']['success'])
-        self.assertTrue(output_files['txt']['success'])
-        self.assertFalse(output_files['docx']['success'])
         
-        # Check formats generated (should only include successful ones)
-        # The current implementation includes all formats attempted, not just successful ones
-        self.assertEqual(len(result['formats_generated']), 3)
+        # Check formats generated (only JSON in processed text mode)
+        self.assertEqual(len(result['formats_generated']), 1)
         self.assertIn('json', result['formats_generated'])
-        self.assertIn('txt', result['formats_generated'])
-        self.assertIn('docx', result['formats_generated'])
     
     def test_save_json_output_success(self):
         """Test successful JSON output saving"""

@@ -83,18 +83,40 @@
   },
   "speaker_diarization": {
     "enabled": false,
+    "disable_completely": true,
+    "enhanced_processing": false,
+    "use_pyannote": false,
+    "model": "pyannote/speaker-diarization@2.1",
     "min_speakers": 2,
     "max_speakers": 2,
-    "strict_two_speakers": true,
     "min_speaker_duration": 0.5,
-    "min_segment_duration": 2.0,
+    "min_segment_duration": 1.0,
     "speaker_similarity_threshold": 0.7,
-    "silence_threshold": 1.5,
+    "silence_threshold": 1.0,
     "vad_enabled": true,
     "word_timestamps": true,
     "language": "he",
     "beam_size": 10,
-    "vad_min_silence_duration_ms": 300
+    "vad_min_silence_duration_ms": 300,
+    "chunked_processing": {
+      "enabled": false,
+      "method": "two_stage_sliding_window",
+      "chunk_duration": 30,
+      "overlap_duration": 5,
+      "memory_optimization": true,
+      "sliding_window_size": 90,
+      "speaker_mapping": {
+        "confidence_threshold": 0.6,
+        "min_overlap_duration": 0.5,
+        "smooth_transitions": true
+      }
+    },
+    "disable_options": {
+      "disable_speaker_detection": true,
+      "disable_speaker_labeling": true,
+      "disable_speaker_segmentation": true,
+      "use_single_speaker_mode": true
+    }
   },
   "output": {
     "output_dir": "output/transcriptions",
