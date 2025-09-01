@@ -149,15 +149,9 @@ class OutputProcessor:
         
         # Process output based on configuration
         if use_processed_text:
-            # Try to find enhanced JSON file with speaker information
-            enhanced_data = self._get_enhanced_transcription_data(input_file_path, transcription_data)
-            
-            # Save all formats using enhanced data
-            output_results['json'] = self._save_json_output(enhanced_data, input_file_path, model, engine)
-            output_results['txt'] = self._save_text_output(enhanced_data, input_file_path, model, engine)
-            output_results['docx'] = self._save_docx_output(enhanced_data, input_file_path, model, engine)
-            
-            self.logger.info("🔄 Using enhanced data with speaker information for all output formats")
+            # Only save JSON - text and DOCX will be handled separately from processed text
+            output_results['json'] = self._save_json_output(transcription_data, input_file_path, model, engine)
+            self.logger.info("🔄 Using processed text only - JSON saved, text/DOCX handled separately")
         else:
             # Legacy mode - save all formats
             output_results['json'] = self._save_json_output(transcription_data, input_file_path, model, engine)
@@ -166,135 +160,7 @@ class OutputProcessor:
         
         return output_results
     
-    def _get_enhanced_transcription_data(self, input_file_path: str, fallback_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Try to get enhanced transcription data with speaker information from JSON files"""
-        try:
-            import os
-            import json
-            from pathlib import Path
-            
-            # Look for enhanced JSON files in chunk_results directory
-            chunk_results_dir = "output/chunk_results"
-            if not os.path.exists(chunk_results_dir):
-                self.logger.warning(f"Chunk results directory not found: {chunk_results_dir}")
-                return fallback_data
-            
-            # Try to find enhanced JSON file for this input file
-            input_filename = Path(input_file_path).stem  # Remove extension
-            
-            # Look for files that match the input filename pattern
-            enhanced_files = []
-            for filename in os.listdir(chunk_results_dir):
-                if filename.endswith('.json'):
-                    # Try multiple matching strategies
-                    is_match = False
-                    
-                    # Strategy 1: Direct filename match (without extension)
-                    if input_filename in filename:
-                        is_match = True
-                    
-                    # Strategy 2: Look for chunk_* files that correspond to the input
-                    elif 'chunk_' in filename and input_filename.replace('.wav', '').replace('.mp3', '').replace('.m4a', '') in filename:
-                        is_match = True
-                    
-                    # Strategy 3: Look for any enhanced JSON file if we can't find a direct match
-                    elif 'enhancement_applied' in filename or 'speaker' in filename.lower():
-                        is_match = True
-                    
-                    if is_match:
-                        file_path = os.path.join(chunk_results_dir, filename)
-                        try:
-                            with open(file_path, 'r', encoding='utf-8') as f:
-                                data = json.load(f)
-                                
-                            # Check if this is an enhanced file with speaker information
-                            if (data.get('enhancement_applied', False) and 
-                                data.get('enhancement_strategy') != 'basic' and
-                                'speaker_recognition' in data):
-                                
-                                enhanced_files.append((file_path, data))
-                                self.logger.info(f"Found enhanced JSON file: {filename}")
-                        except Exception as e:
-                            self.logger.debug(f"Could not read {filename}: {e}")
-                            continue
-            
-            if enhanced_files:
-                # Use the most recent enhanced file
-                enhanced_files.sort(key=lambda x: x[1].get('created_at', 0), reverse=True)
-                best_file_path, best_data = enhanced_files[0]
-                
-                self.logger.info(f"Using enhanced data from: {os.path.basename(best_file_path)}")
-                self.logger.info(f"Speaker info: {list(best_data.get('speaker_recognition', {}).keys())}")
-                
-                return best_data
-            else:
-                # No enhanced files found, try to use chunk files instead
-                self.logger.info("No enhanced JSON files found, looking for chunk files...")
-                
-                # Look for chunk files that contain transcription data
-                chunk_files = []
-                for filename in os.listdir(chunk_results_dir):
-                    if filename.endswith('.json') and 'chunk_' in filename:
-                        file_path = os.path.join(chunk_results_dir, filename)
-                        try:
-                            with open(file_path, 'r', encoding='utf-8') as f:
-                                data = json.load(f)
-                                
-                            # Check if this chunk has transcription data
-                            if (data.get('status') == 'completed' and 
-                                data.get('text') and 
-                                data.get('transcription_data', {}).get('text')):
-                                
-                                chunk_files.append((file_path, data))
-                                self.logger.info(f"Found chunk file with transcription: {filename}")
-                        except Exception as e:
-                            self.logger.debug(f"Could not read chunk file {filename}: {e}")
-                            continue
-                
-                if chunk_files:
-                    # Combine all chunk files to create complete transcription
-                    self.logger.info(f"Combining {len(chunk_files)} chunk files for complete transcription...")
-                    
-                    combined_text = ""
-                    combined_segments = []
-                    
-                    # Sort chunks by start time to maintain chronological order
-                    chunk_files.sort(key=lambda x: x[1].get('segments', [{}])[0].get('start', 0.0) if x[1].get('segments') else 0.0)
-                    
-                    for chunk_file, chunk_data in chunk_files:
-                        chunk_text = chunk_data.get('text', '')
-                        chunk_segments = chunk_data.get('segments', [])
-                        
-                        if chunk_text:
-                            combined_text += chunk_text + " "
-                        if chunk_segments:
-                            combined_segments.extend(chunk_segments)
-                    
-                    combined_text = combined_text.strip()
-                    
-                    self.logger.info(f"Combined transcription: {len(combined_text)} characters from {len(combined_segments)} segments")
-                    
-                    # Return combined data in the expected format
-                    return {
-                        'text': combined_text,
-                        'segments': combined_segments,
-                        'transcription_data': {
-                            'text': combined_text,
-                            'segments': combined_segments,
-                            'language': 'he',
-                            'confidence': 0.95
-                        },
-                        'enhancement_applied': False,
-                        'enhancement_strategy': 'voice_to_text_only',
-                        'status': 'completed'
-                    }
-                else:
-                    self.logger.info("No chunk files found, using fallback data")
-                    return fallback_data
-                
-        except Exception as e:
-            self.logger.warning(f"Error getting enhanced transcription data: {e}")
-            return fallback_data
+
     
     def _create_success_result(self, output_results: Dict[str, Any]) -> Dict[str, Any]:
         """Create success result"""
