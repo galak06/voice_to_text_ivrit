@@ -228,8 +228,69 @@ class OutputProcessor:
                 
                 return best_data
             else:
-                self.logger.info("No enhanced JSON files found, using fallback data")
-                return fallback_data
+                # No enhanced files found, try to use chunk files instead
+                self.logger.info("No enhanced JSON files found, looking for chunk files...")
+                
+                # Look for chunk files that contain transcription data
+                chunk_files = []
+                for filename in os.listdir(chunk_results_dir):
+                    if filename.endswith('.json') and 'chunk_' in filename:
+                        file_path = os.path.join(chunk_results_dir, filename)
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                data = json.load(f)
+                                
+                            # Check if this chunk has transcription data
+                            if (data.get('status') == 'completed' and 
+                                data.get('text') and 
+                                data.get('transcription_data', {}).get('text')):
+                                
+                                chunk_files.append((file_path, data))
+                                self.logger.info(f"Found chunk file with transcription: {filename}")
+                        except Exception as e:
+                            self.logger.debug(f"Could not read chunk file {filename}: {e}")
+                            continue
+                
+                if chunk_files:
+                    # Combine all chunk files to create complete transcription
+                    self.logger.info(f"Combining {len(chunk_files)} chunk files for complete transcription...")
+                    
+                    combined_text = ""
+                    combined_segments = []
+                    
+                    # Sort chunks by start time to maintain chronological order
+                    chunk_files.sort(key=lambda x: x[1].get('segments', [{}])[0].get('start', 0.0) if x[1].get('segments') else 0.0)
+                    
+                    for chunk_file, chunk_data in chunk_files:
+                        chunk_text = chunk_data.get('text', '')
+                        chunk_segments = chunk_data.get('segments', [])
+                        
+                        if chunk_text:
+                            combined_text += chunk_text + " "
+                        if chunk_segments:
+                            combined_segments.extend(chunk_segments)
+                    
+                    combined_text = combined_text.strip()
+                    
+                    self.logger.info(f"Combined transcription: {len(combined_text)} characters from {len(combined_segments)} segments")
+                    
+                    # Return combined data in the expected format
+                    return {
+                        'text': combined_text,
+                        'segments': combined_segments,
+                        'transcription_data': {
+                            'text': combined_text,
+                            'segments': combined_segments,
+                            'language': 'he',
+                            'confidence': 0.95
+                        },
+                        'enhancement_applied': False,
+                        'enhancement_strategy': 'voice_to_text_only',
+                        'status': 'completed'
+                    }
+                else:
+                    self.logger.info("No chunk files found, using fallback data")
+                    return fallback_data
                 
         except Exception as e:
             self.logger.warning(f"Error getting enhanced transcription data: {e}")
