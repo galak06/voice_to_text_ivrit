@@ -425,3 +425,23 @@ class MergedOutputStrategy(OutputStrategy):
         deduplicated_segments = self.deduplicator.deduplicate_segments(sorted_segments)
         
         return deduplicated_segments
+    
+    def create_text_output(self, processed_data: Dict[str, Any]) -> str:
+        """Create text output from processed data"""
+        try:
+            # Extract text content from processed data
+            text_content = processed_data.get('full_text', '') or processed_data.get('text', '')
+            
+            if not text_content:
+                logger.warning("No text content available in processed data")
+                return ""
+            
+            # Format the text content
+            formatted_text = f"=== TRANSCRIPTION ===\n\n{text_content}"
+            
+            logger.info(f"✅ Text output created: {len(text_content)} characters")
+            return formatted_text
+            
+        except Exception as e:
+            logger.error(f"Error creating text output: {e}")
+            return ""

@@ -190,20 +190,13 @@ class OutputManager:
                 output_config = config.config.output
                 use_processed_text = getattr(output_config, 'use_processed_text_only', True)
             
-            # Save JSON
+            # Save JSON only - text and DOCX handled separately from processed text
             json_file = self._save_json(processed_data, output_dir, model_final, engine_final)
             if json_file:
                 results['json'] = json_file
             
-            # Save text file
-            text_file = self._save_text(processed_data, output_dir, model_final, engine_final)
-            if text_file:
-                results['text'] = text_file
-            
-            # Save DOCX file
-            docx_file = self._save_docx(processed_data, output_dir, model_final, engine_final)
-            if docx_file:
-                results['docx'] = docx_file
+            # Note: High-quality DOCX is generated separately from processed text file
+            # This ensures only the best quality output is produced without duplication
             
             # Generate conversation output if using conversation strategy
             if hasattr(self.output_strategy, 'create_conversation_files'):
@@ -231,6 +224,21 @@ class OutputManager:
                 logger.info(f"   - Files: {list(results.keys())}")
                 if use_processed_text:
                     logger.info("   - Using processed text only - no duplicate text files created")
+                    
+                    # Create text and DOCX files from processed text
+                    try:
+                        text_file = self._create_text_from_processed_data(processed_data, output_dir, model_final, engine_final)
+                        if text_file:
+                            results['text'] = text_file
+                            
+                            # Create DOCX from the text file
+                            docx_file = self._create_docx_from_text_file(text_file, output_dir, model_final, engine_final)
+                            if docx_file:
+                                results['docx'] = docx_file
+                                logger.info("✅ Created text and DOCX files from processed data")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not create text/DOCX from processed data: {e}")
+                
                 return results
             else:
                 logger.error("❌ No output files were saved successfully")
@@ -635,4 +643,66 @@ class OutputManager:
             'speakers_cache_size': len(self._speakers_cache),
             'text_content_cache_size': len(self._text_content_cache),
             'total_cache_entries': len(self._processed_data_cache)
-        } 
+        }
+    
+    def _create_text_from_processed_data(self, processed_data: Dict[str, Any], output_dir: str, model: str, engine: str) -> Union[str, None]:
+        """Create text file from processed data using output strategy"""
+        try:
+            # Use the output strategy to create text content
+            if hasattr(self.output_strategy, 'create_text_output'):
+                text_content = self.output_strategy.create_text_output(processed_data)
+            else:
+                # Fallback: extract text from processed data
+                text_content = processed_data.get('full_text', '') or processed_data.get('text', '')
+            
+            if not text_content:
+                logger.warning("No text content available for text file creation")
+                return None
+            
+            # Generate filename
+            filename = PathUtils.generate_output_filename("transcription", model, engine, "txt")
+            file_path = os.path.join(output_dir, filename)
+            
+            # Save text file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(text_content)
+            
+            logger.info(f"Text file created from processed data: {file_path}")
+            logger.info(f"   - Text file size: {os.path.getsize(file_path)} bytes")
+            logger.info(f"   - Text content length: {len(text_content)} characters")
+            return file_path
+            
+        except Exception as e:
+            logger.error(f"Error creating text file from processed data: {e}")
+            return None
+    
+    def _create_docx_from_text_file(self, text_file_path: str, output_dir: str, model: str, engine: str) -> Union[str, None]:
+        """Create DOCX file from text file using DocxFormatter"""
+        try:
+            from ..formatters.docx_formatter import DocxFormatter
+            
+            # Generate DOCX filename
+            filename = PathUtils.generate_output_filename("transcription", model, engine, "docx")
+            file_path = os.path.join(output_dir, filename)
+            
+            # Use DocxFormatter to create DOCX from text file
+            success = DocxFormatter.create_docx_from_word_ready_text(
+                text_file_path=text_file_path,
+                output_docx_path=file_path,
+                audio_file=model,
+                model=model,
+                engine=engine
+            )
+            
+            if success:
+                logger.info(f"DOCX created successfully from text file: {file_path}")
+                logger.info(f"   - DOCX file size: {os.path.getsize(file_path)} bytes")
+                logger.info(f"   - Source text file: {os.path.basename(text_file_path)}")
+                return file_path
+            else:
+                logger.error("Failed to create DOCX from text file")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error creating DOCX from text file: {e}")
+            return None 
