@@ -81,11 +81,11 @@ class JsonConfigLoader:
     def load_config(self, environment: Environment) -> Dict[str, Any]:
         """Load and merge configuration for given environment"""
         # Load base config (if exists)
-        base_config = self._load_json_file("base.json")
+        base_config = self.load_json_file("base.json")
         logger.info(f"🔍 Base config loaded: {list(base_config.keys()) if base_config else 'Empty'}")
         
         # Load environment-specific config
-        env_config = self._load_json_file(f"{environment.value}.json")
+        env_config = self.load_json_file(f"{environment.value}.json")
         logger.info(f"🔍 Environment config loaded: {list(env_config.keys()) if env_config else 'Empty'}")
         
         # Merge configurations
@@ -120,7 +120,7 @@ class JsonConfigLoader:
         
         return merged_config
     
-    def _load_json_file(self, filename: str) -> Dict[str, Any]:
+    def load_json_file(self, filename: str) -> Dict[str, Any]:
         """Load JSON file safely"""
         file_path = self.config_dir / filename
         logger.info(f"🔍 Trying to load file: {file_path}")
@@ -212,10 +212,14 @@ class AppConfigFactory:
                     else:
                         trans_dict['fallback_model'] = 'large-v3'
 
+            # Map speaker_diarization to speaker for backward compatibility
+            # Use 'speaker' section first (from production.json), then fallback to 'speaker_diarization' (from base.json)
+            speaker_dict = config_dict.get('speaker', config_dict.get('speaker_diarization', {}))
+            
             return AppConfig(
                 environment=environment,
                 transcription=TranscriptionConfig(**trans_dict),
-                speaker=SpeakerConfig(**config_dict['speaker']),
+                speaker=SpeakerConfig(**speaker_dict),
                 batch=BatchConfig(**config_dict['batch']),
                 docker=DockerConfig(**config_dict['docker']),
                 runpod=RunPodConfig(**config_dict['runpod']),
@@ -276,7 +280,6 @@ class ConfigOverrideApplier:
         """Apply all environment variable overrides to config object"""
         # Get all relevant environment variables
         env_vars = {
-            'SPEAKER_DIARIZATION_ENABLED': os.getenv('SPEAKER_DIARIZATION_ENABLED'),
             'DEFAULT_MODEL': os.getenv('DEFAULT_MODEL'),
             'DEFAULT_ENGINE': os.getenv('DEFAULT_ENGINE'),
             'RUNPOD_API_KEY': os.getenv('RUNPOD_API_KEY'),
@@ -296,9 +299,7 @@ class ConfigOverrideApplier:
     def _apply_single_override(config: AppConfig, key: str, value: str) -> None:
         """Apply a single environment variable override"""
         try:
-            if key == 'SPEAKER_DIARIZATION_ENABLED':
-                ConfigOverrideApplier._apply_speaker_override(config, value)
-            elif key == 'DEFAULT_MODEL':
+            if key == 'DEFAULT_MODEL':
                 ConfigOverrideApplier._apply_transcription_override(config, 'default_model', value)
             elif key == 'DEFAULT_ENGINE':
                 ConfigOverrideApplier._apply_transcription_override(config, 'default_engine', value)
@@ -319,13 +320,6 @@ class ConfigOverrideApplier:
                 
         except Exception as e:
             logger.warning(f"Could not apply {key}={value} to config: {e}")
-    
-    @staticmethod
-    def _apply_speaker_override(config: AppConfig, value: str) -> None:
-        """Apply speaker diarization override"""
-        if hasattr(config, 'speaker') and config.speaker:
-            config.speaker.enabled = value.lower() == 'true'
-            logger.info(f"🔧 Applied SPEAKER_DIARIZATION_ENABLED={value} to speaker config")
     
     @staticmethod
     def _apply_transcription_override(config: AppConfig, field: str, value: str) -> None:
@@ -647,10 +641,63 @@ class ConfigManager:
         except Exception as e:
             logger.error(f"Error saving configuration: {e}")
     
+    def load_json_file(self, filename: str) -> Dict[str, Any]:
+        """Load JSON file safely"""
+        file_path = self.config_dir / filename
+        logger.info(f"🔍 Trying to load file: {file_path}")
+        logger.info(f"🔍 File exists: {file_path.exists()}")
+        logger.info(f"🔍 Config dir: {self.config_dir}")
+        logger.info(f"🔍 Current working directory: {Path.cwd()}")
+        
+        if not file_path.exists():
+            logger.warning(f"⚠️ File not found: {file_path}")
+            return {}
+        
+        try:
+            with open(file_path, 'r') as f:
+                content = json.load(f)
+                logger.info(f"✅ Successfully loaded {filename} with keys: {list(content.keys()) if content else 'Empty'}")
+                return content
+        except Exception as e:
+            logger.warning(f"Could not load {filename}: {e}")
+            return {}
+    
+    def _merge_configs(self, base: Dict[str, Any], env: Dict[str, Any]) -> Dict[str, Any]:
+        """Simple deep merge of configurations"""
+        result = base.copy()
+        
+        for key, value in env.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = self._merge_configs(result[key], value)
+            else:
+                result[key] = value
+        
+        return result
+    
     def get_speaker_config(self, preset: str = "default"):
         """Get speaker configuration for specific preset"""
         from src.core.factories.speaker_config_factory import SpeakerConfigFactory
         return SpeakerConfigFactory.get_config(preset)
+    
+    def set_custom_config_file(self, config_file_path: str) -> None:
+        """Set a custom config file to override environment config loading"""
+        try:
+            from pathlib import Path
+            custom_config = self.load_json_file(Path(config_file_path).name)
+            if custom_config:
+                # Merge custom config with existing config, but preserve the AppConfig object
+                merged_dict = self._merge_configs(self.config.model_dump(), custom_config)
+                
+                # Recreate the AppConfig from the merged dictionary
+                from src.models.app_config import AppConfig
+                self.config = AppConfig(**merged_dict)
+                
+                logger.info(f"✅ Custom config file loaded: {config_file_path}")
+                logger.info(f"🔍 Custom config keys: {list(custom_config.keys()) if custom_config else 'Empty'}")
+            else:
+                logger.warning(f"⚠️ Could not load custom config file: {config_file_path}")
+        except Exception as e:
+            logger.error(f"❌ Error loading custom config file: {e}")
     
     def get_directory_paths(self) -> Dict[str, str]:
         """Get directory paths from definition.py through config manager"""
@@ -678,7 +725,6 @@ class ConfigManager:
                 'models_dir': 'models',
                 'config_dir': 'config',
                 'output_dir': 'output',
-                'examples_dir': 'examples',
                 'scripts_dir': 'scripts',
                 'src_dir': 'src',
                 'tests_dir': 'tests',

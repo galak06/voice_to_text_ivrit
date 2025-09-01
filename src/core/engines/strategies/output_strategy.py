@@ -370,17 +370,26 @@ class MergedOutputStrategy(OutputStrategy):
         self.deduplicator = deduplicator
         logger.info("🚀 Initializing MergedOutputStrategy")
     
-    def create_final_output(self, segments: List[Dict[str, Any]]) -> str:
+    def create_final_output(self, segments: List[Any]) -> str:
         """Create final merged output from segments with deduplication"""
         if not segments:
             return ""
         
         logger.info(f"🔄 MergedOutputStrategy.create_final_output called with {len(segments)} segments")
         
+        # Helper function to get segment attributes
+        def get_segment_attr(seg, attr, default=0):
+            if hasattr(seg, attr):
+                return getattr(seg, attr, default)
+            else:
+                return seg.get(attr, default)
+        
         # Sort segments by start time
-        sorted_segments = sorted(segments, key=lambda x: x.get('start', 0.0))
-        logger.info(f"   - First segment: {sorted_segments[0].get('start', 0):.1f}s - {sorted_segments[0].get('end', 0):.1f}s")
-        logger.info(f"   - Second segment: {sorted_segments[1].get('start', 0):.1f}s - {sorted_segments[1].get('end', 0):.1f}s")
+        sorted_segments = sorted(segments, key=lambda x: get_segment_attr(x, 'start', 0.0))
+        
+        if len(sorted_segments) >= 2:
+            logger.info(f"   - First segment: {get_segment_attr(sorted_segments[0], 'start', 0):.1f}s - {get_segment_attr(sorted_segments[0], 'end', 0):.1f}s")
+            logger.info(f"   - Second segment: {get_segment_attr(sorted_segments[1], 'start', 0):.1f}s - {get_segment_attr(sorted_segments[1], 'end', 0):.1f}s")
         
         # Apply intelligent deduplication
         logger.info(f"🔄 Calling deduplicator.deduplicate_segments...")
@@ -389,7 +398,7 @@ class MergedOutputStrategy(OutputStrategy):
         # Build final text
         final_text = ""
         for segment in deduplicated_segments:
-            text = segment.get('text', '')
+            text = get_segment_attr(segment, 'text', '')
             if text:
                 final_text += text + " "
         
@@ -398,13 +407,19 @@ class MergedOutputStrategy(OutputStrategy):
         logger.info(f"✅ Final output created: {len(final_text)} characters from {len(segments)} segments")
         return final_text
     
-    def create_segmented_output(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def create_segmented_output(self, segments: List[Any]) -> List[Any]:
         """Create segmented output with deduplication metadata"""
         if not segments:
             return []
         
-        # Sort segments by start time
-        sorted_segments = sorted(segments, key=lambda x: x.get('start', 0.0))
+        # Sort segments by start time - handle both dict and object segments
+        def get_start_time(seg):
+            if hasattr(seg, 'start'):
+                return getattr(seg, 'start', 0.0)
+            else:
+                return seg.get('start', 0.0)
+        
+        sorted_segments = sorted(segments, key=get_start_time)
         
         # Apply intelligent deduplication
         deduplicated_segments = self.deduplicator.deduplicate_segments(sorted_segments)

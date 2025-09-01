@@ -11,7 +11,7 @@ import glob
 from typing import TYPE_CHECKING
 
 from src.core.engines.strategies.base_strategy import BaseTranscriptionStrategy
-from src.models.speaker_models import TranscriptionResult, TranscriptionSegment
+from src.models.transcription_results import TranscriptionResult, TranscriptionSegment
 
 if TYPE_CHECKING:
     from src.core.engines.base_interface import TranscriptionEngine
@@ -44,7 +44,7 @@ class ExistingChunksStrategy(BaseTranscriptionStrategy):
         all_segments, total_duration = self._process_existing_chunks(chunk_files, engine, model_name)
         
         if not all_segments:
-            from src.models.speaker_models import TranscriptionResult
+            from src.models.transcription_results import TranscriptionResult
             return TranscriptionResult(
                 success=False, speakers={}, full_text="", transcription_time=0.0,
                 model_name=model_name, audio_file=audio_file_path, speaker_count=0,

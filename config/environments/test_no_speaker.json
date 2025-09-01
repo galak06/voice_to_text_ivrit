@@ -1,0 +1,36 @@
+{
+  "name": "test_no_speaker",
+  "description": "Test configuration with speaker diarization completely disabled",
+  "transcription": {
+    "default_engine": "ctranslate2-whisper",
+    "default_model": "ivrit-ai/whisper-large-v3-ct2",
+    "language": "he",
+    "beam_size": 10,
+    "word_timestamps": true,
+    "vad_enabled": true,
+    "vad_min_silence_duration_ms": 500
+  },
+  "speaker_diarization": {
+    "disable_completely": true,
+    "enabled": false,
+    "min_speakers": 2,
+    "max_speakers": 2,
+    "min_speaker_duration": 0.5,
+    "min_segment_duration": 1.0,
+    "speaker_similarity_threshold": 0.7,
+    "silence_threshold": 1.0,
+    "vad_enabled": true,
+    "word_timestamps": true,
+    "language": "he"
+  },
+  "output": {
+    "use_processed_text_only": true,
+    "create_text_files": true,
+    "create_docx_files": true,
+    "create_json_files": true
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "detailed"
+  }
+}

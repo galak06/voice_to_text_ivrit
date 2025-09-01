@@ -172,7 +172,44 @@ class SpeakersDataExtractorImpl:
         import logging
         logger = logging.getLogger(__name__)
         
-        # Direct speakers field (preferred format)
+        # New speaker_recognition field (current format)
+        if 'speaker_recognition' in data:
+            speaker_recognition = data['speaker_recognition']
+            logger.info(f"🔍 Extracting from 'speaker_recognition' field")
+            
+            if isinstance(speaker_recognition, dict) and 'speaker_details' in speaker_recognition:
+                speaker_details = speaker_recognition['speaker_details']
+                logger.info(f"🔍 Found speaker_details with {len(speaker_details)} speakers")
+                
+                # Convert speaker_details to the expected speakers format
+                speakers_data = {}
+                for speaker_id, speaker_info in speaker_details.items():
+                    if isinstance(speaker_info, dict) and 'segments' in speaker_info:
+                        segments = speaker_info['segments']
+                        logger.info(f"🔍 Speaker {speaker_id}: {len(segments)} segments")
+                        
+                        # Convert segments to the expected format
+                        formatted_segments = []
+                        for segment in segments:
+                            if isinstance(segment, dict):
+                                formatted_segment = {
+                                    'speaker': speaker_id,
+                                    'text': segment.get('text', ''),
+                                    'start': segment.get('start', 0),
+                                    'end': segment.get('end', 0)
+                                }
+                                formatted_segments.append(formatted_segment)
+                        
+                        if formatted_segments:
+                            speakers_data[speaker_id] = formatted_segments
+                
+                if speakers_data:
+                    logger.info(f"🔍 Converted to speakers format: {list(speakers_data.keys())} with {sum(len(segments) for segments in speakers_data.values())} total segments")
+                    return speakers_data
+                else:
+                    logger.warning(f"🔍 No valid segments found in speaker_recognition")
+        
+        # Direct speakers field (legacy format)
         if 'speakers' in data:
             speakers_data = data['speakers']
             logger.info(f"🔍 Extracting from 'speakers' field: {len(speakers_data)} speakers")

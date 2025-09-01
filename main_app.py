@@ -219,10 +219,19 @@ class ApplicationOrchestrator:
             from src.models.environment import Environment
             if 'production' in config_file or 'ivrit_whisper_large_v3_ct2' in config_file:
                 environment = Environment.PRODUCTION
+            elif 'test' in config_file:
+                # For test configurations, use BASE environment but load the specific config file
+                environment = Environment.BASE
+                # Store the custom config file path for later use
+                self.custom_config_file = config_file
             else:
                 environment = Environment.BASE
             
             self.config_manager = ConfigManager(config_dir, environment)
+            
+            # If we have a custom config file, override the environment config loading
+            if hasattr(self, 'custom_config_file'):
+                self.config_manager.set_custom_config_file(self.custom_config_file)
         else:
             # Use default config directory
             self.config_manager = ConfigManager()

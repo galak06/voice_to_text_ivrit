@@ -73,35 +73,69 @@
       }
     }
   },
-  "speaker_diarization": {
+  "speaker": {
     "enabled": false,
-    "min_speakers": 2,
+    "disable_completely": true,
+    "min_speakers": 1,
     "max_speakers": 2,
-    "strict_two_speakers": true,
-    "min_speaker_duration": 0.5,
-    "min_segment_duration": 2.0,
-    "speaker_similarity_threshold": 0.7,
-    "silence_threshold": 1.5,
+    "silence_threshold": 2.0,
     "vad_enabled": true,
     "word_timestamps": true,
     "language": "he",
-    "beam_size": 10,
-    "vad_min_silence_duration_ms": 300,
+    "beam_size": 5,
+    "vad_min_silence_duration_ms": 500,
+    "min_speaker_duration": 0.5,
+    "min_segment_duration": 2.0,
+    "speaker_similarity_threshold": 0.7,
+    "strict_two_speakers": false,
+    "fast_processing": false,
+    "enhanced_processing": false,
+    "use_pyannote": false,
+    "model": "fast",
+    "chunked_processing": null,
+    "disable_options": {
+      "disable_speaker_detection": true,
+      "disable_speaker_labeling": true,
+      "disable_speaker_segmentation": true,
+      "use_single_speaker_mode": true
+    },
     "presets": {
+      "default": {
+        "min_speakers": 1,
+        "max_speakers": 2,
+        "silence_threshold": 2.0
+      },
       "conversation": {
         "min_speakers": 2,
-        "max_speakers": 2,
-        "silence_threshold": 1.0
+        "max_speakers": 4,
+        "silence_threshold": 1.5
       },
       "interview": {
         "min_speakers": 2,
-        "max_speakers": 2,
+        "max_speakers": 3,
         "silence_threshold": 2.5
+      }
+    },
+    "conversation_formatting": {
+      "enabled": true,
+      "time_gap_threshold": 3.0,
+      "min_segment_duration": 0.5,
+      "include_timing": true,
+      "include_chunk_source": false,
+      "paragraph_grouping": {
+        "enabled": true,
+        "max_gap_seconds": 2.0,
+        "min_paragraph_duration": 1.0
       },
-      "monologue": {
-        "min_speakers": 2,
-        "max_speakers": 2,
-        "silence_threshold": 3.0
+      "output_formats": {
+        "txt": true,
+        "json": true,
+        "docx": false
+      },
+      "speaker_display": {
+        "show_emojis": true,
+        "show_timing": true,
+        "show_duration": true
       }
     }
   },
@@ -173,6 +207,6 @@
     "vad_min_silence_duration_ms": 500,
     "save_audio_chunks": true,
     "save_chunk_metadata": true,
-    "default_enhancement_strategy": "basic"
+    "default_enhancement_strategy": "voice_to_text_only"
   }
 }

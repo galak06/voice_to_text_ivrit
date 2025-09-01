@@ -8,7 +8,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from src.models.speaker_models import TranscriptionResult
+from src.models.transcription_results import TranscriptionResult
 
 if TYPE_CHECKING:
     from src.core.engines.base_interface import TranscriptionEngine

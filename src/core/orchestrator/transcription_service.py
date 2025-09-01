@@ -106,7 +106,7 @@ class TranscriptionService:
             raise
     
     def _create_speaker_service(self) -> Optional[SpeakerServiceProtocol]:
-        """Create enhanced speaker service using dependency injection"""
+        """Create enhanced speaker service using dependency injection - fail fast if creation fails"""
         try:
             # Check if speaker diarization is enabled
             if not self._is_speaker_diarization_enabled():
@@ -119,6 +119,9 @@ class TranscriptionService:
                 transcription_engine=self.transcription_engine
             )
             
+            if not speaker_service:
+                raise RuntimeError("Speaker service injector returned None")
+            
             # Inject the speaker service into this transcription service
             self._speaker_injector.inject_into_transcription_service(
                 self, 
@@ -129,8 +132,8 @@ class TranscriptionService:
             return speaker_service
             
         except Exception as e:
-            logger.error(f"Failed to create enhanced speaker service: {e}")
-            return None
+            logger.error(f"❌ Failed to create enhanced speaker service: {e}")
+            raise RuntimeError(f"Failed to create enhanced speaker service: {e}")
     
     def _create_speaker_config(self) -> SpeakerConfig:
         """Create speaker configuration from app config"""
@@ -141,17 +144,38 @@ class TranscriptionService:
     
     def _is_speaker_diarization_enabled(self) -> bool:
         """Check if speaker diarization is enabled based on config and environment"""
-        # Environment variable has highest priority
+        # Configuration file has highest priority
+        try:
+            # Check if speaker_diarization section exists and is enabled
+            if hasattr(self.config_manager.config, 'speaker_diarization'):
+                speaker_config = self.config_manager.config.speaker_diarization
+                if hasattr(speaker_config, 'enabled'):
+                    config_enabled = speaker_config.enabled
+                    logger.info(f"ℹ️ Speaker diarization from config: {config_enabled}")
+                    return config_enabled
+                # If no explicit enabled flag, check if speaker config exists
+                logger.info("ℹ️ Speaker diarization config found, defaulting to enabled")
+                return True
+            # Fallback: check for 'speaker' section
+            elif hasattr(self.config_manager.config, 'speaker') and self.config_manager.config.speaker:
+                speaker_config = self.config_manager.config.speaker
+                if hasattr(speaker_config, 'enabled'):
+                    config_enabled = speaker_config.enabled
+                    logger.info(f"ℹ️ Speaker diarization from legacy config: {config_enabled}")
+                    return config_enabled
+                logger.info("ℹ️ Legacy speaker config found, defaulting to enabled")
+                return True
+        except Exception as e:
+            logger.warning(f"⚠️ Error checking speaker diarization config: {e}")
+        
+        # Environment variable as fallback (lower priority)
         import os
         env_enabled = os.getenv('SPEAKER_DIARIZATION_ENABLED', 'true').lower()
         if env_enabled == 'false':
-            logger.info("ℹ️ Speaker diarization disabled via environment variable")
+            logger.info("ℹ️ Speaker diarization disabled via environment variable fallback")
             return False
         
-        # Check config object
-        if hasattr(self.config_manager.config, 'speaker') and self.config_manager.config.speaker:
-            return self.config_manager.config.speaker.enabled
-        
+        logger.info("ℹ️ Speaker diarization enabled by default")
         return True  # Default to enabled
     
     def determine_transcription_mode(self, input_data: Dict[str, Any]) -> TranscriptionMode:
@@ -239,6 +263,8 @@ class TranscriptionService:
                 result = self._transcribe_chunked(input_data, **kwargs)
             else:
                 result = self._transcribe_basic(input_data, **kwargs)
+            
+            # Note: Enhanced JSON files are created by transcription strategies, not here
             
             # Add processing metadata
             result['processing_time'] = time.time() - start_time
@@ -468,6 +494,8 @@ class TranscriptionService:
         except Exception as e:
             logger.error(f"Chunked transcription failed: {e}")
             return self._create_error_result(str(e), time.time())
+    
+    # Method removed - enhanced JSON files are created by transcription strategies
     
     def _get_services_used(self, mode: TranscriptionMode) -> List[str]:
         """Get list of services used for the transcription mode"""

@@ -236,6 +236,81 @@ class DocxFormatter:
             logger.debug(f"Could not set text run RTL: {e}")
     
     @staticmethod
+    def create_docx_from_text_content(text_content: str, output_docx_path: str, model: str = "unknown", engine: str = "unknown") -> bool:
+        """Create a DOCX file directly from text content with speaker alignment"""
+        try:
+            if not text_content.strip():
+                logger.error("Text content is empty or contains only whitespace")
+                return False
+            
+            # Create the document
+            doc = Document()
+            
+            # Set document to RTL for Hebrew text
+            DocxFormatter._set_document_rtl(doc)
+            
+            # Add title
+            title = doc.add_heading('תמלול עם זיהוי דוברים', 0)
+            title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            DocxFormatter._set_paragraph_rtl(title)
+            
+            # Add metadata table
+            DocxFormatter._add_metadata_table(doc, "audio_file", model, engine)
+            
+            # Add spacing
+            doc.add_paragraph()
+            
+            # Split content into lines and add to document
+            lines = text_content.strip().split('\n')
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    # Add empty paragraph for spacing
+                    doc.add_paragraph()
+                    continue
+                
+                # Check if this is a section header
+                if line.startswith('===') and line.endswith('==='):
+                    # Add section header
+                    header = doc.add_heading(line.strip('= '), level=1)
+                    header.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    DocxFormatter._set_paragraph_rtl(header)
+                elif line.startswith('SPEAKER_') and ':' in line:
+                    # This is a speaker line - format it specially
+                    speaker_para = doc.add_paragraph()
+                    speaker_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                    DocxFormatter._set_paragraph_rtl(speaker_para)
+                    
+                    # Add speaker name in bold
+                    speaker_name = line.split(':', 1)[0]
+                    speaker_text = line.split(':', 1)[1] if ':' in line else ''
+                    
+                    speaker_run = speaker_para.add_run(f"{speaker_name}: ")
+                    speaker_run.bold = True
+                    speaker_run.font.size = Pt(12)
+                    
+                    # Add speaker text
+                    text_run = speaker_para.add_run(speaker_text)
+                    text_run.font.size = Pt(12)
+                else:
+                    # Regular text content
+                    text_para = doc.add_paragraph(line)
+                    text_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                    DocxFormatter._set_paragraph_rtl(text_para)
+            
+            # Save the document
+            doc.save(output_docx_path)
+            
+            logger.info(f"✅ DOCX created successfully from text content: {output_docx_path}")
+            logger.info(f"   - Document contains {len(lines)} lines of content")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error creating DOCX from text content: {e}")
+            return False
+    
+    @staticmethod
     def _add_metadata_table(doc: Document, audio_file: str, model: str, engine: str):
         """Add metadata table to document"""
         table = doc.add_table(rows=1, cols=2)

@@ -82,8 +82,8 @@
     }
   },
   "speaker_diarization": {
-    "enabled": false,
-    "disable_completely": true,
+    "disable_completely": false,
+    "fast_processing": true,
     "enhanced_processing": false,
     "use_pyannote": false,
     "model": "pyannote/speaker-diarization@2.1",
@@ -112,10 +112,32 @@
       }
     },
     "disable_options": {
-      "disable_speaker_detection": true,
-      "disable_speaker_labeling": true,
-      "disable_speaker_segmentation": true,
-      "use_single_speaker_mode": true
+      "disable_speaker_detection": false,
+      "disable_speaker_labeling": false,
+      "disable_speaker_segmentation": false,
+      "use_single_speaker_mode": false
+    },
+    "conversation_formatting": {
+      "enabled": true,
+      "time_gap_threshold": 3.0,
+      "min_segment_duration": 0.5,
+      "include_timing": true,
+      "include_chunk_source": false,
+      "paragraph_grouping": {
+        "enabled": true,
+        "max_gap_seconds": 2.0,
+        "min_paragraph_duration": 1.0
+      },
+      "output_formats": {
+        "txt": true,
+        "json": true,
+        "docx": false
+      },
+      "speaker_display": {
+        "show_emojis": true,
+        "show_timing": true,
+        "show_duration": true
+      }
     }
   },
   "output": {

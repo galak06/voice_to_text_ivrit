@@ -31,4 +31,16 @@ class MetadataExtractorInterface(Protocol):
         Returns:
             Audio file path as string
         """
+        ...
+    
+    def get_engine_name(self, data: Any) -> str:
+        """
+        Extract engine name from transcription data
+        
+        Args:
+            data: The transcription data to extract engine name from
+            
+        Returns:
+            Engine name as string
+        """
         ... 

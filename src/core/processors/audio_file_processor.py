@@ -213,15 +213,35 @@ class AudioFileProcessor(ProcessingPipeline):
     def _save_results(self, context: ProcessingContext, data: Dict[str, Any]) -> Dict[str, Any]:
         """Save processing results"""
         try:
-            # Save transcription results
+            # Save transcription results using OutputManager
             file_name = Path(context.file_path).stem
             save_result = self.output_manager.save_transcription(data, file_name)
             
-            if save_result['success']:
-                self._log_processing_step("Save results", context, True, f"Saved to {save_result.get('file_path', 'unknown')}")
-                return {'success': True, 'file_path': save_result.get('file_path')}
-            else:
+            if not save_result['success']:
                 return save_result
+            
+            # Now use OutputProcessor to generate text and DOCX files with speaker information
+            # Create input metadata for the OutputProcessor
+            input_metadata = {
+                'file_name': file_name,
+                'file_path': str(context.file_path),
+                'session_id': getattr(context, 'session_id', None)
+            }
+            
+            # Create transcription result structure for OutputProcessor
+            transcription_result = {
+                'success': True,
+                'transcription': data,
+                'model': context.parameters.get('model', 'unknown'),
+                'engine': context.parameters.get('engine', 'unknown')
+            }
+            
+            # Process output using OutputProcessor to generate text and DOCX files
+            # Note: We need to access the OutputProcessor from the application
+            # This will be handled by the main application workflow
+            
+            self._log_processing_step("Save results", context, True, f"Saved to {save_result.get('file_path', 'unknown')}")
+            return {'success': True, 'file_path': save_result.get('file_path')}
                 
         except Exception as e:
             return self.error_handler.handle_file_processing_error(e, context.file_path, "save_results")

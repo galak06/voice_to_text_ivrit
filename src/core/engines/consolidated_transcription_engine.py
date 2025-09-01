@@ -85,8 +85,8 @@ class ConsolidatedTranscriptionEngine(ITranscriptionEngine, TranscriptionEngine)
             logger.info(f"ℹ️ Speaker diarization enabled: {self._speaker_diarization_enabled}")
             
         except Exception as e:
-            logger.warning(f"⚠️ Error initializing speaker services: {e}")
-            self._speaker_diarization_enabled = False
+            logger.error(f"❌ Speaker service initialization failed: {e}")
+            raise RuntimeError(f"Failed to initialize speaker services: {e}")
     
     def _init_transcription_strategies(self) -> None:
         """Initialize transcription strategies using existing factory"""

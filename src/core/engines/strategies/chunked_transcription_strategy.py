@@ -12,7 +12,7 @@ import json # Added for JSON file handling
 import time # Added for timestamp handling
 
 from src.core.engines.strategies.base_strategy import BaseTranscriptionStrategy
-from src.models.speaker_models import TranscriptionResult, TranscriptionSegment
+from src.models.transcription_results import TranscriptionResult, TranscriptionSegment
 
 if TYPE_CHECKING:
     from src.core.engines.base_interface import TranscriptionEngine
@@ -412,7 +412,7 @@ class ChunkedTranscriptionStrategy(BaseTranscriptionStrategy):
             # Use the injected DirectTranscriptionStrategy to process this chunk
             # This ensures we get exactly the same transcription logic and results
             logger.info(f"🎯 Processing chunk {chunk_number} with DirectTranscriptionStrategy")
-            chunk_result = self.direct_transcription_strategy.execute(audio_chunk_path, model_name, engine)
+            chunk_result = self.direct_transcription_strategy.execute(audio_chunk_path, model_name, engine, chunk_info)
             
             if not chunk_result or not chunk_result.success:
                 logger.warning(f"⚠️ Chunk transcription failed: {chunk_info['filename']}")
@@ -516,15 +516,28 @@ class ChunkedTranscriptionStrategy(BaseTranscriptionStrategy):
         
         logger.info(f"📝 Creating final transcription result with model: {final_model_name}, engine: {final_engine_name}")
         
+        # Create metadata for the final result
+        from src.models.transcription_results import TranscriptionMetadata
+        
+        metadata = TranscriptionMetadata(
+            model_name=final_model_name,
+            engine=final_engine_name,
+            language="he",
+            processing_time=processing_time
+        )
+        
+        # Create segments list from speakers for the required segments field
+        all_segments = []
+        for speaker_segments in speakers_dict.values():
+            all_segments.extend(speaker_segments)
+        
         return TranscriptionResult(
             success=True,
+            text=full_text,
+            segments=all_segments,
             speakers=speakers_dict,
-            full_text=full_text,
-            transcription_time=processing_time,
-            model_name=final_model_name,
-            engine=final_engine_name,  # Add engine information
-            audio_file=audio_file_path,
-            speaker_count=speaker_count
+            speaker_count=speaker_count,
+            metadata=metadata
         )
     
     def _create_error_result(self, audio_file_path: str, error_message: str) -> TranscriptionResult:

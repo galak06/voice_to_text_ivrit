@@ -26,6 +26,9 @@ class OutputManager:
     
     def __init__(self, output_base_path: str, data_utils: DataUtils, output_strategy: Any, config_manager: Any = None):
         """Initialize output manager with dependency injection and caching"""
+        # Persist injected ConfigManager for downstream checks (e.g., speaker disable)
+        self.config_manager = config_manager
+
         # Use ConfigManager for output paths if available, otherwise fallback to provided path
         if config_manager and hasattr(config_manager, 'get_directory_paths'):
             directory_paths = config_manager.get_directory_paths()
@@ -123,13 +126,29 @@ class OutputManager:
                     
                     # Log first few segments for debugging
                     for i, seg in enumerate(segments[:3]):
-                        logger.info(f"   - Segment {i}: {seg.get('start', 0):.1f}s - {seg.get('end', 0):.1f}s, text: '{seg.get('text', '')[:50]}...'")
+                        # Handle both dict and object segments
+                        if hasattr(seg, 'start'):
+                            start_time = getattr(seg, 'start', 0)
+                            end_time = getattr(seg, 'end', 0)
+                            text_content = getattr(seg, 'text', '')[:50] if getattr(seg, 'text', '') else ''
+                        else:
+                            start_time = seg.get('start', 0)
+                            end_time = seg.get('end', 0)
+                            text_content = seg.get('text', '')[:50] if seg.get('text', '') else ''
+                        
+                        logger.info(f"   - Segment {i}: {start_time:.1f}s - {end_time:.1f}s, text: '{text_content}...'")
                     
                     processed_text = self.output_strategy.create_final_output(segments)
                     deduplicated_segments = self.output_strategy.create_segmented_output(segments)
                     
                     # Log overlapping detection results
-                    original_chars = sum(len(seg.get('text', '')) for seg in segments)
+                    original_chars = 0
+                    for seg in segments:
+                        if hasattr(seg, 'text'):
+                            original_chars += len(getattr(seg, 'text', ''))
+                        else:
+                            original_chars += len(seg.get('text', ''))
+                    
                     final_chars = len(processed_text)
                     chars_removed = original_chars - final_chars
                     
@@ -171,13 +190,41 @@ class OutputManager:
                 output_config = config.config.output
                 use_processed_text = getattr(output_config, 'use_processed_text_only', True)
             
-            # Save JSON only - text and DOCX handled separately from processed text
+            # Save JSON
             json_file = self._save_json(processed_data, output_dir, model_final, engine_final)
             if json_file:
                 results['json'] = json_file
             
-            # Note: High-quality DOCX is generated separately from processed text file
-            # This ensures only the best quality output is produced without duplication
+            # Save text file
+            text_file = self._save_text(processed_data, output_dir, model_final, engine_final)
+            if text_file:
+                results['text'] = text_file
+            
+            # Save DOCX file
+            docx_file = self._save_docx(processed_data, output_dir, model_final, engine_final)
+            if docx_file:
+                results['docx'] = docx_file
+            
+            # Generate conversation output if using conversation strategy
+            if hasattr(self.output_strategy, 'create_conversation_files'):
+                try:
+                    logger.info("🔄 Generating conversation output files...")
+                    conversation_files = self.output_strategy.create_conversation_files(
+                        segments, output_dir
+                    )
+                    
+                    # Add conversation files to results
+                    for file_type, file_path in conversation_files.items():
+                        results[f'conversation_{file_type}'] = file_path
+                    
+                    if conversation_files:
+                        logger.info(f"✅ Generated {len(conversation_files)} conversation output files")
+                    else:
+                        logger.warning("⚠️ No conversation output files were generated")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Error generating conversation output: {e}")
+                    # Continue with other outputs
             
             if results:
                 logger.info(f"✅ Saved {len(results)} output files to {output_dir}")
@@ -206,6 +253,58 @@ class OutputManager:
         except Exception as e:
             logger.error(f"Error in save_json: {e}")
             return {'success': False}
+    
+    def generate_conversation_from_chunks(self, chunk_dir: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Generate conversation output from existing chunk results.
+        
+        This method is useful for post-processing chunk results into conversation format
+        without needing to re-run the transcription pipeline.
+        
+        Args:
+            chunk_dir: Optional directory containing chunk JSON files (uses config default if not provided)
+            
+        Returns:
+            Dictionary containing generated conversation output file paths and metadata
+        """
+        try:
+            logger.info("🔄 Generating conversation output from existing chunks...")
+            
+            # Check if we have a conversation strategy
+            if not hasattr(self.output_strategy, 'create_conversation_files'):
+                logger.error("❌ Output strategy does not support conversation generation")
+                return {
+                    'success': False,
+                    'error': 'Output strategy does not support conversation generation'
+                }
+            
+            # Import conversation service for chunk processing
+            from src.output_data.services import ConversationService
+            
+            # Create conversation service
+            conversation_service = ConversationService(getattr(self, 'config_manager', None))
+            
+            # Generate conversation from chunks
+            result = conversation_service.generate_conversation_from_chunks(
+                Path(chunk_dir) if chunk_dir else None
+            )
+            
+            if result.get('success'):
+                logger.info("✅ Conversation generation completed successfully")
+                logger.info(f"   - Output files: {list(result.get('output_files', {}).keys())}")
+                logger.info(f"   - Mode: {result.get('metadata', {}).get('mode', 'unknown')}")
+                logger.info(f"   - Speakers: {result.get('metadata', {}).get('speakers', [])}")
+            else:
+                logger.error(f"❌ Conversation generation failed: {result.get('error', 'Unknown error')}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Error generating conversation from chunks: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
 
 
     
@@ -388,6 +487,134 @@ class OutputManager:
             return None
         except Exception as e:
             logger.error(f"Error saving JSON: {e}")
+            return None
+    
+    def _save_text(self, data: Dict[str, Any], output_dir: str, model: str, engine: str) -> Union[str, None]:
+        """Save transcription as text file with speaker alignment"""
+        try:
+            from ..formatters.text_formatter import TextFormatter
+            
+            filename = PathUtils.generate_output_filename(
+                "transcription", model, engine, "txt"
+            )
+            file_path = os.path.join(output_dir, filename)
+            
+            # Extract text content
+            text_content = ""
+            
+            # Try to get processed text first
+            if 'full_text' in data and data['full_text']:
+                text_content = data['full_text']
+                logger.info(f"Using processed full_text for text file")
+            elif 'text' in data and data['text']:
+                text_content = data['text']
+                logger.info(f"Using basic text for text file")
+            else:
+                # Fallback to extracting from segments
+                text_content = self.data_utils.extract_text_content(data)
+                logger.info(f"Extracted text from segments for text file")
+            
+            # Format with speaker information if available and enabled
+            # Extract speakers data using DataUtils to handle various formats
+            speakers_data = self.data_utils.extract_speakers_data(data)
+
+            # Determine if speakers should be included based on injected ConfigManager
+            include_speakers = False
+            if hasattr(self, 'config_manager') and self.config_manager:
+                try:
+                    # Prefer new 'speaker' section, then legacy
+                    cfg = getattr(self.config_manager, 'config', None)
+                    if cfg and hasattr(cfg, 'speaker') and cfg.speaker:
+                        include_speakers = bool(getattr(cfg.speaker, 'enabled', True)) and not bool(getattr(cfg.speaker, 'disable_completely', False))
+                    elif cfg and hasattr(cfg, 'speaker_diarization') and cfg.speaker_diarization:
+                        include_speakers = bool(getattr(cfg.speaker_diarization, 'enabled', True)) and not bool(getattr(cfg.speaker_diarization, 'disable_completely', False))
+                except Exception as e:
+                    logger.debug(f"Could not check speaker configuration: {e}")
+                    include_speakers = True
+
+            if include_speakers and speakers_data:
+                logger.info(f"Adding speaker information to text file")
+                speaker_text = TextFormatter.format_conversation_text(speakers_data)
+                if speaker_text:
+                    text_content = f"=== SPEAKER ALIGNMENT ===\n\n{speaker_text}\n\n=== FULL TRANSCRIPTION ===\n\n{text_content}"
+            else:
+                if speakers_data and not include_speakers:
+                    logger.info(f"Speaker diarization disabled - creating text file without speaker information")
+                else:
+                    logger.info(f"No speaker information available - creating basic text file")
+                text_content = f"=== TRANSCRIPTION ===\n\n{text_content}"
+            
+            # Save text file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(text_content)
+            
+            logger.info(f"Text file saved: {file_path}")
+            logger.info(f"   - Text file size: {os.path.getsize(file_path)} bytes")
+            logger.info(f"   - Text content length: {len(text_content)} characters")
+            return file_path
+            
+        except Exception as e:
+            logger.error(f"Error saving text file: {e}")
+            return None
+    
+    def _save_docx(self, data: Dict[str, Any], output_dir: str, model: str, engine: str) -> Union[str, None]:
+        """Save transcription as DOCX file with speaker alignment"""
+        try:
+            from ..formatters.docx_formatter import DocxFormatter
+            
+            filename = PathUtils.generate_output_filename(
+                "transcription", model, engine, "docx"
+            )
+            file_path = os.path.join(output_dir, filename)
+            
+            # Extract text content (same logic as text file)
+            text_content = ""
+            
+            if 'full_text' in data and data['full_text']:
+                text_content = data['full_text']
+            elif 'text' in data and data['text']:
+                text_content = data['text']
+            else:
+                text_content = self.data_utils.extract_text_content(data)
+            
+            # Format with speaker information if available and enabled
+            # Extract speakers data using DataUtils to handle various formats
+            speakers_data = self.data_utils.extract_speakers_data(data)
+
+            # Determine if speakers should be included based on injected ConfigManager
+            include_speakers = False
+            if hasattr(self, 'config_manager') and self.config_manager:
+                try:
+                    cfg = getattr(self.config_manager, 'config', None)
+                    if cfg and hasattr(cfg, 'speaker') and cfg.speaker:
+                        include_speakers = bool(getattr(cfg.speaker, 'enabled', True)) and not bool(getattr(cfg.speaker, 'disable_completely', False))
+                    elif cfg and hasattr(cfg, 'speaker_diarization') and cfg.speaker_diarization:
+                        include_speakers = bool(getattr(cfg.speaker_diarization, 'enabled', True)) and not bool(getattr(cfg.speaker_diarization, 'disable_completely', False))
+                except Exception as e:
+                    logger.debug(f"Could not check speaker configuration: {e}")
+                    include_speakers = True
+
+            if include_speakers and speakers_data:
+                from ..formatters.text_formatter import TextFormatter
+                speaker_text = TextFormatter.format_conversation_text(speakers_data)
+                if speaker_text:
+                    text_content = f"=== SPEAKER ALIGNMENT ===\n\n{speaker_text}\n\n=== FULL TRANSCRIPTION ===\n\n{text_content}"
+            else:
+                if speakers_data and not include_speakers:
+                    logger.info(f"No speaker information available - creating DOCX without speaker information")
+                else:
+                    logger.info(f"No speaker information available - creating basic DOCX")
+                text_content = f"=== TRANSCRIPTION ===\n\n{text_content}"
+            
+            # Create DOCX from the text content
+            if DocxFormatter.create_docx_from_text_content(text_content, file_path, model, engine):
+                logger.info(f"DOCX file saved: {file_path}")
+                logger.info(f"   - DOCX file size: {os.path.getsize(file_path)} bytes")
+                return file_path
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error saving DOCX file: {e}")
             return None
     
 
