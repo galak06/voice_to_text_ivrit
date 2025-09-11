@@ -385,6 +385,14 @@ class TranscriptionService:
             
             # Try to get chunk duration from ConfigManager in priority order
             try:
+                # Debug logging
+                logger.info(f"🔍 CONFIG DEBUG: config_manager.config type: {type(self.config_manager.config)}")
+                logger.info(f"🔍 CONFIG DEBUG: hasattr chunking: {hasattr(self.config_manager.config, 'chunking')}")
+                if hasattr(self.config_manager.config, 'chunking'):
+                    logger.info(f"🔍 CONFIG DEBUG: chunking type: {type(self.config_manager.config.chunking)}")
+                    logger.info(f"🔍 CONFIG DEBUG: chunking attributes: {dir(self.config_manager.config.chunking)}")
+                    logger.info(f"🔍 CONFIG DEBUG: hasattr chunk_duration_seconds: {hasattr(self.config_manager.config.chunking, 'chunk_duration_seconds')}")
+                
                 if hasattr(self.config_manager.config, 'chunking') and hasattr(self.config_manager.config.chunking, 'chunk_duration_seconds'):
                     chunk_duration = self.config_manager.config.chunking.chunk_duration_seconds
                     logger.info(f"🎯 Using chunk duration from ConfigManager chunking: {chunk_duration} seconds")

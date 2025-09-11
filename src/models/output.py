@@ -26,6 +26,7 @@ class OutputConfig(BaseModel):
     auto_organize: bool = Field(default=True, description="Auto-organize output files")
     include_metadata: bool = Field(default=True, description="Include metadata in output")
     include_timestamps: bool = Field(default=True, description="Include timestamps in output")
+    use_processed_text_only: bool = Field(default=False, description="Use only processed text in output")
     
     model_config = ConfigDict(
         validate_assignment=True,

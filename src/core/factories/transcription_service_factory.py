@@ -30,7 +30,8 @@ class TranscriptionServiceFactory:
 
         # Create engine selection strategy
         engine_selection_strategy = EngineSelectionStrategyFactory.create_strategy_from_config(
-            config.dict() if hasattr(config, 'dict') else {}
+            config.dict() if hasattr(config, 'dict') else {},
+            config_manager
         )
 
         # Check if enhanced features are enabled

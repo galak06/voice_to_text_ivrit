@@ -23,6 +23,7 @@ from src.models import (
     InputConfig,
     AppConfig
 )
+from src.models.transcription import TranscriptionModel
 
 
 class TestPydanticModels(unittest.TestCase):
@@ -39,9 +40,9 @@ class TestPydanticModels(unittest.TestCase):
         config = TranscriptionConfig()
         
         # The default model is now ivrit-ai/whisper-large-v3 based on the enum
-        self.assertIsNotNone(config.default_model)
-        self.assertEqual(config.fallback_model, "tiny")
-        self.assertEqual(config.default_engine, "speaker-diarization")
+        self.assertIsNotNone(config.default_model) 
+        self.assertEqual(config.fallback_model.value, "ivrit-ai/whisper-large-v3-ct2")
+        self.assertEqual(config.default_engine.value, "ctranslate2-whisper")
         self.assertEqual(config.beam_size, 5)
         self.assertEqual(config.language, "he")
         self.assertTrue(config.word_timestamps)
@@ -79,27 +80,27 @@ class TestPydanticModels(unittest.TestCase):
         """Test AppConfig with custom values"""
         config = AppConfig(
             environment=Environment.PRODUCTION,
-            transcription=TranscriptionConfig(default_model="large"),
+            transcription=TranscriptionConfig(default_model=TranscriptionModel.IVRIT_LARGE_V3),
             speaker=SpeakerConfig(min_speakers=2, max_speakers=6)
         )
         
         self.assertEqual(config.environment, Environment.PRODUCTION)
-        self.assertEqual(config.transcription.default_model, "large")
+        self.assertEqual(config.transcription.default_model, TranscriptionModel.IVRIT_LARGE_V3)
         self.assertEqual(config.speaker.min_speakers, 2)
         self.assertEqual(config.speaker.max_speakers, 6)
     
     def test_model_serialization(self):
         """Test model serialization to dict and JSON"""
-        config = TranscriptionConfig(default_model="large", beam_size=7)
+        config = TranscriptionConfig(default_model=TranscriptionModel.IVRIT_LARGE_V3, beam_size=7)
         
         # Test to dict
         config_dict = config.model_dump()
-        self.assertEqual(config_dict["default_model"], "large")
+        self.assertEqual(config_dict["default_model"], "ivrit-ai/whisper-large-v3-ct2")
         self.assertEqual(config_dict["beam_size"], 7)
         
         # Test to JSON
         config_json = config.model_dump_json()
-        self.assertIn("large", config_json)
+        self.assertIn("ivrit-ai/whisper-large-v3-ct2", config_json)
         self.assertIn("7", config_json)
 
 

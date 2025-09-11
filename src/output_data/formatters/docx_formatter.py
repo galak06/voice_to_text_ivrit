@@ -333,24 +333,26 @@ class DocxFormatter:
                 if not text:
                     continue
                 
-                # Split into sentences and add with proper spacing
+                # Split into sentences and group into logical paragraphs
                 sentences = DocxFormatter._split_into_sentences(text)
+                paragraphs = DocxFormatter._group_sentences_into_paragraphs(sentences)
                 
-                for j, sentence in enumerate(sentences):
-                    sentence = sentence.strip()
-                    if not sentence:
+                for paragraph_sentences in paragraphs:
+                    if not paragraph_sentences:
                         continue
                     
-                    # Add sentence as paragraph
-                    para = doc.add_paragraph(sentence)
+                    # Combine sentences in this paragraph
+                    paragraph_text = ' '.join(paragraph_sentences)
+                    
+                    # Add paragraph to document
+                    para = doc.add_paragraph(paragraph_text)
                     para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
                     DocxFormatter._set_paragraph_rtl(para)
                     
-                    sentence_count += 1
+                    sentence_count += len(paragraph_sentences)
                     
-                    # Add double line break every 3-5 sentences
-                    if sentence_count % 4 == 0:
-                        doc.add_paragraph()  # Empty paragraph for spacing
+                    # Add spacing between paragraphs
+                    doc.add_paragraph()  # Empty paragraph for spacing
                 
                 # Add spacing between segments
                 if i < len(segments) - 1:
@@ -401,23 +403,26 @@ class DocxFormatter:
                 
                 # This is regular text content
                 else:
-                    # Split into sentences for better formatting
+                    # Split into sentences and group into logical paragraphs
                     sentences = DocxFormatter._split_into_sentences(line)
+                    paragraphs = DocxFormatter._group_sentences_into_paragraphs(sentences)
                     
-                    for sentence in sentences:
-                        sentence = sentence.strip()
-                        if not sentence:
+                    for paragraph_sentences in paragraphs:
+                        if not paragraph_sentences:
                             continue
                         
-                        text_para = doc.add_paragraph(sentence)
+                        # Combine sentences in this paragraph
+                        paragraph_text = ' '.join(paragraph_sentences)
+                        
+                        # Add paragraph to document
+                        text_para = doc.add_paragraph(paragraph_text)
                         text_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
                         DocxFormatter._set_paragraph_rtl(text_para)
                         
-                        sentence_count += 1
+                        sentence_count += len(paragraph_sentences)
                         
-                        # Add double line break every 4 sentences
-                        if sentence_count % 4 == 0:
-                            doc.add_paragraph()
+                        # Add spacing between paragraphs
+                        doc.add_paragraph()
             
             logger.info(f"✅ Added {len(lines)} lines with {sentence_count} sentences to document")
             
@@ -427,22 +432,178 @@ class DocxFormatter:
     
     @staticmethod
     def _split_into_sentences(text: str) -> List[str]:
-        """Split text into sentences for better formatting"""
+        """Split text into sentences for better formatting with improved Hebrew support"""
         if not text:
             return []
         
-        # Hebrew sentence endings
-        sentence_endings = r'[.!?]+\s+'
-        sentences = re.split(sentence_endings, text)
+        # Normalize whitespace and clean text
+        text = re.sub(r'\s+', ' ', text.strip())
         
-        # Clean up and filter empty sentences
-        cleaned_sentences = []
+        # Enhanced Hebrew sentence splitting with better punctuation handling
+        # Look for sentence boundaries while keeping punctuation with the sentence
+        sentence_boundaries = [
+            # Standard sentence endings
+            r'[.!?]+\s+',
+            # Hebrew punctuation marks
+            r'[׳״]+\s+',
+            # Ellipsis as sentence boundary
+            r'\.{3,}\s+',
+            # Colon followed by Hebrew text (new topic)
+            r':\s+(?=[א-ת])',
+            # Semicolon as sentence boundary
+            r';\s+',
+        ]
+        
+        # Create pattern that captures the boundary but keeps punctuation with the sentence
+        boundary_pattern = '(' + '|'.join(sentence_boundaries) + ')'
+        
+        # Split while preserving boundaries
+        parts = re.split(boundary_pattern, text)
+        
+        # Reconstruct sentences properly
+        sentences = []
+        current_sentence = ""
+        
+        for part in parts:
+            if not part or part.isspace():
+                continue
+            
+            # If this part is a boundary pattern, add it to current sentence and finalize
+            if re.match(boundary_pattern, part):
+                current_sentence += part.rstrip()  # Remove trailing space from boundary
+                if current_sentence.strip():
+                    sentences.append(current_sentence.strip())
+                current_sentence = ""
+            else:
+                # Regular text part
+                current_sentence += part
+        
+        # Add any remaining text as final sentence
+        if current_sentence.strip():
+            sentences.append(current_sentence.strip())
+        
+        # Post-process: clean up and merge fragments
+        processed_sentences = []
         for sentence in sentences:
             sentence = sentence.strip()
-            if sentence:
-                cleaned_sentences.append(sentence)
+            if not sentence:
+                continue
+            
+            # Remove standalone punctuation sentences
+            if re.match(r'^[.!?׳״;:]+$', sentence):
+                continue
+            
+            # Merge very short fragments with previous sentence if appropriate
+            if (len(sentence.split()) < 2 and 
+                processed_sentences and 
+                not re.search(r'[.!?״׳]$', processed_sentences[-1]) and
+                len(processed_sentences[-1].split()) < 10):  # Don't merge to very long sentences
+                processed_sentences[-1] += " " + sentence
+            else:
+                processed_sentences.append(sentence)
         
-        return cleaned_sentences
+        return processed_sentences
+    
+    @staticmethod
+    def _group_sentences_into_paragraphs(sentences: List[str]) -> List[List[str]]:
+        """Group sentences into logical paragraphs based on content and flow"""
+        if not sentences:
+            return []
+        
+        # For very few sentences, group them more intelligently
+        if len(sentences) <= 2:
+            return [sentences]
+        elif len(sentences) <= 4:
+            # Split into 2 paragraphs for better readability
+            mid = len(sentences) // 2
+            return [sentences[:mid], sentences[mid:]]
+        
+        paragraphs = []
+        current_paragraph = []
+        
+        # Adaptive paragraph sizing based on total sentences
+        total_sentences = len(sentences)
+        if total_sentences <= 8:
+            min_sentences = 2
+            max_sentences = 3
+        elif total_sentences <= 15:
+            min_sentences = 2
+            max_sentences = 4
+        else:
+            min_sentences = 3
+            max_sentences = 5
+        
+        for i, sentence in enumerate(sentences):
+            current_paragraph.append(sentence)
+            
+            # Check if we should end the current paragraph
+            should_end_paragraph = False
+            
+            # Always end if we've reached max sentences
+            if len(current_paragraph) >= max_sentences:
+                should_end_paragraph = True
+            
+            # Look ahead: if next sentence starts with topic indicators, end current paragraph
+            elif (i < len(sentences) - 1 and 
+                  len(current_paragraph) >= min_sentences):
+                next_sentence = sentences[i + 1].strip()
+                # Topic indicators: question words, transition words, etc.
+                topic_indicators = [
+                    r'^(אז|כך|לכן|אבל|עכשיו|אחר כך|בנוסף|למעשה|בעיקר|כמו כן)\s',
+                    r'^(מה|איך|מתי|איפה|למה|מדוע)\s',
+                    r'^(ראשית|שנית|שלישית|לבסוף|לסיכום)\s',
+                    r'^(בעבר|כיום|בעתיד|לאחרונה)\s',
+                    r'^(תשובה|שאלה|נושא|נקודה)\s*:',  # Q&A patterns
+                ]
+                
+                if any(re.search(pattern, next_sentence, re.IGNORECASE) for pattern in topic_indicators):
+                    should_end_paragraph = True
+            
+            # End paragraph at logical breaking points (long pauses, speaker changes)
+            elif ('...' in sentence or '---' in sentence) and len(current_paragraph) >= min_sentences:
+                should_end_paragraph = True
+            
+            # Create balanced paragraph splits - don't let paragraphs get too uneven
+            remaining_sentences = len(sentences) - i - 1
+            if (remaining_sentences > 0 and 
+                  len(current_paragraph) >= min_sentences and
+                  remaining_sentences <= max_sentences):  # Remaining sentences can form a good paragraph
+                # Check if current sentence is a good ending point
+                if re.search(r'[.!?״׳]$', sentence.strip()):
+                    should_end_paragraph = True
+            
+            # Force paragraph break if this is the last sentence
+            if i == len(sentences) - 1:
+                should_end_paragraph = True
+            
+            if should_end_paragraph:
+                if current_paragraph:
+                    paragraphs.append(current_paragraph[:])  # Copy the list
+                current_paragraph = []
+        
+        # Handle any remaining sentences
+        if current_paragraph:
+            if paragraphs and len(current_paragraph) <= 2 and len(paragraphs[-1]) < max_sentences:
+                # Merge short remainder with last paragraph if it's not too long
+                paragraphs[-1].extend(current_paragraph)
+            else:
+                paragraphs.append(current_paragraph)
+        
+        # Post-process: ensure no empty paragraphs and optimize paragraph sizes
+        paragraphs = [p for p in paragraphs if p and any(s.strip() for s in p)]
+        
+        # Merge very short paragraphs with adjacent ones for better balance
+        optimized_paragraphs = []
+        for paragraph in paragraphs:
+            if (len(paragraph) == 1 and 
+                optimized_paragraphs and 
+                len(optimized_paragraphs[-1]) < max_sentences):
+                # Merge single sentence with previous paragraph
+                optimized_paragraphs[-1].extend(paragraph)
+            else:
+                optimized_paragraphs.append(paragraph)
+        
+        return optimized_paragraphs if optimized_paragraphs else paragraphs
     
     @staticmethod
     def _add_word_ready_text_content(doc: Document, text_content: str) -> None:

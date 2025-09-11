@@ -135,15 +135,29 @@ class TranscriptionApplication:
         return f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{int(time.time() * 1000) % 1000}"
     
     def _setup_logging(self):
-        """Setup application logging"""
+        """Setup application logging with file output to logs directory"""
         level = None
+        log_to_file = False
+        
         try:
             if getattr(self.config_manager.config, 'system', None) is not None:
                 level = getattr(self.config_manager.config.system, 'log_level', None)
+                log_to_file = getattr(self.config_manager.config.system, 'log_to_file', False)
         except Exception:
             level = None
+            log_to_file = False
+            
         if level is not None:
             logging.getLogger().setLevel(level)
+        
+        # Setup file logging using ConfigManager
+        if log_to_file:
+            try:
+                from src.logging import initialize_logging_with_config
+                initialize_logging_with_config(self.config_manager)
+                logger.info("📄 File logging configured with ConfigManager")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not setup file logging: {e}")
     
     def process_single_file(self, audio_file_path: str, **kwargs) -> Dict[str, Any]:
         """

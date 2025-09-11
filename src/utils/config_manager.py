@@ -570,6 +570,9 @@ class ConfigManager:
         
         # Load configuration using the pipeline
         self.config = self._load_configuration()
+        
+        # Ensure all required output directories exist
+        self.ensure_output_directories()
     
     def _load_configuration(self) -> AppConfig:
         """Load configuration using the clean pipeline approach"""
@@ -690,4 +693,32 @@ class ConfigManager:
                 'temp_chunks_dir': 'output/temp_chunks'
             }
     
+    def ensure_output_directories(self) -> None:
+        """Ensure all required output directories exist"""
+        dir_paths = self.get_directory_paths()
+        
+        # Core output directories that should always exist
+        required_dirs = [
+            'output_dir',
+            'transcriptions_dir', 
+            'chunk_results_dir',
+            'audio_chunks_dir',
+            'temp_chunks_dir',
+            'logs_dir',
+            'temp_dir'
+        ]
+        
+        logger.info("📁 Ensuring output directories exist...")
+        
+        for dir_key in required_dirs:
+            if dir_key in dir_paths:
+                dir_path = Path(dir_paths[dir_key])
+                try:
+                    dir_path.mkdir(parents=True, exist_ok=True)
+                    logger.debug(f"✅ Directory ensured: {dir_path}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not create directory {dir_path}: {e}")
+        
+        logger.info("✅ Output directories initialization complete")
+
 

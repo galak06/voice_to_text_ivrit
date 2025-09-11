@@ -56,11 +56,6 @@ class DependencyManager:
                 'description': 'CTranslate2 for optimized inference',
                 'required_for': ['Fast inference', 'Optimized models']
             },
-            'transformers': {
-                'import_name': 'transformers',
-                'description': 'Hugging Face Transformers',
-                'required_for': ['Model tokenization', 'Processor loading']
-            },
             'runpod': {
                 'import_name': 'runpod',
                 'description': 'RunPod API client',
