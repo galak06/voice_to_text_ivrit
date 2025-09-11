@@ -200,10 +200,20 @@ class ModelManager:
         processor_source = self._get_processor_source(model_name, is_ct2_model, model_path)
         logger.info(f"📡 Processor source: {processor_source}")
         
-        # Inject processor configuration before loading
-        self._inject_processor_config(model_path)
+        # Load WhisperProcessor for token decoding (required for both regular and CTranslate2 models)
+        try:
+            processor = WhisperProcessor.from_pretrained(processor_source)
+            logger.info(f"✅ WhisperProcessor loaded successfully from: {processor_source}")
+        except Exception as e:
+            logger.error(f"❌ Failed to load WhisperProcessor from {processor_source}: {e}")
+            # Try fallback to original model name
+            try:
+                processor = WhisperProcessor.from_pretrained(model_name)
+                logger.info(f"✅ WhisperProcessor loaded from fallback: {model_name}")
+            except Exception as fallback_error:
+                logger.error(f"❌ Failed to load WhisperProcessor fallback: {fallback_error}")
+                raise ValueError(f"Unable to load WhisperProcessor for {model_name}")
         
-        processor = WhisperProcessor.from_pretrained(processor_source, low_cpu_mem_usage=True)
         logger.info(f"✅ WhisperProcessor loaded in {time.time() - processor_start:.2f}s")
         
         total_time = time.time() - start_time

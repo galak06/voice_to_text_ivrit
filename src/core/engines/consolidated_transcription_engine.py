@@ -97,13 +97,14 @@ class ConsolidatedTranscriptionEngine(ITranscriptionEngine, TranscriptionEngine)
             logger.error(f"❌ Error initializing transcription strategies: {e}")
             raise
     
-    def transcribe(self, audio_file_path: str, model_name: str) -> TranscriptionResult:
+    def transcribe(self, audio_file_path: str, model_name: str, **kwargs) -> TranscriptionResult:
         """
         Main transcription entry point using existing services.
         
         Args:
             audio_file_path: Path to the audio file
             model_name: Name of the model to use
+            **kwargs: Additional parameters (e.g., chunk_duration)
             
         Returns:
             TranscriptionResult: The transcription result
@@ -200,13 +201,18 @@ class ConsolidatedTranscriptionEngine(ITranscriptionEngine, TranscriptionEngine)
             
             # Execute transcription
             raw_text = self._execute_transcription(audio_chunk, processor, model, language)
+            logger.info(f"🔍 CHUNK DEBUG: Raw text from _execute_transcription: '{raw_text}' (length: {len(raw_text) if raw_text else 0})")
             
             # Post-process using injected text processor
             if self.text_processor:
+                logger.info(f"🔍 CHUNK DEBUG: Applying text processor filter")
                 processed_text = self.text_processor.filter_language_only(raw_text, language)
+                logger.info(f"🔍 CHUNK DEBUG: Processed text after filter: '{processed_text}' (length: {len(processed_text) if processed_text else 0})")
             else:
+                logger.info(f"🔍 CHUNK DEBUG: No text processor, using raw text")
                 processed_text = raw_text
             
+            logger.info(f"🔍 CHUNK DEBUG: Final processed_text for TranscriptionResult: '{processed_text}'")
             logger.info(f"✅ Chunk {chunk_count} transcribed successfully")
             
             # Create and return TranscriptionResult object
@@ -235,6 +241,7 @@ class ConsolidatedTranscriptionEngine(ITranscriptionEngine, TranscriptionEngine)
                 speaker_count=1
             )
             
+            logger.info(f"🔍 CHUNK DEBUG: Created TranscriptionResult with text: '{result.text}' (success: {result.success})")
             return result
             
         except Exception as e:
@@ -259,16 +266,12 @@ class ConsolidatedTranscriptionEngine(ITranscriptionEngine, TranscriptionEngine)
             )
     
     def _execute_transcription(self, audio_chunk, processor, model, language: str) -> str:
-        """Execute transcription based on model type"""
+        """Execute transcription using CTranslate2 only"""
         logger.info(f"🔍 Model type detection: {type(model)}")
         logger.info(f"🔍 Model attributes: {[attr for attr in dir(model) if not attr.startswith('_')]}")
         
-        if self._is_ct2_model(model):
-            logger.info(f"🎯 Using CTranslate2 transcription for model: {type(model)}")
-            return self._transcribe_with_ct2(audio_chunk, processor, model, language)
-        else:
-            logger.info(f"🎯 Using Transformers transcription for model: {type(model)}")
-            return self._transcribe_with_transformers(audio_chunk, processor, model, language)
+        logger.info(f"🎯 Using CTranslate2 transcription for model: {type(model)}")
+        return self._transcribe_with_ct2(audio_chunk, processor, model, language)
     
     def _is_ct2_model(self, model) -> bool:
         """Check if model is CTranslate2 type"""
@@ -305,12 +308,40 @@ class ConsolidatedTranscriptionEngine(ITranscriptionEngine, TranscriptionEngine)
         # generate(features, prompts, *, suppress_tokens, beam_size, max_length, etc.)
         logger.info(f"🔍 Calling CTranslate2 generate with: features={type(features)}, prompts={hebrew_prompts}")
         
+        # Build generation parameters with correct CTranslate2 parameter names
+        generation_params = {
+            'beam_size': config['beam_size'],
+            'max_length': config['max_length'],
+            'sampling_temperature': config['temperature'] if config['temperature'] > 0 else 1.0
+        }
+        
+        # Add optional parameters if they exist in config
+        if 'no_speech_threshold' in config:
+            generation_params['no_speech_threshold'] = config['no_speech_threshold']
+        if 'log_prob_threshold' in config:
+            generation_params['log_prob_threshold'] = config['log_prob_threshold']
+        if 'compression_ratio_threshold' in config:
+            generation_params['compression_ratio_threshold'] = config['compression_ratio_threshold']
+        if 'condition_on_previous_text' in config:
+            generation_params['condition_on_previous_text'] = config['condition_on_previous_text']
+        
+        # Add suppress tokens to help avoid junk tokens like <|jw|>
+        suppress_tokens = []
+        if self.text_processor:
+            suppress_tokens.extend(self.text_processor.get_language_suppression_tokens(language))
+        
+        # Add specific problematic tokens to suppress
+        # Token 50356 is the <|jw|> token we saw in the debug output
+        suppress_tokens.extend([50356])  # Suppress <|jw|> token specifically
+        
+        generation_params['suppress_tokens'] = suppress_tokens
+        
+        logger.info(f"🔍 GENERATION DEBUG: Parameters: {generation_params}")
+        
         generation_result = model.generate(
             features,
             prompts=hebrew_prompts,
-            suppress_tokens=self.text_processor.get_language_suppression_tokens(language) if self.text_processor else [],
-            beam_size=config['beam_size'],
-            max_length=config['max_length']
+            **generation_params
         )
         
         # Log the complete generation result for debugging
@@ -332,40 +363,97 @@ class ConsolidatedTranscriptionEngine(ITranscriptionEngine, TranscriptionEngine)
                     logger.info(f"🔍 Item {i} __dict__: {item.__dict__}")
         
         logger.info(f"🔍 CTranslate2 generation result: {type(generation_result)}")
-        return self._decode_ct2_result(generation_result, processor)
+        
+        # Decode the result and log the outcome
+        try:
+            decoded_text = self._decode_ct2_result(generation_result, processor)
+            logger.info(f"🔍 ✅ TRANSCRIPTION RESULT: Successfully decoded text of length {len(decoded_text) if decoded_text else 0}")
+            logger.info(f"🔍 ✅ TRANSCRIPTION RESULT: Text preview: '{decoded_text[:100] if decoded_text else 'EMPTY'}...'")
+            return decoded_text
+        except Exception as decode_error:
+            logger.error(f"❌ TRANSCRIPTION RESULT: Failed to decode: {decode_error}")
+            raise
     
-    def _transcribe_with_transformers(self, audio_chunk, processor, model, language: str) -> str:
-        """Transcribe using transformers model"""
-        import torch
-        
-        features = self._prepare_transformers_features(processor, audio_chunk)
-        
-        config = self._get_transformers_config()
-        
-        with torch.no_grad():
-            predicted_ids = model.generate(
-                features,
-                forced_decoder_ids=processor.get_decoder_prompt_ids(language=language, task="transcribe"),
-                suppress_tokens=self.text_processor.get_language_suppression_tokens(language) if self.text_processor else [],
-                num_beams=config['beam_size'],
-                temperature=config['temperature'],
-                do_sample=config['do_sample'],
-                max_new_tokens=config['max_new_tokens']
-            )
-        
-        return processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
     
     def _prepare_ct2_features(self, processor, audio_chunk):
-        """Prepare audio features for CTranslate2"""
+        """Prepare audio features for CTranslate2 using proper WhisperProcessor"""
         import ctranslate2
-        features = processor(audio_chunk, sampling_rate=16000, return_tensors="np").input_features
-        features = features.astype("float32")
-        return ctranslate2.StorageView.from_array(features)
+        import numpy as np
+        import librosa
+        
+        try:
+            # Load audio with proper preprocessing
+            if isinstance(audio_chunk, str):
+                # If audio_chunk is a file path, load it
+                audio_data, sr = librosa.load(audio_chunk, sr=16000)
+            else:
+                # If audio_chunk is already audio data
+                audio_data = audio_chunk
+                sr = 16000
+            
+            logger.info(f"🔍 AUDIO DEBUG: Audio shape: {audio_data.shape}, sample rate: {sr}")
+            
+            # Use the WhisperProcessor's feature extractor for proper preprocessing
+            # This ensures compatibility with the CTranslate2 model
+            inputs = processor(audio_data, sampling_rate=sr, return_tensors="np")
+            features = inputs.input_features
+            
+            logger.info(f"🔍 AUDIO DEBUG: Processor output shape: {features.shape}")
+            logger.info(f"🔍 AUDIO DEBUG: Features dtype: {features.dtype}")
+            
+            # Ensure features are properly formatted for CTranslate2
+            # Features should be (batch_size, mel_bins, time_steps) = (1, 80, 3000)
+            if len(features.shape) == 3:
+                # Features are already in the right format (1, 80, 3000)
+                features = features.astype("float32")
+            else:
+                raise ValueError(f"Unexpected feature shape: {features.shape}")
+            
+            # Ensure array is contiguous in memory
+            features = np.ascontiguousarray(features)
+            
+            logger.info(f"🔍 AUDIO DEBUG: Final features shape: {features.shape}")
+            
+            return ctranslate2.StorageView.from_array(features)
+            
+        except Exception as e:
+            logger.error(f"❌ AUDIO DEBUG: Feature preparation failed: {e}")
+            # Fallback to the original method if processor fails
+            logger.info(f"🔍 AUDIO DEBUG: Falling back to manual feature extraction")
+            
+            # Load audio
+            if isinstance(audio_chunk, str):
+                audio_data, sr = librosa.load(audio_chunk, sr=16000)
+            else:
+                audio_data = audio_chunk
+                sr = 16000
+            
+            # Manual mel spectrogram (as fallback)
+            features = librosa.feature.melspectrogram(
+                y=audio_data,
+                sr=sr,
+                n_mels=80,
+                n_fft=400,
+                hop_length=160
+            )
+            
+            # Convert to log scale and transpose to match expected format
+            features = np.log(features + 1e-8).T
+            
+            # Pad or truncate to Whisper's expected length
+            target_length = 128
+            if features.shape[0] < target_length:
+                pad_width = target_length - features.shape[0]
+                features = np.pad(features, ((0, pad_width), (0, 0)), mode='constant')
+            else:
+                features = features[:target_length]
+            
+            # Add batch dimension and convert to float32
+            features = features[np.newaxis, :, :].astype("float32")
+            features = np.ascontiguousarray(features)
+            
+            return ctranslate2.StorageView.from_array(features)
     
-    def _prepare_transformers_features(self, processor, audio_chunk):
-        """Prepare audio features for transformers"""
-        features = processor(audio_chunk, sampling_rate=16000, return_tensors="pt").input_features
-        return features.float()
     
     def _get_ct2_prompts(self, processor, language: str):
         """Get prompts for CTranslate2 generation"""
@@ -428,14 +516,33 @@ class ConsolidatedTranscriptionEngine(ITranscriptionEngine, TranscriptionEngine)
                         logger.info(f"🔍 Using token IDs: {token_ids[:10]}...")
                         
                         if token_ids and isinstance(token_ids[0], int):
-                            # Decode using the processor - this should give us proper Hebrew text
-                            decoded = processor.batch_decode([token_ids], skip_special_tokens=True)
-                            if decoded and len(decoded) > 0:
-                                result = decoded[0]
-                                logger.info(f"🔍 ✅ Successfully decoded Hebrew text: {result}")
+                            logger.info(f"🔍 DECODING DEBUG: Processing {len(token_ids)} token IDs")
+                            logger.info(f"🔍 DECODING DEBUG: First 20 tokens: {token_ids[:20]}")
+                            logger.info(f"🔍 DECODING DEBUG: Last 10 tokens: {token_ids[-10:]}")
+                            logger.info(f"🔍 DECODING DEBUG: Processor type: {type(processor)}")
+                            logger.info(f"🔍 DECODING DEBUG: Processor has tokenizer: {hasattr(processor, 'tokenizer')}")
+                            
+                            # Use the processor's tokenizer for proper decoding
+                            try:
+                                logger.info(f"🔍 DECODING DEBUG: Attempting processor.decode()")
+                                result = processor.decode(token_ids, skip_special_tokens=True)
+                                logger.info(f"🔍 DECODING DEBUG: Raw decode result type: {type(result)}")
+                                logger.info(f"🔍 DECODING DEBUG: Raw decode result length: {len(result) if result else 0}")
+                                logger.info(f"🔍 DECODING DEBUG: Raw decode result: '{result}'")
+                                
+                                if result and result.strip():
+                                    logger.info(f"🔍 ✅ Successfully decoded Hebrew text: '{result.strip()}'")
+                                    return result.strip()
+                                else:
+                                    logger.warning(f"⚠️ Processor decode returned empty result, trying fallback")
+                                    result = self._decode_tokens(token_ids, processor)
+                                    logger.info(f"🔍 ✅ Successfully decoded Hebrew text with fallback: '{result}'")
+                                    return result
+                            except Exception as decode_error:
+                                logger.error(f"❌ Processor decode failed: {decode_error}, trying fallback")
+                                result = self._decode_tokens(token_ids, processor)
+                                logger.info(f"🔍 ✅ Successfully decoded Hebrew text with fallback: '{result}'")
                                 return result
-                            else:
-                                raise ValueError("Empty decode result from processor.batch_decode")
                         else:
                             raise ValueError(f"Invalid token IDs format: {type(token_ids[0]) if token_ids else 'empty'}")
                     else:
@@ -447,6 +554,40 @@ class ConsolidatedTranscriptionEngine(ITranscriptionEngine, TranscriptionEngine)
                 
         except Exception as e:
             logger.error(f"❌ Error decoding CTranslate2 result: {e}")
+            raise
+    
+    def _decode_tokens(self, token_ids: list, processor=None) -> str:
+        """Token decoding using processor's tokenizer when available"""
+        logger.info(f"🔍 FALLBACK DECODE: Called with {len(token_ids)} tokens")
+        logger.info(f"🔍 FALLBACK DECODE: Processor type: {type(processor)}")
+        
+        try:
+            # Require processor with tokenizer for decoding
+            if not processor or not hasattr(processor, 'tokenizer'):
+                logger.error(f"❌ FALLBACK DECODE: Missing processor or tokenizer")
+                raise ValueError("Processor with tokenizer is required for token decoding")
+            
+            logger.info(f"🔍 FALLBACK DECODE: Tokenizer type: {type(processor.tokenizer)}")
+            
+            try:
+                logger.info(f"🔍 FALLBACK DECODE: Attempting tokenizer.decode()")
+                result = processor.tokenizer.decode(token_ids, skip_special_tokens=True)
+                logger.info(f"🔍 FALLBACK DECODE: Result type: {type(result)}")
+                logger.info(f"🔍 FALLBACK DECODE: Result length: {len(result) if result else 0}")
+                logger.info(f"🔍 FALLBACK DECODE: Result: '{result}'")
+                
+                if result and result.strip():
+                    logger.info(f"🔍 ✅ FALLBACK DECODE: Success: '{result.strip()}'")
+                    return result.strip()
+                else:
+                    logger.error(f"❌ FALLBACK DECODE: Empty result")
+                    raise ValueError("Decoded result is empty")
+            except Exception as tokenizer_error:
+                logger.error(f"❌ FALLBACK DECODE: Tokenizer failed: {tokenizer_error}")
+                raise
+                
+        except Exception as e:
+            logger.error(f"❌ FALLBACK DECODE: Error in token decoding: {e}")
             raise
     
     def _get_language_config(self) -> str:
@@ -464,25 +605,50 @@ class ConsolidatedTranscriptionEngine(ITranscriptionEngine, TranscriptionEngine)
         # Get beam_size from transcription config or use default
         beam_size = getattr(self.config_manager.config.transcription, 'beam_size', 5)
         
-        return {
-            'beam_size': beam_size,
-            'max_length': 10000 + 1000,  # Default max_new_tokens + buffer
-            'temperature': 0.0,  # Default temperature
-            'cpu_threads': getattr(ct2_config, 'cpu_threads', 8),
-            'compute_type': getattr(ct2_config, 'compute_type', 'float32')
-        }
-    
-    def _get_transformers_config(self) -> Dict[str, Any]:
-        """Get transformers configuration from config manager"""
-        # Get beam_size from transcription config or use default
-        beam_size = getattr(self.config_manager.config.transcription, 'beam_size', 5)
+        # Get Hebrew-specific optimizations from config
+        hebrew_config = getattr(self.config_manager.config.transcription, 'hebrew_optimization', {})
         
-        return {
+        # Debug ct2_config to see what attributes it has
+        logger.info(f"🔍 CT2 CONFIG ATTRS: {dir(ct2_config) if ct2_config else 'None'}")
+        if ct2_config:
+            logger.info(f"🔍 CT2 CONFIG max_new_tokens: {getattr(ct2_config, 'max_new_tokens', 'NOT_FOUND')}")
+        
+        # Get max_new_tokens from ct2_config, with better fallback logic
+        max_new_tokens = 448  # default fallback
+        if ct2_config and hasattr(ct2_config, 'max_new_tokens'):
+            max_new_tokens = ct2_config.max_new_tokens
+        elif ct2_config and hasattr(ct2_config, 'max_length'):
+            max_new_tokens = ct2_config.max_length
+        else:
+            # Try to get it from the config dict directly
+            if isinstance(ct2_config, dict) and 'max_new_tokens' in ct2_config:
+                max_new_tokens = ct2_config['max_new_tokens']
+            elif isinstance(ct2_config, dict) and 'max_length' in ct2_config:
+                max_new_tokens = ct2_config['max_length']
+        
+        logger.info(f"🔍 RESOLVED max_new_tokens: {max_new_tokens}")
+        
+        config = {
             'beam_size': beam_size,
-            'temperature': 0.0,  # Default temperature
-            'do_sample': False,  # Default do_sample
-            'max_new_tokens': 10000  # Default max_new_tokens
+            'max_length': max_new_tokens,
+            'temperature': getattr(ct2_config, 'temperature', 0.0) if ct2_config else 0.0,
+            'cpu_threads': getattr(ct2_config, 'cpu_threads', 8) if ct2_config else 8,
+            'compute_type': getattr(ct2_config, 'compute_type', 'float32') if ct2_config else 'float32'
         }
+        
+        # Add additional CTranslate2-specific parameters for better Hebrew transcription
+        if hasattr(ct2_config, 'no_speech_threshold'):
+            config['no_speech_threshold'] = ct2_config.no_speech_threshold
+        if hasattr(ct2_config, 'log_prob_threshold'):
+            config['log_prob_threshold'] = ct2_config.log_prob_threshold
+        if hasattr(ct2_config, 'compression_ratio_threshold'):
+            config['compression_ratio_threshold'] = ct2_config.compression_ratio_threshold
+        if hasattr(ct2_config, 'condition_on_previous_text'):
+            config['condition_on_previous_text'] = ct2_config.condition_on_previous_text
+        
+        logger.info(f"🔍 CT2 CONFIG DEBUG: Using configuration: {config}")
+        return config
+    
     
     def _validate_audio_file(self, audio_file_path: str) -> bool:
         """Validate audio file exists and is accessible"""
@@ -512,7 +678,6 @@ class ConsolidatedTranscriptionEngine(ITranscriptionEngine, TranscriptionEngine)
         """Check if the engine is available"""
         try:
             import ctranslate2
-            import transformers
             return True
         except ImportError:
             return False

@@ -1,0 +1,178 @@
+{
+  "name": "ivrit_whisper_large_v3_ct2_optimized",
+  "description": "Optimized configuration for Hebrew transcription using ivrit-ai/whisper-large-v3-ct2 model with 2 speakers and best performance settings",
+  "transcription": {
+    "default_engine": "ctranslate2-whisper",
+    "default_model": "ivrit-ai/whisper-large-v3-ct2",
+    "fallback_model": "ivrit-ai/whisper-large-v3-ct2",
+    "language": "he",
+    "beam_size": 10,
+    "word_timestamps": true,
+    "vad_enabled": true,
+    "vad_min_silence_duration_ms": 500,
+    "available_models": [
+      "ivrit-ai/whisper-large-v3-ct2"
+    ],
+    "ctranslate2_optimization": {
+      "compute_type": "float32",
+      "cpu_threads": 8,
+      "beam_size": 10,
+      "temperature": 0.0,
+      "max_new_tokens": 10000,
+      "return_scores": false,
+      "return_no_speech_prob": false,
+      "compression_ratio_threshold": 2.4,
+      "log_prob_threshold": -1.0,
+      "no_speech_threshold": 0.6,
+      "condition_on_previous_text": true,
+      "prompt_reset_on_timestamp": true,
+      "initial_prompt": null,
+      "prefix": null,
+      "suppress_blank": true,
+      "suppress_tokens": [-1],
+      "without_timestamps": false,
+      "max_initial_timestamp": 1.0,
+      "word_timestamps": true,
+      "prepend_punctuations": "\\\"'¿([{-",
+      "append_punctuations": "\\\"'.。,，!！?？:："
+    },
+    "hebrew_optimization": {
+      "language": "he",
+      "task": "transcribe",
+      "num_beams": 10,
+      "temperature": 0.0,
+      "do_sample": false,
+      "length_penalty": 1.0,
+      "repetition_penalty": 1.5,
+      "no_speech_threshold": 0.6,
+      "logprob_threshold": -1.0,
+      "compression_ratio_threshold": 2.4,
+      "condition_on_previous_text": true,
+      "prompt_reset_on_timestamp": true,
+      "return_timestamps": true,
+      "return_segments": true,
+      "return_language": true,
+      "suppress_tokens": [
+        -1,
+        262, 290, 264, 286, 257, 279, 281, 294, 302, 291, 278, 259, 267, 269,
+        300, 301, 303, 304, 305, 306, 307, 308, 309, 310, 311, 312, 313, 314,
+        50259, 50260, 50261, 50262, 50263, 50264, 50265, 50266, 50267, 50268
+      ],
+      "suppress_blank": true,
+      "without_timestamps": false,
+      "max_initial_timestamp": 1.0,
+      "max_new_tokens": 10000,
+      "early_stopping": true,
+      "no_repeat_ngram_size": 3,
+      "hebrew_strict_mode": {
+        "force_hebrew_only": true,
+        "suppress_english_tokens": true,
+        "language_detection_threshold": 0.9,
+        "multilingual_suppression": true,
+        "english_word_filtering": true
+      }
+    }
+  },
+  "speaker_diarization": {
+    "enabled": false,
+    "min_speakers": 2,
+    "max_speakers": 2,
+    "strict_two_speakers": true,
+    "min_speaker_duration": 0.5,
+    "min_segment_duration": 2.0,
+    "speaker_similarity_threshold": 0.7,
+    "silence_threshold": 1.5,
+    "vad_enabled": true,
+    "word_timestamps": true,
+    "language": "he",
+    "beam_size": 10,
+    "vad_min_silence_duration_ms": 300,
+    "presets": {
+      "conversation": {
+        "min_speakers": 2,
+        "max_speakers": 2,
+        "silence_threshold": 1.0
+      },
+      "interview": {
+        "min_speakers": 2,
+        "max_speakers": 2,
+        "silence_threshold": 2.5
+      },
+      "monologue": {
+        "min_speakers": 2,
+        "max_speakers": 2,
+        "silence_threshold": 3.0
+      }
+    }
+  },
+  "output": {
+    "output_dir": "output/transcriptions/ivrit_whisper_large_v3_ct2",
+    "chunk_results_dir": "output/chunk_results",
+    "audio_chunks_dir": "output/audio_chunks"
+  },
+  "logging": {
+    "level": "INFO",
+    "include_timestamps": true,
+    "log_to_file": true,
+    "log_directory": "output/logs/ivrit_whisper_large_v3_ct2"
+  },
+  "processing": {
+    "batch_size": 1,
+    "max_audio_duration": 3600,
+    "supported_formats": [".wav", ".mp3", ".m4a", ".flac", ".ogg"],
+    "chunk_duration": 30,
+    "chunk_duration_seconds": 30,
+    "memory_optimization": true,
+    "model_caching": true,
+    "retry_mechanism": true,
+    "max_retries": 3,
+    "parallel_processing": false,
+    "overlapping_chunks": true,
+    "chunk_length": 30,
+    "stride_length": 5,
+    "min_chunk_duration": 5
+  },
+  "performance": {
+    "cpu_threads": 8,
+    "memory_limit": "8GB",
+    "cache_models": true,
+    "optimize_memory": true,
+    "fast_math": true,
+    "quantization": "float32",
+    "memory_management": {
+      "cleanup_frequency": 5,
+      "gpu_cache_clearing": true,
+      "cpu_memory_optimization": true,
+      "model_unloading": true
+    },
+    "optimization": {
+      "use_hebrew_prompt": true,
+      "hebrew_context_window": 30,
+      "hebrew_sentence_boundaries": true
+    }
+  },
+  "input": {
+    "directory": "examples/audio",
+    "supported_formats": [".wav", ".mp3", ".m4a", ".flac", ".ogg"],
+    "recursive_search": true
+  },
+  "chunking": {
+    "enabled": true,
+    "overlapping_chunks": true,
+    "chunk_length": 30,
+    "stride_length": 5,
+    "chunk_duration_seconds": 30,
+    "chunk_duration": 30,
+    "chunk_overlap_seconds": 5,
+    "chunk_strategy": "overlapping",
+    "min_chunk_duration": 5,
+    "max_chunk_duration": 30,
+    "adaptive_chunking": false,
+    "silence_based_chunking": false,
+    "silence_threshold_db": -25,
+    "vad_min_silence_duration_ms": 500,
+    "save_audio_chunks": true,
+    "save_chunk_metadata": true,
+    "default_enhancement_strategy": "basic"
+  }
+}
