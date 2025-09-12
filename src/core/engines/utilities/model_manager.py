@@ -187,7 +187,21 @@ class ModelManager:
             if os.path.exists(model_path) and os.path.exists(os.path.join(model_path, "model.bin")):
                 logger.info(f"📁 Loading CTranslate2 model from local path: {model_path}")
                 logger.info(f"📊 Model file size: {os.path.getsize(os.path.join(model_path, 'model.bin')) / (1024**3):.2f} GB")
-                model = Whisper(model_path)
+                
+                # Get device and compute_type from configuration
+                device = "cpu"  # default
+                compute_type = "float32"  # default
+                
+                try:
+                    if hasattr(self._config_manager.config.transcription, 'ctranslate2_optimization'):
+                        ct2_config = self._config_manager.config.transcription.ctranslate2_optimization
+                        device = getattr(ct2_config, 'device', 'cpu')
+                        compute_type = getattr(ct2_config, 'compute_type', 'float32')
+                        logger.info(f"🔧 Using device: {device}, compute_type: {compute_type}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not read device config, using defaults: {e}")
+                
+                model = Whisper(model_path, device=device, compute_type=compute_type)
                 logger.info(f"✅ CTranslate2 model loaded successfully from local path in {time.time() - start_time:.2f}s")
             else:
                 raise FileNotFoundError(f"Local CTranslate2 model not found at {model_path}. Model must be available locally.")

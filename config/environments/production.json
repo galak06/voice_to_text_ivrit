@@ -14,9 +14,10 @@
       "ivrit-ai/whisper-large-v3-ct2"
     ],
     "ctranslate2_optimization": {
-      "compute_type": "float32",
-      "cpu_threads": 8,
-      "beam_size": 10,
+      "compute_type": "int8",
+      "device": "auto",
+      "cpu_threads": 0,
+      "beam_size": 5,
       "temperature": 0.0,
       "max_new_tokens": 10000,
       "return_scores": false,
