@@ -4,6 +4,8 @@ Create DOCX from consolidated transcription JSON
 """
 import json
 import sys
+import os
+import glob
 from docx import Document
 from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -137,13 +139,37 @@ def create_docx_from_json(json_file_path, output_path=None):
         return None
 
 def main():
-    json_file = "output/transcriptions/transcription_20250912_212601.json"
-    
-    if not json_file:
-        print("❌ JSON file not found")
+    if len(sys.argv) > 1:
+        json_file = sys.argv[1]
+    else:
+        # Find the most recent JSON file in timestamped folders
+        pattern = "output/transcriptions/run_*/פגישה*_transcription.json"
+        json_files = glob.glob(pattern)
+        if not json_files:
+            pattern = "output/transcriptions/run_*/*_transcription.json"
+            json_files = glob.glob(pattern)
+        if not json_files:
+            pattern = "output/transcriptions/transcription_*.json"
+            json_files = glob.glob(pattern)
+
+        if not json_files:
+            print("❌ No JSON transcription files found")
+            return 1
+
+        # Get the most recent file
+        json_file = max(json_files, key=os.path.getctime)
+        print(f"📁 Using most recent JSON file: {json_file}")
+
+    if not os.path.exists(json_file):
+        print(f"❌ JSON file not found: {json_file}")
         return 1
-    
-    result = create_docx_from_json(json_file)
+
+    # Create DOCX in the same folder as the JSON file
+    json_dir = os.path.dirname(json_file)
+    json_basename = os.path.splitext(os.path.basename(json_file))[0]
+    docx_output = os.path.join(json_dir, f"{json_basename}.docx")
+
+    result = create_docx_from_json(json_file, docx_output)
     return 0 if result else 1
 
 if __name__ == "__main__":
